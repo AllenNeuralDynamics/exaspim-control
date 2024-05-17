@@ -1,0 +1,137 @@
+acquisition:
+  metadata:
+    subject_id: 123456
+    experimenter_name: adam glaser
+    immersion_medium: 0.05X SSC
+    immersion_medium_refractive_index: 1.33
+    x_anatomical_direction: Anterior_to_posterior
+    y_anatomical_direction: Inferior_to_superior
+    z_anatomical_direction: Left_to_right
+  operations:
+    vp-151mx:
+      bdv:
+        type: writer
+        driver: voxel.writers.bdv
+        module: Writer
+        init:
+          path: ./local_test
+        settings:
+          compression: none
+          data_type: uint16
+      rsync:
+        type: transfer
+        driver: voxel.transfers.rsync
+        module: FileTransfer
+        init:
+          external_directory: ./external_test
+          local_directory: ./local_test
+      max_projection:
+        type: process
+        driver: voxel.processes.cpu.max_projection
+        module: MaxProjection
+        init:
+          path: ./local_test
+        settings:
+          data_type: uint16
+          projection_count_px: 64
+      mean_projection:
+        type: process
+        driver: voxel.processes.cpu.mean_projection
+        module: MeanProjection
+        init:
+          path: ./local_test
+        settings:
+          data_type: uint16
+          projection_count_px: 64
+      background_collection:
+        type: routine
+        driver: voxel.routines.background_collection
+        module: BackgroundCollection
+        init:
+          path: ./local_test
+        settings:
+          data_type: uint16
+          frame_count_px: 10
+    vnp-604mx:
+        bdv:
+          type: writer
+          driver: voxel.writers.bdv
+          module: Writer
+          init:
+            path: ./local_test
+          settings:
+            compression: none
+            data_type: uint16
+        rsync:
+          type: transfer
+          driver: voxel.transfers.rsync
+          module: FileTransfer
+          init:
+            external_directory: ./external_test
+            local_directory: ./local_test
+        max_projection:
+          type: process
+          driver: voxel.processes.cpu.max_projection
+          module: MaxProjection
+          init:
+            path: ./local_test
+          settings:
+            data_type: uint16
+            projection_count_px: 64
+        mean_projection:
+          type: process
+          driver: voxel.processes.cpu.mean_projection
+          module: MeanProjection
+          init:
+            path: ./local_test
+          settings:
+            data_type: uint16
+            projection_count_px: 64
+        background_collection:
+          type: routine
+          driver: voxel.routines.background_collection
+          module: BackgroundCollection
+          init:
+            path: ./local_test
+          settings:
+            data_type: uint16
+            frame_count_px: 4
+  tiles:
+    - tile_number:
+        x: 0
+        y: 0
+        z: 0
+        w: 0
+      position_mm:
+        x: 0
+        y: 0
+        z: 0
+        w: 1
+      voxel_size_um:
+        x: 0.748
+        y: 0.748
+        z: 1.000
+      prefix: tile
+      frame_count_px: 128
+      binning: 1
+      channel: "488"
+      power_mw: 1000
+    - tile_number:
+        x: 1
+        y: 0
+        z: 0
+        w: 0
+      position_mm:
+        x: 1
+        y: 1
+        z: 1
+        w: 1
+      voxel_size_um:
+        x: 0.748
+        y: 0.748
+        z: 1.000
+      prefix: tile
+      frame_count_px: 128
+      binning: 1
+      channel: "488"
+      power_mw: 1000
