@@ -2,8 +2,8 @@ from qtpy.QtWidgets import QApplication, QMessageBox, QPushButton, QFileDialog
 import sys
 from view.instrument_view import InstrumentView
 from view.acquisition_view import AcquisitionView
-from voxel.instruments.microscopes.exaspim import ExASPIM
-from voxel.acquisition.exaspim import ExASPIMAcquisition
+from exaspim_control.exa_spim_instrument import ExASPIM
+from exaspim_control.exa_spim_acquisition import ExASPIMAcquisition
 from pathlib import Path
 import os
 import yaml
@@ -12,8 +12,8 @@ import pyclesperanto as cle
 import inflection
 
 RESOURCES_DIR = (Path(os.path.dirname(os.path.realpath(__file__))))
-ACQUISITION_YAML = RESOURCES_DIR / 'test_acquisition.yaml'
-INSTRUMENT_YAML = RESOURCES_DIR / 'simulated_instrument.yaml'
+ACQUISITION_YAML = RESOURCES_DIR / 'acquisition.yaml'
+INSTRUMENT_YAML = RESOURCES_DIR / 'instrument.yaml'
 GUI_YAML = RESOURCES_DIR / 'gui_config.yaml'
 
 

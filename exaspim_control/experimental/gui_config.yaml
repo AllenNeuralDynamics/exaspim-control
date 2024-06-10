@@ -5,58 +5,46 @@ device_widgets:
       module: CameraWidget
       init:
         advanced_user: True
-    488nm:
+    488 nm:
       type: laser
       driver: view.widgets.device_widgets.laser_widget
       module: LaserWidget
       init:
         color: blue
         advanced_user: False
-    561nm:
+    561 nm:
       type: laser
       driver: view.widgets.device_widgets.laser_widget
       module: LaserWidget
       init:
         color: green
         advanced_user: False
-    639nm:
+    639 nm:
       type: laser
       driver: view.widgets.device_widgets.laser_widget
       module: LaserWidget
       init:
         color: red
         advanced_user: False
-    ASI FW-1000:
-      type: filter_wheel
-      driver: view.widgets.device_widgets.filter_wheel_widget
-      module: FilterWheelWidget
-      init:
-        advanced_user: False
-    ASI MS8000 x axis:
+    z stage axis:
       type:   scanning_stage
       driver: view.widgets.device_widgets.stage_widget
       module: StageWidget
       init:
         advanced_user: False
-    ASI MS8000 y axis:
+    x stage axis:
       type: tiling_stage
       driver: view.widgets.device_widgets.stage_widget
       module: StageWidget
       init:
         advanced_user: False
-    ASI LS100 z axis:
+    y stage axis:
       type:   tiling_stage
       driver: view.widgets.device_widgets.stage_widget
       module: StageWidget
       init:
         advanced_user: False
-    ASI joystick:
-      type: joystick
-      driver: view.widgets.device_widgets.joystick_widget
-      module: JoystickWidget
-      init:
-        advanced_user: False
-    PCIe-6738:
+    pcie-6738:
       type: daq
       driver: view.widgets.device_widgets.ni_widget
       module: NIWidget
@@ -80,17 +68,14 @@ operation_widgets:
       unit: 'mm'
       channels:
         CH488:
-          filters: [ BP488 ]
-          lasers: [ 488nm ]
-          cameras: [ vp-151mx ]
+          lasers: [488 nm]
+          cameras: [vp-151mx]
         CH561:
-          filters: [ BP561 ]
-          lasers: [ 561nm ]
-          cameras: [ vp-151mx ]
+          lasers: [561nm]
+          cameras: [vp-151mx]
         CH639:
-          filters: [ LP638 ]
-          lasers: [ 639nm ]
-          cameras: [ vp-151mx ]
+          lasers: [639nm]
+          cameras: [vp-151mx]
       settings:
         cameras: [binning]
         lasers: [power_setpoint_mw]

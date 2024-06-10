@@ -3,13 +3,13 @@ instrument:
   master_device: pcie-6738
   channels:
     CH488:
-      lasers: [488nm]
+      lasers: [488 nm]
       cameras: [vp-151mx]
     CH561:
-      lasers: [561nm]
+      lasers: [561 nm]
       cameras: [vp-151mx]
     CH639:
-      lasers: [639nm]
+      lasers: [639 nm]
       cameras: [vp-151mx]
   devices:
     vp-151mx:
@@ -33,21 +33,21 @@ instrument:
         pixel_type: mono16
         bit_packing_mode: msb
         binning: '1'
-    488nm:
+    488 nm:
       type: laser
       driver: voxel.devices.lasers.simulated
       module: SimulatedLaser
       color: blue
       init:
         port: COM1
-    561nm:
+    561 nm:
       type: laser
       driver: voxel.devices.lasers.simulated
       module: SimulatedLaser
       color: green
       init:
         port: COM1
-    639nm:
+    639 nm:
       type: laser
       driver: voxel.devices.lasers.simulated
       module: SimulatedLaser
@@ -202,7 +202,7 @@ instrument:
                       CH488: 0.0
                       CH561: 0.0
                       CH639: 0.0
-              488nm:
+              488 nm:
                 port: ao5
                 waveform: square wave
                 device_max_volts: 5.0
@@ -228,7 +228,7 @@ instrument:
                       CH488: 0.0
                       CH561: 0.0
                       CH639: 0.0
-              561nm:
+              561 nm:
                 port: ao4
                 waveform: square wave
                 device_max_volts: 5.0
@@ -254,7 +254,7 @@ instrument:
                       CH488: 0.0
                       CH561: 0.0
                       CH639: 0.0
-              639nm:
+              639 nm:
                 port: ao6
                 waveform: square wave
                 device_max_volts: 5.0
