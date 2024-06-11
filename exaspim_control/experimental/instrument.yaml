@@ -17,7 +17,7 @@ instrument:
       driver: voxel.devices.camera.vieworks_egrabber
       module: Camera
       init:
-        id: MP151BBX006
+        id: MP151BBX050
       settings:
         exposure_time_ms: 10.0
         pixel_type: mono16
@@ -30,9 +30,8 @@ instrument:
           mode: 'on'
           polarity: rising
           source: external
-        pixel_type: mono16
         bit_packing_mode: msb
-        binning: '1'
+        binning: 1
     488 nm:
       type: laser
       driver: voxel.devices.lasers.simulated
@@ -221,8 +220,8 @@ instrument:
                   max_volts:
                     channels:
                       CH488: 5.0
-                      CH561: 5.0
-                      CH639: 5.0
+                      CH561: 0.0
+                      CH639: 0.0
                   min_volts:
                     channels:
                       CH488: 0.0
@@ -246,9 +245,9 @@ instrument:
                       CH639: 603.0
                   max_volts:
                     channels:
-                      CH488: 5.0
+                      CH488: 0.0
                       CH561: 5.0
-                      CH639: 5.0
+                      CH639: 0.0
                   min_volts:
                     channels:
                       CH488: 0.0
@@ -272,8 +271,8 @@ instrument:
                       CH639: 603.0
                   max_volts:
                     channels:
-                      CH488: 5.0
-                      CH561: 5.0
+                      CH488: 0.0
+                      CH561: 0.0
                       CH639: 5.0
                   min_volts:
                     channels:

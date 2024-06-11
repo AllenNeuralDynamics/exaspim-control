@@ -60,6 +60,12 @@ device_widgets:
                     CH488: 1.0
                     CH561: 1.0
                     CH639: 1.0
+            tasks.ao_task.ports.488 nm.parameters.max_volts.channels:
+              CH488: 5.0
+            tasks.ao_task.ports.561 nm.parameters.max_volts.channels:
+              CH561: 5.0
+            tasks.ao_task.ports.639 nm.parameters.max_volts.channels:
+              CH639: 5.0
 operation_widgets:
   volume_widget:
     init:
@@ -71,12 +77,16 @@ operation_widgets:
           lasers: [488 nm]
           cameras: [vp-151mx]
         CH561:
-          lasers: [561nm]
+          lasers: [561 nm]
           cameras: [vp-151mx]
         CH639:
-          lasers: [639nm]
+          lasers: [639 nm]
           cameras: [vp-151mx]
       settings:
         cameras: [binning]
         lasers: [power_setpoint_mw]
-        filter_wheels: [filter]
+
+# I think livestream tasks will be different if no pulse_count is specifies in acquisition tasks?
+#livestream_tasks:
+#  pcie-6738:
+#    tasks:

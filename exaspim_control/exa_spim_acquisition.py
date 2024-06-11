@@ -9,7 +9,7 @@ from voxel.instruments.instrument import Instrument
 from voxel.writers.data_structures.shared_double_buffer import SharedDoubleBuffer
 from voxel.acquisition.acquisition import Acquisition
 import inflection
-
+from nidaqmx.constants import AcquisitionType as AcqType
 
 class ExASPIMAcquisition(Acquisition):
 
@@ -30,6 +30,20 @@ class ExASPIMAcquisition(Acquisition):
         self.acquisition_threads = dict()
         self.transfer_threads = dict()
         self.stop_engine = Event()  # Event to flag a stop in engine
+
+    def _verify_acquisition(self):
+        """Check that chunk sizes are the same for all writers"""
+        super()._verify_acquisition()
+
+        chunksize = None
+        for device in self.writers.values():
+            for writer in device.values():
+                if chunksize is None:
+                    chunksize = writer.chunk_count_px
+                else:
+                    if writer.chunk_count_px != chunksize:
+                        raise ValueError (f'Chunksizes of writers must all be {chunksize}')
+        self.chunksize = chunksize  # define chunksize to be used later in acquisiiton
 
     def run(self):
 
@@ -92,19 +106,18 @@ class ExASPIMAcquisition(Acquisition):
                         setattr(device, setting, value)
                         self.log.info(f'setting {setting} for {device_type} {device_name} to {value}')
 
-            # fixme: is this right?
-            # for daq_name, daq in self.instrument.daqs.items():
-            #     if daq.tasks.get('ao_task', None) is not None:
-            #         daq.add_task('ao')
-            #         daq.generate_waveforms('ao', tile_channel)
-            #         daq.write_ao_waveforms()
-            #     if daq.tasks.get('do_task', None) is not None:
-            #         daq.add_task('do')
-            #         daq.generate_waveforms('do', tile_channel)
-            #         daq.write_do_waveforms()
-            #     if daq.tasks.get('co_task', None) is not None:
-            #         pulse_count = daq.tasks['co_task']['timing'].get('pulse_count', None)
-            #         daq.add_task('co', pulse_count)
+            for daq_name, daq in self.instrument.daqs.items():
+                if daq.tasks.get('ao_task', None) is not None:
+                    daq.add_task('ao')
+                    daq.generate_waveforms('ao', tile_channel)
+                    daq.write_ao_waveforms()
+                if daq.tasks.get('do_task', None) is not None:
+                    daq.add_task('do')
+                    daq.generate_waveforms('do', tile_channel)
+                    daq.write_do_waveforms()
+                if daq.tasks.get('co_task', None) is not None:
+                    pulse_count = self.chunksize
+                    daq.add_task('co', pulse_count)
 
             # run any pre-routines for all devices
             for device_name, routine_dictionary in getattr(self, 'routines', {}).items():
@@ -134,12 +147,6 @@ class ExASPIMAcquisition(Acquisition):
             for camera_id in self.acquisition_threads:
                 self.log.info(f'starting camera and writer for {camera_id}')
                 self.acquisition_threads[camera_id].start()
-
-            #################### IMPORTANT ####################
-            # for the exaspim, the NIDAQ is the master, so we start this last
-            for daq_id, daq in self.instrument.daqs.items():
-                self.log.info(f'starting daq {daq_id}')
-                daq.start()
 
             # wait for the cameras/writers to finish
             for camera_id in self.acquisition_threads:
@@ -196,7 +203,7 @@ class ExASPIMAcquisition(Acquisition):
             writer.filename = filename
             writer.channel = tile['channel']
 
-            chunk_sizes[writer_name] = writer.chunk_count_px
+            # chunk_sizes[writer_name] = writer.chunk_count_px
             chunk_locks[writer_name] = Lock()
             img_buffers[writer_name] = SharedDoubleBuffer(
                 (writer.chunk_count_px, camera.roi['height_px'], camera.roi['width_px']),
@@ -230,22 +237,30 @@ class ExASPIMAcquisition(Acquisition):
         frame_index = 0
         last_frame_index = tile['frame_count_px'] - 1
 
-        # TODO: these variables aren't being used for anything?
-        # chunk_count = math.ceil(tile['frame_count_px'] / chunk_size)
-        # remainder = tile['frame_count_px'] % chunk_size
-        # last_chunk_size = chunk_size if not remainder else remainder
+        chunk_count = math.ceil(tile['frame_count_px'] / self.chunk_size)
+        remainder = tile['frame_count_px'] % self.chunk_size
+        last_chunk_size = chunk_size if not remainder else remainder
 
         # Images arrive serialized in repeating channel order.
         for stack_index in range(tile['frame_count_px']):
             if self.stop_engine.is_set():
                 break
-            chunk_indexes = {writer_name: stack_index % chunk_size for writer_name, chunk_size in chunk_sizes.items()}
-            # Start a batch of pulses to generate more frames and movements.    # TODO: Is this a TODO?
-
-            # TODO: these variables aren't being used for anything?
-            # if chunk_index == 0:
-            #     chunks_filled = math.floor(stack_index / chunk_size)
-            #     remaining_chunks = chunk_count - chunks_filled
+            chunk_indexes = stack_index % self.chunk_size
+            # Start a batch of pulses to generate more frames and movements.
+            if chunk_index == 0:
+                chunks_filled = math.floor(stack_index / self.chunk_size)
+                remaining_chunks = chunk_count - chunks_filled
+                num_pulses = last_chunk_size if remaining_chunks == 1 else chunk_size
+                for daq_name, daq in self.instrument.daqs.items():
+                    daq.co_task.timing.cfg_implicit_timing(sample_mode= AcqType.FINITE,
+                                                            samps_per_chan= num_pulses)
+                    #################### IMPORTANT ####################
+                    # for the exaspim, the NIDAQ is the master, so we start this last
+                    for daq_id, daq in self.instrument.daqs.items():
+                        self.log.info(f'starting daq {daq_id}')
+                        for task in [self.ao_task, self.do_task, self.co_task]:
+                            if task is not None:
+                                task.start()
 
             # Grab camera frame
             current_frame = camera.grab_frame()
@@ -257,10 +272,10 @@ class ExASPIMAcquisition(Acquisition):
 
             # Dispatch either a full chunk of frames or the last chunk,
             # which may not be a multiple of the chunk size.
-            for writer_name, writer in writers.items():
-                if chunk_indexes[writer_name] + 1 == chunk_sizes[writer_name] or stack_index == last_frame_index:
-                    while not writer.done_reading.is_set() and not self.stop_engine.is_set():
-                        time.sleep(0.001)
+            if chunk_indexes + 1 == self.chunk_sizes or stack_index == last_frame_index:
+                while not writer.done_reading.is_set() and not self.stop_engine.is_set():
+                    time.sleep(0.001)
+                for writer_name, writer in writers.items():
                     # Dispatch chunk to each StackWriter compression process.
                     # Toggle double buffer to continue writing images.
                     # To read the new data, the StackWriter needs the name of
