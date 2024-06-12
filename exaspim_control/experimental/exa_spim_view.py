@@ -27,24 +27,37 @@ class ExASPIMInstrumentView(InstrumentView):
 
         self.config_save_to = self.instrument.config_path
 
-    @thread_worker
-    def grab_frames(self, camera_name, frames=float("inf")):
-        """Grab frames from camera and create multiscale array
-        :param frames: how many frames to take
-        :param camera_name: name of camera"""
+    # @thread_worker
+    # def grab_frames(self, camera_name, frames=float("inf")):
+    #     """Grab frames from camera and create multiscale array
+    #     :param frames: how many frames to take
+    #     :param camera_name: name of camera"""
+    #
+    #     i = 0
+    #     while i < frames:  # while loop since frames can == inf
+    #         with self.camera_locks[camera_name]:
+    #             frame = self.instrument.cameras[camera_name].grab_frame()
+    #
+    #         # TODO: Do we want to import from exaspim what to use?
+    #         multiscale = [frame]
+    #         for binning in range(2,6): # TODO: variable or get from somewhere?
+    #             downsampled_frame = DownSample2D(binning=binning).run(frame)
+    #             multiscale.append(downsampled_frame)
+    #         yield multiscale, camera_name  # wait until unlocking camera to be able to quit napari thread
+    #         i += 1
 
-        i = 0
-        while i < frames:  # while loop since frames can == inf
-            with self.camera_locks[camera_name]:
-                frame = self.instrument.cameras[camera_name].grab_frame()
+    def update_layer(self, args):
+        """Multiscale image from exaspim
+        :param args: tuple containing image and camera name"""
 
-            # TODO: Do we want to import from exaspim what to use?
-            multiscale = [frame]
-            for binning in range(2,6): # TODO: variable or get from somewhere?
-                downsampled_frame = DownSample2D(binning=binning).run(frame)
+        (image, camera_name) = args
+        if image is not None:
+            multiscale = [image]
+            for binning in range(2, 6):  # TODO: variable or get from somewhere?
+                downsampled_frame = DownSample2D(binning=binning).run(image)
                 multiscale.append(downsampled_frame)
-            yield multiscale, camera_name  # wait until unlocking camera to be able to quit napari thread
-            i += 1
+            super().update_layer((multiscale, camera_name))
+
 
     def update_config_on_quit(self):
         """Add functionality to close function to save device properties to instrument config"""
