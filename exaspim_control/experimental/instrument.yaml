@@ -21,11 +21,10 @@ instrument:
       settings:
         exposure_time_ms: 10.0
         pixel_type: mono16
-        roi:
-          height_offest_px: 0
-          height_px: 10640
-          width_offset_px: 0
-          width_px: 14192
+        height_offest_px: 0
+        height_px: 10640
+        width_offset_px: 0
+        width_px: 14192
         trigger:
           mode: 'on'
           polarity: rising
