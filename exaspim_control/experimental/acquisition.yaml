@@ -61,48 +61,4 @@ acquisition:
         settings:
           data_type: uint16
           frame_count_px: 10
-    vnp-604mx:
-        bvd:
-          type: writer
-          driver: voxel.writers.bdv
-          module: Writer
-          init:
-            path: ./local_test
-          settings:
-            compression: none
-            data_type: uint16
-        rsync:
-          type: transfer
-          driver: voxel.transfers.rsync
-          module: FileTransfer
-          init:
-            external_directory: ./external_test
-            local_directory: ./local_test
-        max_projection:
-          type: process
-          driver: voxel.processes.cpu.max_projection
-          module: MaxProjection
-          init:
-            path: ./local_test
-          settings:
-            data_type: uint16
-            projection_count_px: 32
-        mean_projection:
-          type: process
-          driver: voxel.processes.cpu.mean_projection
-          module: MeanProjection
-          init:
-            path: ./local_test
-          settings:
-            data_type: uint16
-            projection_count_px: 32
-        background_collection:
-          type: routine
-          driver: voxel.routines.background_collection
-          module: BackgroundCollection
-          init:
-            path: ./local_test
-          settings:
-            data_type: uint16
-            frame_count_px: 10
   tiles: []

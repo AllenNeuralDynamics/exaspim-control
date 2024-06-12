@@ -13,8 +13,10 @@ from voxel.instruments.instrument import Instrument
 
 class ExASPIM(Instrument):
 
-    def __init__(self, config_filename: str):
+    def __init__(self, config_filename: str, log_level='INFO'):
         self.log = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
+        self.log.setLevel(log_level)
+
         # current working directory
         this_dir = Path(__file__).parent.resolve()
         self.config_path = this_dir / Path(config_filename)

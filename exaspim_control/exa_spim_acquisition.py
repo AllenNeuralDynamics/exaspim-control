@@ -10,11 +10,14 @@ from voxel.writers.data_structures.shared_double_buffer import SharedDoubleBuffe
 from voxel.acquisition.acquisition import Acquisition
 import inflection
 from nidaqmx.constants import AcquisitionType as AcqType
+import math
 
 class ExASPIMAcquisition(Acquisition):
 
-    def __init__(self, instrument: Instrument, config_filename: str):
+    def __init__(self, instrument: Instrument, config_filename: str, log_level='INFO'):
         self.log = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
+        self.log.setLevel(log_level)
+
         # current working directory
         this_dir = Path(__file__).parent.resolve()
         self.config_path = this_dir / Path(config_filename)
@@ -35,15 +38,15 @@ class ExASPIMAcquisition(Acquisition):
         """Check that chunk sizes are the same for all writers"""
         super()._verify_acquisition()
 
-        chunksize = None
+        chunk_size = None
         for device in self.writers.values():
             for writer in device.values():
-                if chunksize is None:
-                    chunksize = writer.chunk_count_px
+                if chunk_size is None:
+                    chunk_size = writer.chunk_count_px
                 else:
-                    if writer.chunk_count_px != chunksize:
-                        raise ValueError (f'Chunksizes of writers must all be {chunksize}')
-        self.chunksize = chunksize  # define chunksize to be used later in acquisiiton
+                    if writer.chunk_count_px != chunk_size:
+                        raise ValueError (f'Chunksizes of writers must all be {chunk_size}')
+        self.chunk_size = chunk_size  # define chunk_size to be used later in acquisiiton
 
     def run(self):
 
@@ -75,7 +78,7 @@ class ExASPIMAcquisition(Acquisition):
                 instrument_axis = tiling_stage.instrument_axis
                 tile_position = tile['position_mm'][instrument_axis]
                 self.log.info(f'moving stage {tiling_stage_id} to {instrument_axis} = {tile_position} mm')
-                tiling_stage.move_absolute_mm(tile_position)
+                tiling_stage.move_absolute_mm(tile_position, wait=False)
 
             # wait on all stages... simultaneously
             for tiling_stage_id, tiling_stage in self.instrument.tiling_stages.items():
@@ -113,7 +116,7 @@ class ExASPIMAcquisition(Acquisition):
                     daq.generate_waveforms('do', tile_channel)
                     daq.write_do_waveforms()
                 if daq.tasks.get('co_task', None) is not None:
-                    pulse_count = self.chunksize
+                    pulse_count = self.chunk_size
                     daq.add_task('co', pulse_count)
 
             # run any pre-routines for all devices
@@ -182,7 +185,6 @@ class ExASPIMAcquisition(Acquisition):
 
     def engine(self, tile, filename, camera, writers, processes):
 
-        chunk_sizes = {}
         chunk_locks = {}
         img_buffers = {}
 
@@ -190,13 +192,13 @@ class ExASPIMAcquisition(Acquisition):
         for writer_name, writer in writers.items():
             writer.row_count_px = camera.roi['height_px']
             writer.column_count_px = camera.roi['width_px']
-            writer.frame_count_px = tile['frame_count_px']
+            writer.frame_count_px = tile['steps']
             writer.x_pos_mm = tile['position_mm']['x']
             writer.y_pos_mm = tile['position_mm']['y']
             writer.z_pos_mm = tile['position_mm']['z']
-            writer.x_voxel_size_um = tile['voxel_size_um']['x']
-            writer.y_voxel_size_um = tile['voxel_size_um']['y']
-            writer.z_voxel_size_um = tile['voxel_size_um']['z']
+            writer.x_voxel_size_um = tile['step_size']['x']
+            writer.y_voxel_size_um = tile['step_size']['y']
+            writer.z_voxel_size_um = tile['step_size']['z']
             writer.filename = filename
             writer.channel = tile['channel']
 
@@ -212,7 +214,7 @@ class ExASPIMAcquisition(Acquisition):
         for process_name, process in processes.items():
             process.row_count_px = camera.roi['height_px']
             process.column_count_px = camera.roi['width_px']
-            process.frame_count_px = tile['frame_count_px']
+            process.frame_count_px = tile['steps']
             process.filename = filename
             img_bytes = numpy.prod(camera.roi['height_px'] * camera.roi['width_px']) * numpy.dtype(
                 process.data_type).itemsize
@@ -232,22 +234,22 @@ class ExASPIMAcquisition(Acquisition):
             process.start()
 
         frame_index = 0
-        last_frame_index = tile['frame_count_px'] - 1
+        last_frame_index = tile['steps'] - 1
 
-        chunk_count = math.ceil(tile['frame_count_px'] / self.chunk_size)
-        remainder = tile['frame_count_px'] % self.chunk_size
-        last_chunk_size = chunk_size if not remainder else remainder
+        chunk_count = math.ceil(tile['steps'] / self.chunk_size)
+        remainder = tile['steps'] % self.chunk_size
+        last_chunk_size = self.chunk_size if not remainder else remainder
 
         # Images arrive serialized in repeating channel order.
-        for stack_index in range(tile['frame_count_px']):
+        for stack_index in range(tile['steps']):
             if self.stop_engine.is_set():
                 break
-            chunk_indexes = stack_index % self.chunk_size
+            chunk_index = stack_index % self.chunk_size
             # Start a batch of pulses to generate more frames and movements.
             if chunk_index == 0:
                 chunks_filled = math.floor(stack_index / self.chunk_size)
                 remaining_chunks = chunk_count - chunks_filled
-                num_pulses = last_chunk_size if remaining_chunks == 1 else chunk_size
+                num_pulses = last_chunk_size if remaining_chunks == 1 else self.chunk_size
                 for daq_name, daq in self.instrument.daqs.items():
                     daq.co_task.timing.cfg_implicit_timing(sample_mode= AcqType.FINITE,
                                                             samps_per_chan= num_pulses)
@@ -269,7 +271,7 @@ class ExASPIMAcquisition(Acquisition):
 
             # Dispatch either a full chunk of frames or the last chunk,
             # which may not be a multiple of the chunk size.
-            if chunk_indexes + 1 == self.chunk_sizes or stack_index == last_frame_index:
+            if chunk_index + 1 == self.chunk_size or stack_index == last_frame_index:
                 while not writer.done_reading.is_set() and not self.stop_engine.is_set():
                     time.sleep(0.001)
                 for writer_name, writer in writers.items():
