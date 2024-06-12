@@ -196,8 +196,8 @@ class ExASPIMAcquisition(Acquisition):
             writer.x_pos_mm = tile['position_mm']['x']
             writer.y_pos_mm = tile['position_mm']['y']
             writer.z_pos_mm = tile['position_mm']['z']
-            writer.x_voxel_size_um = tile['step_size']['x']
-            writer.y_voxel_size_um = tile['step_size']['y']
+            writer.x_voxel_size_um = 0.748
+            writer.y_voxel_size_um = 0.748
             writer.z_voxel_size_um = tile['step_size']['z']
             writer.filename = filename
             writer.channel = tile['channel']
