@@ -8,7 +8,8 @@ from pathlib import Path
 import os
 import yaml
 from napari.qt.threading import thread_worker
-import pyclesperanto as cle
+#import pyclesperanto as cle
+from voxel.processes.gpu.gputools.downsample_2d import DownSample2D
 import inflection
 
 RESOURCES_DIR = (Path(os.path.dirname(os.path.realpath(__file__))))
@@ -39,14 +40,9 @@ class ExASPIMInstrumentView(InstrumentView):
 
             # TODO: Do we want to import from exaspim what to use?
             multiscale = [frame]
-            input_frame = cle.push(frame)
             for binning in range(2,6): # TODO: variable or get from somewhere?
-                downsampled_frame = cle.scale(input_frame,
-                                              factor_x=1 / binning,
-                                              factor_y=1 / binning,
-                                              device=cle.select_device(),
-                                              resize=True)
-                multiscale.append(cle.pull(downsampled_frame))
+                downsampled_frame = DownSample2D(binning=binning).run(frame)
+                multiscale.append(downsampled_frame)
             yield multiscale, camera_name  # wait until unlocking camera to be able to quit napari thread
             i += 1
 
