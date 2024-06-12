@@ -48,26 +48,23 @@ class ExASPIMAcquisition(Acquisition):
     def run(self):
 
         filenames = dict()
-
+        print(self.config['acquisition']['tiles'])
         for tile in self.config['acquisition']['tiles']:
 
-            tile_num_x = tile['tile_number']['x']
-            tile_num_y = tile['tile_number']['y']
-            tile_num_z = tile['tile_number']['z']
+            tile_num = tile['tile_number']
             tile_channel = tile['channel']
             filename_prefix = tile['prefix']
 
             # build filenames dict for all devices
             for device_name, device_specs in self.instrument.config['instrument']['devices'].items():
                 device_type = device_specs['type']
-                filenames[device_name] = f'{filename_prefix}_x_{tile_num_x:04}_y_{tile_num_y:04}_z_{tile_num_z:04}_' \
+                filenames[device_name] = f'{filename_prefix}_{tile_num}_' \
                                          f'ch_{tile_channel}_{device_type}_{device_name}'
-
             # sanity check length of scan
             for writer_dictionary in self.writers.values():
                 for writer in writer_dictionary.values():
                     chunk_count_px = writer.chunk_count_px
-                    tile_count_px = tile['frame_count_px']
+                    tile_count_px = tile['steps']
                     if tile_count_px < chunk_count_px:
                         raise ValueError(f'tile frame count {tile_count_px} \
                             is less than chunk size = {writer.chunk_count_px} px')
@@ -102,7 +99,7 @@ class ExASPIMAcquisition(Acquisition):
                     device = getattr(self.instrument, device_type)[device_name]
                     if device_type in ['lasers', 'filters']:
                         device.enable()
-                    for setting, value in tile.get(device_name, {}):
+                    for setting, value in tile.get(device_name, {}).items():
                         setattr(device, setting, value)
                         self.log.info(f'setting {setting} for {device_type} {device_name} to {value}')
 

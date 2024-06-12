@@ -132,7 +132,7 @@ instrument:
       type: joystick
     PCIe-6738:
       type: daq
-      driver: voxel.devices.daq.simulated
+      driver: voxel.devices.daq.ni
       module: DAQ
       init:
         dev: Dev2
