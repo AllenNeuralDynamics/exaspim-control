@@ -18,15 +18,6 @@ acquisition:
         settings:
           compression: none
           data_type: uint16
-      imaris:
-        type: writer
-        driver: voxel.writers.imaris
-        module: Writer
-        init:
-          path: ./local_test_1
-        settings:
-          compression: none
-          data_type: uint16
       rsync:
         type: transfer
         driver: voxel.transfers.rsync
@@ -43,15 +34,6 @@ acquisition:
         settings:
           data_type: uint16
           projection_count_px: 32
-      mean_projection:
-        type: process
-        driver: voxel.processes.cpu.mean_projection
-        module: MeanProjection
-        init:
-          path: ./local_test
-        settings:
-          data_type: uint16
-          projection_count_px: 32
       background_collection:
         type: routine
         driver: voxel.routines.background_collection
@@ -61,48 +43,38 @@ acquisition:
         settings:
           data_type: uint16
           frame_count_px: 10
-    vnp-604mx:
-        bvd:
-          type: writer
-          driver: voxel.writers.bdv
-          module: Writer
-          init:
-            path: ./local_test
-          settings:
-            compression: none
-            data_type: uint16
-        rsync:
-          type: transfer
-          driver: voxel.transfers.rsync
-          module: FileTransfer
-          init:
-            external_directory: ./external_test
-            local_directory: ./local_test
-        max_projection:
-          type: process
-          driver: voxel.processes.cpu.max_projection
-          module: MaxProjection
-          init:
-            path: ./local_test
-          settings:
-            data_type: uint16
-            projection_count_px: 32
-        mean_projection:
-          type: process
-          driver: voxel.processes.cpu.mean_projection
-          module: MeanProjection
-          init:
-            path: ./local_test
-          settings:
-            data_type: uint16
-            projection_count_px: 32
-        background_collection:
-          type: routine
-          driver: voxel.routines.background_collection
-          module: BackgroundCollection
-          init:
-            path: ./local_test
-          settings:
-            data_type: uint16
-            frame_count_px: 10
-  tiles: []
+  tiles:
+    - tile_number:
+        x: 0
+        y: 0
+        z: 0
+      position_mm:
+        x: 0
+        y: 0
+        z: 0
+      voxel_size_um:
+        x: 0.748
+        y: 0.748
+        z: 1.000
+      prefix: tile
+      frame_count_px: 128
+      binning: 1
+      channel: CH488
+      power_mw: 1000
+    - tile_number:
+        x: 1
+        y: 0
+        z: 0
+      position_mm:
+        x: 1
+        y: 1
+        z: 1
+      voxel_size_um:
+        x: 0.748
+        y: 0.748
+        z: 1.000
+      prefix: tile
+      frame_count_px: 128
+      binning: 1
+      channel: CH488
+      power_mw: 1000

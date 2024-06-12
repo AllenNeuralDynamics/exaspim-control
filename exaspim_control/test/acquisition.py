@@ -22,12 +22,12 @@ if __name__ == '__main__':
     logger.addHandler(log_handler)
 
     # instrument
-    microscope = ExASPIM('./test/instrument.yaml')
+    microscope = ExASPIM('./instrument.yaml')
     # acquisition
-    acquisition = ExASPIMAcquisition(microscope, './test/acquisition.yaml')
-    acquisition.check_local_acquisition_disk_space()
-    acquisition.check_external_acquisition_disk_space()
-    acquisition.check_system_memory()
+    acquisition = ExASPIMAcquisition(microscope, './acquisition.yaml')
+    # acquisition.check_local_acquisition_disk_space()
+    # acquisition.check_external_acquisition_disk_space()
+    # acquisition.check_system_memory()
     # acquisition.check_gpu_memory()
-    acquisition.check_write_speed()
+    # acquisition.check_write_speed()
     acquisition.run()
