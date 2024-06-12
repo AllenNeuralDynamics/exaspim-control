@@ -45,8 +45,8 @@ class ExASPIMAcquisition(Acquisition):
                     chunk_size = writer.chunk_count_px
                 else:
                     if writer.chunk_count_px != chunk_size:
-                        raise ValueError (f'Chunksizes of writers must all be {chunk_size}')
-        self.chunk_size = chunk_size  # define chunk_size to be used later in acquisiiton
+                        raise ValueError (f'Chunksizes of writers must all be {chunksize}')
+        self.chunk_count_px = chunk_size  # define chunksize to be used later in acquisiiton
 
     def run(self):
 
@@ -87,12 +87,16 @@ class ExASPIMAcquisition(Acquisition):
                     tile_position = tile['position_mm'][instrument_axis]
                     self.log.info(
                         f'waiting for stage {tiling_stage_id}: {instrument_axis} = {tiling_stage.position_mm} -> {tile_position} mm')
-                    time.sleep(0.01)
+                    time.sleep(1.0)
 
             # prepare the scanning stage for step and shoot behavior
             for scanning_stage_id, scanning_stage in self.instrument.scanning_stages.items():
                 self.log.info(f'setting up scanning stage: {scanning_stage_id}')
-                scanning_stage.start()
+                # grab stage axis letter
+                instrument_axis = scanning_stage.instrument_axis
+                tile_position = tile['position_mm'][instrument_axis]
+                self.log.info(f'moving stage {scanning_stage_id} to {instrument_axis} = {tile_position} mm')
+                scanning_stage.move_absolute_mm(tile_position, wait=False)
 
             # setup channel i.e. laser and filter wheels
             self.log.info(f'setting up channel: {tile_channel}')
@@ -116,7 +120,7 @@ class ExASPIMAcquisition(Acquisition):
                     daq.generate_waveforms('do', tile_channel)
                     daq.write_do_waveforms()
                 if daq.tasks.get('co_task', None) is not None:
-                    pulse_count = self.chunk_size
+                    pulse_count = self.chunk_count_px
                     daq.add_task('co', pulse_count)
 
             # run any pre-routines for all devices
@@ -135,11 +139,18 @@ class ExASPIMAcquisition(Acquisition):
             for camera_id, camera in self.instrument.cameras.items():
                 self.log.info(f'arming camera and writer for {camera_id}')
                 # pass in camera specific camera, writer, and processes
+                # a filename must exist for each camera
+                filename = filenames[camera_id]
+                # a writer must exist for each camera
+                writer = self.writers[camera_id]
+                # check if any processes exist, they may not exist
+                processes = {} if not hasattr(self, 'processes') else self.processes[camera_id]
                 thread = Thread(target=self.engine,
-                                          args=(tile, filenames[camera_id],
+                                          args=(tile,
+                                                filename,
                                                 camera,
-                                                self.writers[camera_id],
-                                                self.processes[camera_id],
+                                                writer,
+                                                processes,
                                                 ))
                 self.acquisition_threads[camera_id] = thread
 
@@ -175,8 +186,9 @@ class ExASPIMAcquisition(Acquisition):
                     self.log.info(f"starting file transfer for {device_name}")
                     self.transfer_threads[device_name][transfer_name].start()
 
-        # wait for last tiles file transfer # TODO: We seem to do this logic a lot of looping through device then op.
-        #                                           Should this be a function?
+        # wait for last tiles file transfer
+        # TODO: We seem to do this logic a lot of looping through device then op.
+        # Should this be a function?
         for device_name, transfer_dict in getattr(self, 'transfers', {}).items():
             for transfer_id, transfer_thread in transfer_dict.items():
                 if transfer_thread.is_alive():
@@ -190,8 +202,8 @@ class ExASPIMAcquisition(Acquisition):
 
         # setup writers
         for writer_name, writer in writers.items():
-            writer.row_count_px = camera.roi['height_px']
-            writer.column_count_px = camera.roi['width_px']
+            writer.row_count_px = camera.height_px
+            writer.column_count_px = camera.width_px
             writer.frame_count_px = tile['steps']
             writer.x_pos_mm = tile['position_mm']['x']
             writer.y_pos_mm = tile['position_mm']['y']
@@ -202,25 +214,23 @@ class ExASPIMAcquisition(Acquisition):
             writer.filename = filename
             writer.channel = tile['channel']
 
-            # chunk_sizes[writer_name] = writer.chunk_count_px
             chunk_locks[writer_name] = Lock()
             img_buffers[writer_name] = SharedDoubleBuffer(
-                (writer.chunk_count_px, camera.roi['height_px'], camera.roi['width_px']),
+                (writer.chunk_count_px, camera.height_px, camera.width_px),
                 dtype=writer.data_type)
 
         # setup processes
         process_buffers = {}
-        process_images = {}
         for process_name, process in processes.items():
-            process.row_count_px = camera.roi['height_px']
-            process.column_count_px = camera.roi['width_px']
+            process.row_count_px = camera.height_px
+            process.column_count_px = camera.width_px
             process.frame_count_px = tile['steps']
             process.filename = filename
-            img_bytes = numpy.prod(camera.roi['height_px'] * camera.roi['width_px']) * numpy.dtype(
+            img_bytes = numpy.prod(camera.height_px * camera.width_px) * numpy.dtype(
                 process.data_type).itemsize
             buffer = SharedMemory(create=True, size=int(img_bytes))
             process_buffers[process_name] = buffer
-            process.buffer_image = numpy.ndarray((camera.roi['height_px'], camera.roi['width_px']),
+            process.buffer_image = numpy.ndarray((camera.height_px, camera.width_px),
                                                  dtype=process.data_type, buffer=buffer.buf)
             process.prepare(buffer.name)
 
@@ -244,10 +254,10 @@ class ExASPIMAcquisition(Acquisition):
         for stack_index in range(tile['steps']):
             if self.stop_engine.is_set():
                 break
-            chunk_index = stack_index % self.chunk_size
+            chunk_index = stack_index % self.chunk_size_px
             # Start a batch of pulses to generate more frames and movements.
             if chunk_index == 0:
-                chunks_filled = math.floor(stack_index / self.chunk_size)
+                chunks_filled = math.floor(stack_index / self.chunk_count_px)
                 remaining_chunks = chunk_count - chunks_filled
                 num_pulses = last_chunk_size if remaining_chunks == 1 else self.chunk_size
                 for daq_name, daq in self.instrument.daqs.items():
@@ -271,7 +281,7 @@ class ExASPIMAcquisition(Acquisition):
 
             # Dispatch either a full chunk of frames or the last chunk,
             # which may not be a multiple of the chunk size.
-            if chunk_index + 1 == self.chunk_size or stack_index == last_frame_index:
+            if chunk_index + 1 == self.chunk_size_px or stack_index == last_frame_index:
                 while not writer.done_reading.is_set() and not self.stop_engine.is_set():
                     time.sleep(0.001)
                 for writer_name, writer in writers.items():
@@ -289,7 +299,7 @@ class ExASPIMAcquisition(Acquisition):
                                 img_buffers[writer_name].read_buf_mem_name
                             writer.done_reading.clear()
 
-            # max projection test
+            # check on processes
             for process in processes.values():
                 while process.new_image.is_set():
                     time.sleep(0.1)
@@ -300,9 +310,11 @@ class ExASPIMAcquisition(Acquisition):
 
         for writer in writers.values():
             writer.wait_to_finish()
+
         for process in processes.values():
             process.wait_to_finish()
             # process.close()
+
         camera.stop()
 
         # clean up the image buffer
