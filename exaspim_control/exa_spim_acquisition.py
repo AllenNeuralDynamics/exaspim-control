@@ -45,8 +45,8 @@ class ExASPIMAcquisition(Acquisition):
                     chunk_size = writer.chunk_count_px
                 else:
                     if writer.chunk_count_px != chunk_size:
-                        raise ValueError (f'Chunksizes of writers must all be {chunksize}')
-        self.chunk_count_px = chunk_size  # define chunksize to be used later in acquisiiton
+                        raise ValueError (f'Chunk sizes of writers must all be {chunk_size}')
+        self.chunk_count_px = chunk_size  # define chunk size to be used later in acquisiiton
 
     def run(self):
 
@@ -210,7 +210,7 @@ class ExASPIMAcquisition(Acquisition):
             writer.z_pos_mm = tile['position_mm']['z']
             writer.x_voxel_size_um = 0.748
             writer.y_voxel_size_um = 0.748
-            writer.z_voxel_size_um = tile['step_size']['z']
+            writer.z_voxel_size_um = tile['step_size']
             writer.filename = filename
             writer.channel = tile['channel']
 
@@ -246,20 +246,20 @@ class ExASPIMAcquisition(Acquisition):
         frame_index = 0
         last_frame_index = tile['steps'] - 1
 
-        chunk_count = math.ceil(tile['steps'] / self.chunk_size)
-        remainder = tile['steps'] % self.chunk_size
-        last_chunk_size = self.chunk_size if not remainder else remainder
+        chunk_count = math.ceil(tile['steps'] / self.chunk_count_px)
+        remainder = tile['steps'] % self.chunk_count_px
+        last_chunk_size = self.chunk_count_px if not remainder else remainder
 
         # Images arrive serialized in repeating channel order.
         for stack_index in range(tile['steps']):
             if self.stop_engine.is_set():
                 break
-            chunk_index = stack_index % self.chunk_size_px
+            chunk_index = stack_index % self.chunk_count_px
             # Start a batch of pulses to generate more frames and movements.
             if chunk_index == 0:
                 chunks_filled = math.floor(stack_index / self.chunk_count_px)
                 remaining_chunks = chunk_count - chunks_filled
-                num_pulses = last_chunk_size if remaining_chunks == 1 else self.chunk_size
+                num_pulses = last_chunk_size if remaining_chunks == 1 else self.chunk_count_px
                 for daq_name, daq in self.instrument.daqs.items():
                     daq.co_task.timing.cfg_implicit_timing(sample_mode= AcqType.FINITE,
                                                             samps_per_chan= num_pulses)
@@ -267,7 +267,7 @@ class ExASPIMAcquisition(Acquisition):
                     # for the exaspim, the NIDAQ is the master, so we start this last
                     for daq_id, daq in self.instrument.daqs.items():
                         self.log.info(f'starting daq {daq_id}')
-                        for task in [self.ao_task, self.do_task, self.co_task]:
+                        for task in [daq.ao_task, daq.do_task, daq.co_task]:
                             if task is not None:
                                 task.start()
 
@@ -281,7 +281,9 @@ class ExASPIMAcquisition(Acquisition):
 
             # Dispatch either a full chunk of frames or the last chunk,
             # which may not be a multiple of the chunk size.
-            if chunk_index + 1 == self.chunk_size_px or stack_index == last_frame_index:
+            if chunk_index + 1 == self.chunk_count_px or stack_index == last_frame_index:
+                for daq_name, daq in self.instrument.daqs.items():
+                    daq.stop()
                 while not writer.done_reading.is_set() and not self.stop_engine.is_set():
                     time.sleep(0.001)
                 for writer_name, writer in writers.items():

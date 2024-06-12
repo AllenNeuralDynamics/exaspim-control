@@ -14,13 +14,13 @@ INSTRUMENT_YAML = RESOURCES_DIR / 'instrument.yaml'
 GUI_YAML = RESOURCES_DIR / 'gui_config.yaml'
 
 if __name__ == "__main__":
-    app = QApplication(sys.argv)
+    #app = QApplication(sys.argv)
 
     # instrument
     instrument = ExASPIM(INSTRUMENT_YAML, log_level= 'DEBUG')
     # acquisition
     acquisition = ExASPIMAcquisition(instrument, ACQUISITION_YAML, log_level= 'DEBUG')
-
-    instrument_view = ExASPIMInstrumentView(instrument, GUI_YAML, 'DEBUG')
-    acquisition_view = AcquisitionView(acquisition, instrument_view, GUI_YAML)
-    sys.exit(app.exec_())
+    acquisition.run()
+    # instrument_view = ExASPIMInstrumentView(instrument, GUI_YAML, 'DEBUG')
+    # acquisition_view = AcquisitionView(acquisition, instrument_view, GUI_YAML)
+    # sys.exit(app.exec_())
