@@ -5,12 +5,15 @@ instrument:
     CH488:
       lasers: [488 nm]
       cameras: [vp-151mx]
+      focusing_stages: [n stage axis]
     CH561:
       lasers: [561 nm]
       cameras: [vp-151mx]
+      focusing_stages: [n stage axis]
     CH639:
       lasers: [639 nm]
       cameras: [vp-151mx]
+      focusing_stages: [n stage axis]
   devices:
     vp-151mx:
       type: camera
@@ -94,6 +97,13 @@ instrument:
             speed_mm_s: 1.0
             backlash_mm: 0.004
             acceleration_ms: 200.0
+        n stage axis:
+          type: focusing_stage
+          driver: voxel.devices.stage.asi
+          module: Stage
+          init:
+            hardware_axis: n
+            instrument_axis: n
         joystick:
            type: joystick
            driver: voxel.devices.joystick.asi

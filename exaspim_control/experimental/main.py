@@ -17,10 +17,10 @@ if __name__ == "__main__":
     app = QApplication(sys.argv)
 
     # instrument
-    instrument = ExASPIM(INSTRUMENT_YAML, log_level= 'DEBUG')
+    instrument = ExASPIM(INSTRUMENT_YAML, log_level= 'INFO')
     # acquisition
-    acquisition = ExASPIMAcquisition(instrument, ACQUISITION_YAML, log_level= 'DEBUG')
+    acquisition = ExASPIMAcquisition(instrument, ACQUISITION_YAML, log_level= 'INFO')
     #acquisition.run()
-    instrument_view = ExASPIMInstrumentView(instrument, GUI_YAML, 'DEBUG')
+    instrument_view = ExASPIMInstrumentView(instrument, GUI_YAML, 'INFO')
     acquisition_view = AcquisitionView(acquisition, instrument_view, GUI_YAML)
     sys.exit(app.exec_())

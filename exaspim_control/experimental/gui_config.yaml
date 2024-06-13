@@ -3,6 +3,8 @@ device_widgets:
       type: joystick
       driver: view.widgets.device_widgets.joystick_widget
       module: JoystickWidget
+      init:
+        advanced_user: True
     vp-151mx:
       type: camera
       driver: view.widgets.device_widgets.camera_widget
@@ -48,6 +50,12 @@ device_widgets:
       module: StageWidget
       init:
         advanced_user: False
+    n stage axis:
+      type: focusing_stage
+      driver: view.widgets.device_widgets.stage_widget
+      module: StageWidget
+      init:
+        advanced_user: False
     pcie-6738:
       type: daq
       driver: view.widgets.device_widgets.ni_widget
@@ -78,17 +86,21 @@ operation_widgets:
       unit: 'mm'
       channels:
         CH488:
-          lasers: [488 nm]
-          cameras: [vp-151mx]
+          lasers: [ 488 nm ]
+          cameras: [ vp-151mx ]
+          focusing_stages: [ n stage axis ]
         CH561:
-          lasers: [561 nm]
-          cameras: [vp-151mx]
+          lasers: [ 561 nm ]
+          cameras: [ vp-151mx ]
+          focusing_stages: [ n stage axis ]
         CH639:
-          lasers: [639 nm]
-          cameras: [vp-151mx]
+          lasers: [ 639 nm ]
+          cameras: [ vp-151mx ]
+          focusing_stages: [ n stage axis ]
       settings:
         cameras: [binning]
         lasers: [power_setpoint_mw]
+        focusing_stages: [ position_mm ]
 
 # I think livestream tasks will be different if no pulse_count is specifies in acquisition tasks?
 #livestream_tasks:
