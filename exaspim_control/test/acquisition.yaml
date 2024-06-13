@@ -9,15 +9,6 @@ acquisition:
     z_anatomical_direction: Left_to_right
   operations:
     vp-151mx:
-#      bdv:
-#        type: writer
-#        driver: voxel.writers.bdv
-#        module: Writer
-#        init:
-#          path: ./local_test
-#        settings:
-#          compression: none
-#          data_type: uint16
       imaris:
         type: writer
         driver: voxel.writers.imaris
@@ -27,13 +18,13 @@ acquisition:
         settings:
           compression: lz4shuffle
           data_type: uint16
-#      rsync:
-#        type: transfer
-#        driver: voxel.transfers.rsync
-#        module: FileTransfer
-#        init:
-#          external_directory: E:\\external_test
-#          local_directory: E:\\local_test
+      robocopy:
+        type: transfer
+        driver: voxel.transfers.robocopy
+        module: FileTransfer
+        init:
+          external_directory: E:\\external_test
+          local_directory: E:\\local_test
       max_projection:
         type: process
         driver: voxel.processes.cpu.max_projection
