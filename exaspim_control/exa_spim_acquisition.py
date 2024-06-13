@@ -51,7 +51,7 @@ class ExASPIMAcquisition(Acquisition):
     def run(self):
 
         filenames = dict()
-        print(self.config['acquisition']['tiles'])
+
         for tile in self.config['acquisition']['tiles']:
 
             tile_num = tile['tile_number']
@@ -261,6 +261,7 @@ class ExASPIMAcquisition(Acquisition):
                 remaining_chunks = chunk_count - chunks_filled
                 num_pulses = last_chunk_size if remaining_chunks == 1 else self.chunk_count_px
                 for daq_name, daq in self.instrument.daqs.items():
+                    # TODO line below breaks simulated mode...
                     daq.co_task.timing.cfg_implicit_timing(sample_mode= AcqType.FINITE,
                                                             samps_per_chan= num_pulses)
                     #################### IMPORTANT ####################
