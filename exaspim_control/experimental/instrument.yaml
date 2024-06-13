@@ -62,7 +62,6 @@ instrument:
           driver: voxel.devices.stage.asi
           module: Stage
           init:
-            port: COM3 # do we need to define port again here?
             hardware_axis: x
             instrument_axis: z
           settings:
@@ -76,7 +75,6 @@ instrument:
           driver: voxel.devices.stage.asi
           module: Stage
           init:
-            port: COM3
             hardware_axis: y
             instrument_axis: x
           settings:
@@ -89,7 +87,6 @@ instrument:
           driver: voxel.devices.stage.asi
           module: Stage
           init:
-            port: COM3
             hardware_axis: z
             instrument_axis: y
           settings:
@@ -97,13 +94,19 @@ instrument:
             speed_mm_s: 1.0
             backlash_mm: 0.004
             acceleration_ms: 200.0
-        # below is broken and needs to be updated...
-        # joystick:
-        #   type: joystick
-        #   driver: voxel.devices.stage.asi
-        #   module: Joystick
-        #   init:
-        #     port: COM3
+        joystick:
+           type: joystick
+           driver: voxel.devices.joystick.asi
+           module: Joystick
+           init:
+             joystick_mapping:
+               { "joystick_x": { "instrument_axis": "x", "polarity": "default" },
+                 "joystick_y": { "instrument_axis": "y", "polarity": "default" },
+                 "wheel_z": { "instrument_axis": "z", "polarity": "default" },
+                 "wheel_f": { "instrument_axis": "n", "polarity": "default" },
+               }
+             axis_mapping:
+               {'x': 'y', 'y':'z', 'z': 'x', 'n':'n'}
     pcie-6738:
       type: daq
       driver: voxel.devices.daq.ni

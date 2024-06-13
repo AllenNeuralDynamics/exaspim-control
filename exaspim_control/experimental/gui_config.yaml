@@ -1,4 +1,8 @@
 device_widgets:
+    joystick:
+      type: joystick
+      driver: view.widgets.device_widgets.joystick_widget
+      module: JoystickWidget
     vp-151mx:
       type: camera
       driver: view.widgets.device_widgets.camera_widget
