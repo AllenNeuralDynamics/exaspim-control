@@ -51,7 +51,7 @@ class ExASPIMAcquisition(Acquisition):
     def run(self):
 
         filenames = dict()
-
+        print(self.config['acquisition']['tiles'])
         for tile in self.config['acquisition']['tiles']:
 
             tile_num = tile['tile_number']

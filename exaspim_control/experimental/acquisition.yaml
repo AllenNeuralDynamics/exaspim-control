@@ -27,13 +27,13 @@ acquisition:
         settings:
           compression: lz4shuffle
           data_type: uint16
-#      rsync:
-#        type: transfer
-#        driver: voxel.transfers.rsync
-#        module: FileTransfer
-#        init:
-#          external_directory: E:\external_test
-#          local_directory: E:\local_test
+      robocopy:
+        type: transfer
+        driver: voxel.transfers.robocopy
+        module: FileTransfer
+        init:
+          external_directory: E:\external_test
+          local_directory: E:\local_test
       max_projection:
         type: process
         driver: voxel.processes.cpu.max_projection
@@ -61,26 +61,19 @@ acquisition:
         settings:
           data_type: uint16
           frame_count_px: 10
-  tiles: #[]
-    - tile_number: 0
-      position_mm:
-        x: 0
-        y: 0
-        z: 0
-      step_size: 0.0125
-      prefix: tile
-      steps: 66
-      binning: 1
-      channel: CH488
-      power_mw: 1000
-#    - tile_number: 1
+  tiles: []
+#    - channel: 'CH488'
 #      position_mm:
-#        x: 1
-#        y: 1
-#        z: 1
-#      step_size: 1.000
-#      prefix: tile
-#      steps: 128
-#      binning: 1
-#      channel: CH488
-#      power_mw: 1000
+#        x: -0.0053
+#        y: 0.001
+#        z: 0.0
+#      tile_number: 0
+#      488 nm:
+#        power_setpoint_mw: 0.0
+#      vp-151mx:
+#        binning: 1.0
+#      n stage axis:
+#        position_mm: -2.35
+#      steps: 66
+#      step_size: 0.0152
+#      prefix: ''
