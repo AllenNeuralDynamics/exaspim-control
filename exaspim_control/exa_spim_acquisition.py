@@ -51,7 +51,6 @@ class ExASPIMAcquisition(Acquisition):
     def run(self):
 
         filenames = dict()
-        print(self.config['acquisition']['tiles'])
         for tile in self.config['acquisition']['tiles']:
 
             tile_num = tile['tile_number']
@@ -208,8 +207,8 @@ class ExASPIMAcquisition(Acquisition):
             writer.x_pos_mm = tile['position_mm']['x']
             writer.y_pos_mm = tile['position_mm']['y']
             writer.z_pos_mm = tile['position_mm']['z']
-            writer.x_voxel_size_um = 0.748
-            writer.y_voxel_size_um = 0.748
+            writer.x_voxel_size_um = 0.748 # TODO pull this from instrument yaml
+            writer.y_voxel_size_um = 0.748 # TODO pull this from instrument yaml
             writer.z_voxel_size_um = tile['step_size']
             writer.filename = filename
             writer.channel = tile['channel']
@@ -262,8 +261,8 @@ class ExASPIMAcquisition(Acquisition):
                 num_pulses = last_chunk_size if remaining_chunks == 1 else self.chunk_count_px
                 for daq_name, daq in self.instrument.daqs.items():
                     # TODO line below breaks simulated mode...
-                    daq.co_task.timing.cfg_implicit_timing(sample_mode= AcqType.FINITE,
-                                                            samps_per_chan= num_pulses)
+                    # daq.co_task.timing.cfg_implicit_timing(sample_mode= AcqType.FINITE,
+                    #                                         samps_per_chan= num_pulses)
                     #################### IMPORTANT ####################
                     # for the exaspim, the NIDAQ is the master, so we start this last
                     for daq_id, daq in self.instrument.daqs.items():
