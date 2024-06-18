@@ -34,6 +34,13 @@ acquisition:
         init:
           external_directory: E:\external_test
           local_directory: E:\local_test
+      rsync:
+        type: transfer
+        driver: voxel.transfers.rsync
+        module: FileTransfer
+        init:
+          external_directory: E:\external_test_1
+          local_directory: E:\local_test
       max_projection:
         type: process
         driver: voxel.processes.cpu.max_projection
