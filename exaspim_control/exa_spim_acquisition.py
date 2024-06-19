@@ -94,8 +94,15 @@ class ExASPIMAcquisition(Acquisition):
                 # grab stage axis letter
                 instrument_axis = scanning_stage.instrument_axis
                 tile_position = tile['position_mm'][instrument_axis]
+                backlash_removal_position = tile_position - 0.01
+                self.log.info(f'moving stage {scanning_stage_id} to {instrument_axis} = {backlash_removal_position} mm')
+                scanning_stage.move_absolute_mm(tile_position - 0.01, wait=True)
                 self.log.info(f'moving stage {scanning_stage_id} to {instrument_axis} = {tile_position} mm')
-                scanning_stage.move_absolute_mm(tile_position, wait=False)
+                scanning_stage.move_absolute_mm(tile_position, wait=True)
+                self.log.info(f'backlash on {scanning_stage_id} removed')
+                step_size_um = tile['step_size']
+                self.log.info(f'setting step shoot scan step size to {step_size_um} um')
+                scanning_stage.setup_step_shoot_scan(tile['step_size'])
 
             # setup channel i.e. laser and filter wheels
             self.log.info(f'setting up channel: {tile_channel}')
