@@ -12,6 +12,7 @@ import inflection
 from nidaqmx.constants import AcquisitionType as AcqType
 import math
 
+
 class ExASPIMAcquisition(Acquisition):
 
     def __init__(self, instrument: Instrument, config_filename: str, log_level='INFO'):
@@ -102,7 +103,7 @@ class ExASPIMAcquisition(Acquisition):
                 self.log.info(f'backlash on {scanning_stage_id} removed')
                 step_size_um = tile['step_size']
                 self.log.info(f'setting step shoot scan step size to {step_size_um} um')
-                scanning_stage.setup_step_shoot_scan(tile['step_size'])
+                scanning_stage.setup_step_shoot_scan(step_size_um)
 
             # setup channel i.e. laser and filter wheels
             self.log.info(f'setting up channel: {tile_channel}')
