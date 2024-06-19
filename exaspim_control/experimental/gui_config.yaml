@@ -65,19 +65,19 @@ device_widgets:
           exposed_branches:
             tasks.ao_task.ports.tunable lens:
               parameters.amplitude_volts.channels:
-                    CH488: 1.0
-                    CH561: 1.0
-                    CH639: 1.0
+                    CH488: 0.078
+                    CH561: 0.078
+                    CH639: 0.078
               parameters.offset_volts.channels:
-                    CH488: 1.0
-                    CH561: 1.0
-                    CH639: 1.0
+                    CH488: 2.448
+                    CH561: 2.448
+                    CH639: 2.448
             tasks.ao_task.ports.488 nm.parameters.max_volts.channels:
-              CH488: 5.0
+              CH488: 10.0
             tasks.ao_task.ports.561 nm.parameters.max_volts.channels:
-              CH561: 5.0
+              CH561: 10.0
             tasks.ao_task.ports.639 nm.parameters.max_volts.channels:
-              CH639: 5.0
+              CH639: 10.0
 operation_widgets:
   volume_widget:
     init:
@@ -86,21 +86,21 @@ operation_widgets:
       unit: 'mm'
       channels:
         CH488:
-          lasers: [ 488 nm ]
-          cameras: [ vp-151mx ]
-          focusing_stages: [ n stage axis ]
+          lasers: [488 nm]
+          cameras: [vp-151mx]
+          focusing_stages: [n stage axis]
         CH561:
-          lasers: [ 561 nm ]
-          cameras: [ vp-151mx ]
-          focusing_stages: [ n stage axis ]
+          lasers: [561 nm]
+          cameras: [vp-151mx]
+          focusing_stages: [n stage axis]
         CH639:
-          lasers: [ 639 nm ]
-          cameras: [ vp-151mx ]
-          focusing_stages: [ n stage axis ]
+          lasers: [639 nm]
+          cameras: [vp-151mx]
+          focusing_stages: [n stage axis]
       settings:
         cameras: [binning]
         lasers: [power_setpoint_mw]
-        focusing_stages: [ position_mm ]
+        focusing_stages: [position_mm]
 
 # I think livestream tasks will be different if no pulse_count is specifies in acquisition tasks?
 #livestream_tasks:

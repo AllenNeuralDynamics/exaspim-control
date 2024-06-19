@@ -114,6 +114,7 @@ class ExASPIMAcquisition(Acquisition):
                     if device_type in ['lasers', 'filters']:
                         device.enable()
                     for setting, value in tile.get(device_name, {}).items():
+                        # NEED TO CHECK HERE THAT FOCUSING STAGE POSITOIN GETS SET
                         setattr(device, setting, value)
                         self.log.info(f'setting {setting} for {device_type} {device_name} to {value}')
 
