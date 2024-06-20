@@ -65,6 +65,7 @@ instrument:
           driver: voxel.devices.stage.asi
           module: Stage
           init:
+            port: COM3
             hardware_axis: x
             instrument_axis: z
           settings:
@@ -74,10 +75,10 @@ instrument:
             acceleration_ms: 200.0
         x stage axis:
           type: tiling_stage
-          port: COM4
           driver: voxel.devices.stage.asi
           module: Stage
           init:
+            port: COM3
             hardware_axis: y
             instrument_axis: x
           settings:
@@ -90,6 +91,7 @@ instrument:
           driver: voxel.devices.stage.asi
           module: Stage
           init:
+            port: COM3
             hardware_axis: z
             instrument_axis: y
           settings:
@@ -102,6 +104,7 @@ instrument:
           driver: voxel.devices.stage.asi
           module: Stage
           init:
+            port: COM3
             hardware_axis: n
             instrument_axis: n
         joystick:
@@ -146,7 +149,7 @@ instrument:
                       CH639: 593.0
                   amplitude_volts:
                     channels:
-                      CH488: 0.078
+                      CH488: -0.078
                       CH561: 0.078
                       CH639: 0.078
                   offset_volts:
