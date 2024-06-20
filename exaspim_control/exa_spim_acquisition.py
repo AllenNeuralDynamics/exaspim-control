@@ -61,8 +61,8 @@ class ExASPIMAcquisition(Acquisition):
             # build filenames dict for all devices
             for device_name, device_specs in self.instrument.config['instrument']['devices'].items():
                 device_type = device_specs['type']
-                filenames[device_name] = f'{filename_prefix}_{tile_num}_' \
-                                         f'ch_{tile_channel}_{device_type}_{device_name}'
+                filenames[device_name] = f'{filename_prefix}_{tile_num:06}_' \
+                                         f'ch_{tile_channel:06}_{device_type}_{device_name}'
             # sanity check length of scan
             for writer_dictionary in self.writers.values():
                 for writer in writer_dictionary.values():

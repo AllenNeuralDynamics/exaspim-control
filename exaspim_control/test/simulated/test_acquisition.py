@@ -22,9 +22,9 @@ if __name__ == '__main__':
     logger.addHandler(log_handler)
 
     # instrument
-    microscope = ExASPIM('./test/instrument.yaml')
+    microscope = ExASPIM('./test/simulated/instrument.yaml')
     # acquisition
-    acquisition = ExASPIMAcquisition(microscope, './test/acquisition.yaml')
+    acquisition = ExASPIMAcquisition(microscope, './test/simulated/acquisition.yaml')
     # acquisition.check_local_acquisition_disk_space()
     # acquisition.check_external_acquisition_disk_space()
     # acquisition.check_system_memory()
