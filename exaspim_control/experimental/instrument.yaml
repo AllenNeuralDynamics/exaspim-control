@@ -150,8 +150,8 @@ instrument:
                   amplitude_volts:
                     channels:
                       CH488: -0.078
-                      CH561: 0.078
-                      CH639: 0.078
+                      CH561: -0.078
+                      CH639: -0.078
                   offset_volts:
                     channels:
                       CH488: 2.448

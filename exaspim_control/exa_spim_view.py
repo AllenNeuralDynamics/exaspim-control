@@ -33,7 +33,6 @@ class ExASPIMInstrumentView(InstrumentView):
                 multiscale.append(downsampled_frame)
             super().update_layer((multiscale, camera_name))
 
-
     def update_config_on_quit(self):
         """Add functionality to close function to save device properties to instrument config"""
 
