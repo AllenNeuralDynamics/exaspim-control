@@ -22,5 +22,5 @@ if __name__ == "__main__":
     acquisition = ExASPIMAcquisition(instrument, ACQUISITION_YAML)
 
     instrument_view = ExASPIMInstrumentView(instrument, GUI_YAML)
-    acquisition_view = AcquisitionView(acquisition, instrument_view, GUI_YAML)
+    acquisition_view = AcquisitionView(acquisition, instrument_view)
     sys.exit(app.exec_())

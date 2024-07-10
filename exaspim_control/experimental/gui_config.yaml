@@ -1,108 +1,90 @@
-device_widgets:
-    joystick:
-      type: joystick
-      driver: view.widgets.device_widgets.joystick_widget
-      module: JoystickWidget
-      init:
-        advanced_user: False
-    vp-151mx:
-      type: camera
-      driver: view.widgets.device_widgets.camera_widget
-      module: CameraWidget
-      init:
-        advanced_user: True
-    488 nm:
-      type: laser
-      driver: view.widgets.device_widgets.laser_widget
-      module: LaserWidget
-      init:
-        color: blue
-        advanced_user: False
-    561 nm:
-      type: laser
-      driver: view.widgets.device_widgets.laser_widget
-      module: LaserWidget
-      init:
-        color: green
-        advanced_user: False
-    639 nm:
-      type: laser
-      driver: view.widgets.device_widgets.laser_widget
-      module: LaserWidget
-      init:
-        color: red
-        advanced_user: False
-    z stage axis:
-      type:   scanning_stage
-      driver: view.widgets.device_widgets.stage_widget
-      module: StageWidget
-      init:
-        advanced_user: False
-    x stage axis:
-      type: tiling_stage
-      driver: view.widgets.device_widgets.stage_widget
-      module: StageWidget
-      init:
-        advanced_user: False
-    y stage axis:
-      type:   tiling_stage
-      driver: view.widgets.device_widgets.stage_widget
-      module: StageWidget
-      init:
-        advanced_user: False
-    n stage axis:
-      type: focusing_stage
-      driver: view.widgets.device_widgets.stage_widget
-      module: StageWidget
-      init:
-        advanced_user: False
-    pcie-6738:
-      type: daq
-      driver: view.widgets.device_widgets.ni_widget
-      module: NIWidget
-      init:
+instrument_view:
+  device_widgets:
+      joystick:
+        type: joystick
+        driver: view.widgets.device_widgets.joystick_widget
+        module: JoystickWidget
+        init:
+          advanced_user: False
+      vp-151mx:
+        type: camera
+        driver: view.widgets.device_widgets.camera_widget
+        module: CameraWidget
+        init:
           advanced_user: True
-          exposed_branches:
-            tasks.ao_task.ports.tunable lens:
-              parameters.amplitude_volts.channels:
-                    CH488: 0.078
-                    CH561: 0.078
-                    CH639: 0.078
-              parameters.offset_volts.channels:
-                    CH488: 2.448
-                    CH561: 2.448
-                    CH639: 2.448
-            tasks.ao_task.ports.488 nm.parameters.max_volts.channels:
-              CH488: 10.0
-            tasks.ao_task.ports.561 nm.parameters.max_volts.channels:
-              CH561: 10.0
-            tasks.ao_task.ports.639 nm.parameters.max_volts.channels:
-              CH639: 10.0
-operation_widgets:
-  volume_widget:
-    init:
-      fov_dimensions: [10.672384, 8.00128]
-      coordinate_plane: ['x', 'y', 'z']
-      unit: 'mm'
-      channels:
-        CH488:
-          lasers: [488 nm]
-          cameras: [vp-151mx]
-          focusing_stages: [n stage axis]
-        CH561:
-          lasers: [561 nm]
-          cameras: [vp-151mx]
-          focusing_stages: [n stage axis]
-        CH639:
-          lasers: [639 nm]
-          cameras: [vp-151mx]
-          focusing_stages: [n stage axis]
-      settings:
-        cameras: [binning]
-        lasers: [power_setpoint_mw]
-        focusing_stages: [position_mm]
+      488 nm:
+        type: laser
+        driver: view.widgets.device_widgets.laser_widget
+        module: LaserWidget
+        init:
+          color: blue
+          advanced_user: False
+      561 nm:
+        type: laser
+        driver: view.widgets.device_widgets.laser_widget
+        module: LaserWidget
+        init:
+          color: green
+          advanced_user: False
+      639 nm:
+        type: laser
+        driver: view.widgets.device_widgets.laser_widget
+        module: LaserWidget
+        init:
+          color: red
+          advanced_user: False
+      z stage axis:
+        type:   scanning_stage
+        driver: view.widgets.device_widgets.stage_widget
+        module: StageWidget
+        init:
+          advanced_user: False
+      x stage axis:
+        type: tiling_stage
+        driver: view.widgets.device_widgets.stage_widget
+        module: StageWidget
+        init:
+          advanced_user: False
+      y stage axis:
+        type:   tiling_stage
+        driver: view.widgets.device_widgets.stage_widget
+        module: StageWidget
+        init:
+          advanced_user: False
+      n stage axis:
+        type: focusing_stage
+        driver: view.widgets.device_widgets.stage_widget
+        module: StageWidget
+        init:
+          advanced_user: False
+      pcie-6738:
+        type: daq
+        driver: view.widgets.device_widgets.ni_widget
+        module: NIWidget
+        init:
+            advanced_user: True
+            exposed_branches:
+              tasks.ao_task.ports.tunable lens:
+                parameters.amplitude_volts.channels:
+                      CH488: 0.078
+                      CH561: 0.078
+                      CH639: 0.078
+                parameters.offset_volts.channels:
+                      CH488: 2.448
+                      CH561: 2.448
+                      CH639: 2.448
+              tasks.ao_task.ports.488 nm.parameters.max_volts.channels:
+                CH488: 10.0
+              tasks.ao_task.ports.561 nm.parameters.max_volts.channels:
+                CH561: 10.0
+              tasks.ao_task.ports.639 nm.parameters.max_volts.channels:
+                CH639: 10.0
+acquisition_view:
+  fov_dimensions: [ 10.672384, 8.00128 ]
+  coordinate_plane: [ '-x', 'y', 'z' ]
+  unit: 'mm'
+  settings:
+    cameras: [ binning ]
+    lasers: [ power_setpoint_mw ]
+    focusing_stages: [ position_mm ]
 
-# I think livestream tasks will be different if no pulse_count is specifies in acquisition tasks?
-#livestream_tasks:
-#  pcie-6738:
-#    tasks:
