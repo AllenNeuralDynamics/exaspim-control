@@ -1,36 +1,35 @@
 instrument:
-  id: exaspim-01
-  master_device: vp-151mx
+  id: dispim-01
+  master_device: orca-v3
   channels:
-    '488':
+    488:
       filters: [BP488]
       lasers: [488nm]
-      cameras: [vp-151mx]
-    '561':
+      cameras: [orca-v3]
+    561:
       filters: [BP561]
       lasers: [561nm]
-      cameras: [vp-151mx]
-    '639':
+      cameras: [orca-v3]
+    639:
       filters: [LP638]
       lasers: [639nm]
-      cameras: [vp-151mx]
+      cameras: [orca-v3]
   devices:
-    vp-151mx:
+    orca-v3:
       type: camera
-      driver: voxel.devices.camera.vieworks_egrabber
+      driver: voxel.devices.camera.hamamatsu_dcam
       module: Camera
       init:
-        id: MP151BBX006
+        id: 302482
       settings:
-        exposure_time_ms: 10.0
+        exposure_time_ms: 50.0
         pixel_type: mono16
-        height_px: 10640
-        width_px: 14192
-        bit_packing_mode: msb
+        height_px: 2048
+        width_px: 2048
         trigger:
-          mode: 'off'
-          polarity: risingedge
-          source: line0
+          mode: normal
+          polarity: positive
+          source: internal
     488nm:
       type: laser
       driver: voxel.devices.lasers.simulated
@@ -145,24 +144,24 @@ instrument:
                 parameters:
                   end_time_ms:
                     channels:
-                      '488': 350.0
-                      '561': 350.0
-                      '639': 350.0
+                      488: 350.0
+                      561: 350.0
+                      639: 350.0
                   max_volts:
                     channels:
-                      '488': 5.0
-                      '561': 5.0
-                      '639': 5.0
+                      488: 5.0
+                      561: 5.0
+                      639: 5.0
                   min_volts:
                     channels:
-                      '488': 0.0
-                      '561': 0.0
-                      '639': 0.0
+                      488: 0.0
+                      561: 0.0
+                      639: 0.0
                   start_time_ms:
                     channels:
-                      '488': 60.0
-                      '561': 60.0
-                      '639': 60.0
+                      488: 60.0
+                      561: 60.0
+                      639: 60.0
                 port: ao1
                 waveform: square wave
               tunable lens:
@@ -171,29 +170,29 @@ instrument:
                 parameters:
                   amplitude_volts:
                     channels:
-                      '488': 1.5
-                      '561': 1.0
-                      '639': 1.0
+                      488: 1.5
+                      561: 1.0
+                      639: 1.0
                   cutoff_frequency_hz:
                     channels:
-                      '488': 200
-                      '561': 200
-                      '639': 200
+                      488: 200
+                      561: 200
+                      639: 200
                   end_time_ms:
                     channels:
-                      '488': 400.0
-                      '561': 400.0
-                      '639': 400.0
+                      488: 400.0
+                      561: 400.0
+                      639: 400.0
                   offset_volts:
                     channels:
-                      '488': 2.5
-                      '561': 2.5
-                      '639': 2.5
+                      488: 2.5
+                      561: 2.5
+                      639: 2.5
                   start_time_ms:
                     channels:
-                      '488': 10.0
-                      '561': 10.0
-                      '639': 10.0
+                      488: 10.0
+                      561: 10.0
+                      639: 10.0
                 port: ao0
                 waveform: sawtooth
             timing:

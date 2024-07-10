@@ -25,6 +25,7 @@ class ExASPIMAcquisition(Acquisition):
         self.config = YAML(typ='safe', pure=True).load(Path(self.config_path))
         self.acquisition = self.config['acquisition']
         self.instrument = instrument
+        self._construct_acquisition_name()
         for operation_type, operation_dict in self.config['acquisition']['operations'].items():
             setattr(self, operation_type, dict())
             self._construct_operations(operation_type, operation_dict)
@@ -62,7 +63,7 @@ class ExASPIMAcquisition(Acquisition):
             for device_name, device_specs in self.instrument.config['instrument']['devices'].items():
                 device_type = device_specs['type']
                 filenames[device_name] = f'{filename_prefix}_{tile_num:06}_' \
-                                         f'ch_{tile_channel:06}_{device_type}_{device_name}'
+                                         f'ch_{tile_channel}_{device_type}_{device_name}'
             # sanity check length of scan
             for writer_dictionary in self.writers.values():
                 for writer in writer_dictionary.values():
@@ -319,14 +320,14 @@ class ExASPIMAcquisition(Acquisition):
 
             frame_index += 1
 
+        camera.stop()
+
         for writer in writers.values():
             writer.wait_to_finish()
 
         for process in processes.values():
             process.wait_to_finish()
             # process.close()
-
-        camera.stop()
 
         # clean up the image buffer
         self.log.debug(f"deallocating shared double buffer.")
