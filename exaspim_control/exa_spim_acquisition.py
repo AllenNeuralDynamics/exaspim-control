@@ -9,32 +9,32 @@ from voxel.instruments.instrument import Instrument
 from voxel.writers.data_structures.shared_double_buffer import SharedDoubleBuffer
 from voxel.acquisition.acquisition import Acquisition
 import inflection
-from nidaqmx.constants import AcquisitionType as AcqType
 import math
 
+DIRECTORY = Path(__file__).parent.resolve()
 
 class ExASPIMAcquisition(Acquisition):
 
     def __init__(self, instrument: Instrument, config_filename: str, log_level='INFO'):
-        self.log = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
-        self.log.setLevel(log_level)
 
-        # current working directory
-        this_dir = Path(__file__).parent.resolve()
-        self.config_path = this_dir / Path(config_filename)
-        self.config = YAML(typ='safe', pure=True).load(Path(self.config_path))
-        self.acquisition = self.config['acquisition']
-        self.instrument = instrument
-        self._construct_acquisition_name()
-        for operation_type, operation_dict in self.config['acquisition']['operations'].items():
-            setattr(self, operation_type, dict())
-            self._construct_operations(operation_type, operation_dict)
-        self._verify_directories()
+        super().__init__(instrument, DIRECTORY / Path(config_filename), log_level)
+
+        # verify acquisition
         self._verify_acquisition()
 
+        # initialize threads
         self.acquisition_threads = dict()
         self.transfer_threads = dict()
         self.stop_engine = Event()  # Event to flag a stop in engine
+
+    def _setup_operation(self, device: object, settings: dict):
+        """Overwrite so metadata class can pass in acquisition_name to devices that require it"""
+
+        super()._setup_operation(device, settings)
+
+        # set acquisition_name attribute if it exists for object
+        if hasattr(device, 'acquisition_name'):
+            setattr(device, 'acquisition_name', self.metadata.acquisition_name)
 
     def _verify_acquisition(self):
         """Check that chunk sizes are the same for all writers"""
@@ -51,6 +51,9 @@ class ExASPIMAcquisition(Acquisition):
         self.chunk_count_px = chunk_size  # define chunk size to be used later in acquisiiton
 
     def run(self):
+        """Run function for exaspim"""
+
+        super().run()
 
         filenames = dict()
         for tile in self.config['acquisition']['tiles']:
@@ -217,8 +220,8 @@ class ExASPIMAcquisition(Acquisition):
             writer.x_pos_mm = tile['position_mm']['x']
             writer.y_pos_mm = tile['position_mm']['y']
             writer.z_pos_mm = tile['position_mm']['z']
-            writer.x_voxel_size_um = 0.748 # TODO pull this from instrument yaml
-            writer.y_voxel_size_um = 0.748 # TODO pull this from instrument yaml
+            writer.x_voxel_size_um = 0.748  # TODO pull this from instrument yaml
+            writer.y_voxel_size_um = 0.748  # TODO pull this from instrument yaml
             writer.z_voxel_size_um = tile['step_size']
             writer.filename = filename
             writer.channel = tile['channel']
