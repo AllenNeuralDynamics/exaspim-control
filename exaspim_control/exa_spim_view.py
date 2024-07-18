@@ -1,7 +1,6 @@
 from qtpy.QtWidgets import QApplication, QMessageBox, QPushButton, QFileDialog
 from view.instrument_view import InstrumentView
 from pathlib import Path
-import os
 import yaml
 from voxel.processes.gpu.gputools.downsample_2d import DownSample2D
 import inflection
