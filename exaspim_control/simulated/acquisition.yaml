@@ -18,6 +18,15 @@ acquisition:
         settings:
           compression: none
           data_type: uint16
+      imaris:
+        type: writer
+        driver: voxel.writers.imaris
+        module: Writer
+        init:
+          path: ./local_test_1
+        settings:
+          compression: none
+          data_type: uint16
       rsync:
         type: transfer
         driver: voxel.transfers.rsync
@@ -33,7 +42,7 @@ acquisition:
           path: ./local_test
         settings:
           data_type: uint16
-          projection_count_px: 64
+          projection_count_px: 32
       mean_projection:
         type: process
         driver: voxel.processes.cpu.mean_projection
@@ -42,7 +51,7 @@ acquisition:
           path: ./local_test
         settings:
           data_type: uint16
-          projection_count_px: 64
+          projection_count_px: 32
       background_collection:
         type: routine
         driver: voxel.routines.background_collection
@@ -53,7 +62,7 @@ acquisition:
           data_type: uint16
           frame_count_px: 10
     vnp-604mx:
-        bdv:
+        bvd:
           type: writer
           driver: voxel.writers.bdv
           module: Writer
@@ -77,7 +86,7 @@ acquisition:
             path: ./local_test
           settings:
             data_type: uint16
-            projection_count_px: 64
+            projection_count_px: 32
         mean_projection:
           type: process
           driver: voxel.processes.cpu.mean_projection
@@ -86,7 +95,7 @@ acquisition:
             path: ./local_test
           settings:
             data_type: uint16
-            projection_count_px: 64
+            projection_count_px: 32
         background_collection:
           type: routine
           driver: voxel.routines.background_collection
@@ -95,43 +104,5 @@ acquisition:
             path: ./local_test
           settings:
             data_type: uint16
-            frame_count_px: 4
-  tiles:
-    - tile_number:
-        x: 0
-        y: 0
-        z: 0
-        w: 0
-      position_mm:
-        x: 0
-        y: 0
-        z: 0
-        w: 1
-      voxel_size_um:
-        x: 0.748
-        y: 0.748
-        z: 1.000
-      prefix: tile
-      frame_count_px: 128
-      binning: 1
-      channel: "488"
-      power_mw: 1000
-    - tile_number:
-        x: 1
-        y: 0
-        z: 0
-        w: 0
-      position_mm:
-        x: 1
-        y: 1
-        z: 1
-        w: 1
-      voxel_size_um:
-        x: 0.748
-        y: 0.748
-        z: 1.000
-      prefix: tile
-      frame_count_px: 128
-      binning: 1
-      channel: "488"
-      power_mw: 1000
+            frame_count_px: 10
+  tiles: []
