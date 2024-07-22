@@ -27,15 +27,6 @@ class ExASPIMAcquisition(Acquisition):
         self.transfer_threads = dict()
         self.stop_engine = Event()  # Event to flag a stop in engine
 
-    def _setup_operation(self, device: object, settings: dict):
-        """Overwrite so metadata class can pass in acquisition_name to devices that require it"""
-
-        super()._setup_operation(device, settings)
-
-        # set acquisition_name attribute if it exists for object
-        if hasattr(device, 'acquisition_name'):
-            setattr(device, 'acquisition_name', self.metadata.acquisition_name)
-
     def _verify_acquisition(self):
         """Check that chunk sizes are the same for all writers"""
         super()._verify_acquisition()
@@ -60,7 +51,7 @@ class ExASPIMAcquisition(Acquisition):
 
             tile_num = tile['tile_number']
             tile_channel = tile['channel']
-            filename_prefix = tile['prefix']
+            filename_prefix = self.acquisition_name + tile['prefix']
 
             # build filenames dict for all devices
             for device_name, device_specs in self.instrument.config['instrument']['devices'].items():
