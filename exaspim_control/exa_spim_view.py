@@ -21,8 +21,9 @@ class ExASPIMInstrumentView(InstrumentView):
         (image, camera_name) = args
         if image is not None:
             multiscale = [image]
-            for binning in range(2, 6):  # TODO: variable or get from somewhere?
-                downsampled_frame = DownSample2D(binning=binning).run(image)
+            downsampler = DownSample2D(binning=2)
+            for binning in range(0, 5):  # TODO: variable or get from somewhere?
+                downsampled_frame = downsampler.run(multiscale[-1])
                 multiscale.append(downsampled_frame)
             super().update_layer((multiscale, camera_name))
 

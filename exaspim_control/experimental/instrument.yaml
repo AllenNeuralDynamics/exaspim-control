@@ -2,16 +2,16 @@ instrument:
   id: exaspim-01
   master_device: pcie-6738
   channels:
-    CH488:
-      lasers: [488 nm]
-      cameras: [vp-151mx]
-      focusing_stages: [n stage axis]
     CH561:
       lasers: [561 nm]
       cameras: [vp-151mx]
       focusing_stages: [n stage axis]
     CH639:
       lasers: [639 nm]
+      cameras: [vp-151mx]
+      focusing_stages: [n stage axis]
+    CH488:
+      lasers: [488 nm]
       cameras: [vp-151mx]
       focusing_stages: [n stage axis]
   devices:
@@ -109,13 +109,23 @@ instrument:
            module: Joystick
            init:
              joystick_mapping:
-               { "joystick_x": { "instrument_axis": "x", "polarity": "default" },
-                 "joystick_y": { "instrument_axis": "y", "polarity": "default" },
-                 "wheel_z": { "instrument_axis": "z", "polarity": "default" },
-                 "wheel_f": { "instrument_axis": "n", "polarity": "default" },
-               }
+               joystick_x:
+                 instrument_axis: x
+                 polarity: default
+               joystick_y:
+                 instrument_axis: y
+                 polarity: default
+               wheel_z:
+                 instrument_axis: z
+                 polarity: default
+               wheel_f:
+                 instrument_axis: n
+                 polarity: default
              axis_mapping:
-               {'x': 'y', 'y':'z', 'z': 'x', 'n':'n'}
+               x: y
+               y: z
+               z: x
+               n: n
     pcie-6738:
       type: daq
       driver: voxel.devices.daq.ni
