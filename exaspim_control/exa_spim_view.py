@@ -1,16 +1,9 @@
 from qtpy.QtWidgets import QApplication, QMessageBox, QPushButton, QFileDialog
 from view.instrument_view import InstrumentView
 from pathlib import Path
-import os
 import yaml
 from voxel.processes.gpu.gputools.downsample_2d import DownSample2D
 import inflection
-
-RESOURCES_DIR = (Path(os.path.dirname(os.path.realpath(__file__))))
-ACQUISITION_YAML = RESOURCES_DIR / 'acquisition.yaml'
-INSTRUMENT_YAML = RESOURCES_DIR / 'instrument.yaml'
-GUI_YAML = RESOURCES_DIR / 'gui_config.yaml'
-
 
 class ExASPIMInstrumentView(InstrumentView):
     """View for ExASPIM Instrument"""

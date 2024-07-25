@@ -15,7 +15,7 @@ acquisition:
       date_format: year/month/day/hour/minute/second
       name_specs:
         deliminator: _
-        format: [ instrument_type, subject_id ]
+        format: [instrument_type, subject_id]
   operations:
     vp-151mx:
 #      bdv:
@@ -32,7 +32,7 @@ acquisition:
         driver: voxel.writers.imaris
         module: Writer
         init:
-          path: E:\local_test
+          path: C:\local_test
         settings:
           compression: lz4shuffle
           data_type: uint16
@@ -41,21 +41,21 @@ acquisition:
         driver: voxel.transfers.robocopy
         module: FileTransfer
         init:
-          external_path: E:\external_test
-          local_path: E:\local_test
+          external_path: C:\external_test
+          local_path: C:\local_test
       rsync:
         type: transfer
         driver: voxel.transfers.rsync
         module: FileTransfer
         init:
-          external_path: E:\external_test_1
-          local_path: E:\local_test
+          external_path: C:\external_test_1
+          local_path: C:\local_test
       max_projection:
         type: process
         driver: voxel.processes.cpu.max_projection
         module: MaxProjection
         init:
-          path: E:\local_test
+          path: C:\local_test
         settings:
           data_type: uint16
           projection_count_px: 32
@@ -73,7 +73,7 @@ acquisition:
         driver: voxel.routines.background_collection
         module: BackgroundCollection
         init:
-          path: E:\local_test
+          path: C:\local_test
         settings:
           data_type: uint16
           frame_count_px: 10

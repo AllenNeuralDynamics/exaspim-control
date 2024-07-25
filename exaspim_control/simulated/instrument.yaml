@@ -6,14 +6,17 @@ instrument:
       filters: [BP488]
       lasers: [488nm]
       cameras: [vp-151mx]
+      focusing_stages: [n stage axis]
     CH561:
       filters: [BP561]
       lasers: [561nm]
       cameras: [vp-151mx]
+      focusing_stages: [n stage axis]
     CH639:
       filters: [LP638]
       lasers: [639nm]
       cameras: [vp-151mx]
+      focusing_stages: [n stage axis]
   devices:
     vp-151mx:
       type: camera
@@ -125,6 +128,15 @@ instrument:
         instrument_axis: y
       settings:
         speed_mm_s: 1.0
+    n stage axis:
+      driver: voxel.devices.stage.simulated
+      init:
+        hardware_axis: n
+        instrument_axis: n
+      module: Stage
+      settings:
+        speed_mm_s: 1.0
+      type: focusing_stage
     ASI joystick:
       driver: voxel.devices.stage.simulated
       module: Joystick

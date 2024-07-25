@@ -65,7 +65,6 @@ instrument:
           driver: voxel.devices.stage.asi
           module: Stage
           init:
-            port: COM3
             hardware_axis: x
             instrument_axis: z
           settings:
@@ -78,7 +77,6 @@ instrument:
           driver: voxel.devices.stage.asi
           module: Stage
           init:
-            port: COM3
             hardware_axis: y
             instrument_axis: x
           settings:
@@ -91,7 +89,6 @@ instrument:
           driver: voxel.devices.stage.asi
           module: Stage
           init:
-            port: COM3
             hardware_axis: z
             instrument_axis: y
           settings:
@@ -104,7 +101,6 @@ instrument:
           driver: voxel.devices.stage.asi
           module: Stage
           init:
-            port: COM3
             hardware_axis: n
             instrument_axis: n
         joystick:

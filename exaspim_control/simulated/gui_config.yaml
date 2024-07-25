@@ -1,97 +1,96 @@
-device_widgets:
-    vp-151mx:
-      type: camera
-      driver: view.widgets.device_widgets.camera_widget
-      module: CameraWidget
-      init:
-        advanced_user: True
-    488nm:
-      type: laser
-      driver: view.widgets.device_widgets.laser_widget
-      module: LaserWidget
-      init:
-        color: blue
-        advanced_user: False
-    561nm:
-      type: laser
-      driver: view.widgets.device_widgets.laser_widget
-      module: LaserWidget
-      init:
-        color: green
-        advanced_user: False
-    639nm:
-      type: laser
-      driver: view.widgets.device_widgets.laser_widget
-      module: LaserWidget
-      init:
-        color: red
-        advanced_user: False
-    ASI FW-1000:
-      type: filter_wheel
-      driver: view.widgets.device_widgets.filter_wheel_widget
-      module: FilterWheelWidget
-      init:
-        advanced_user: False
-    ASI MS8000 x axis:
-      type:   scanning_stage
-      driver: view.widgets.device_widgets.stage_widget
-      module: StageWidget
-      init:
-        advanced_user: False
-    ASI MS8000 y axis:
-      type: tiling_stage
-      driver: view.widgets.device_widgets.stage_widget
-      module: StageWidget
-      init:
-        advanced_user: False
-    ASI LS100 z axis:
-      type:   tiling_stage
-      driver: view.widgets.device_widgets.stage_widget
-      module: StageWidget
-      init:
-        advanced_user: False
-    ASI joystick:
-      type: joystick
-      driver: view.widgets.device_widgets.joystick_widget
-      module: JoystickWidget
-      init:
-        advanced_user: False
-    PCIe-6738:
-      type: daq
-      driver: view.widgets.device_widgets.ni_widget
-      module: NIWidget
-      init:
+instrument_view:
+  device_widgets:
+      vp-151mx:
+        type: camera
+        driver: view.widgets.device_widgets.camera_widget
+        module: CameraWidget
+        init:
           advanced_user: True
-          exposed_branches:
-            tasks.ao_task.ports.tunable lens:
-              parameters.amplitude_volts.channels:
-                    CH488: 1.0
-                    CH561: 1.0
-                    CH639: 1.0
-              parameters.offset_volts.channels:
-                    CH488: 1.0
-                    CH561: 1.0
-                    CH639: 1.0
-operation_widgets:
-  volume_widget:
-    init:
-      fov_dimensions: [10.672384, 8.00128]
-      coordinate_plane: ['x', 'y', 'z']
-      unit: 'mm'
-      channels:
-        CH488:
-          filters: [ BP488 ]
-          lasers: [ 488nm ]
-          cameras: [ vp-151mx ]
-        CH561:
-          filters: [ BP561 ]
-          lasers: [ 561nm ]
-          cameras: [ vp-151mx ]
-        CH639:
-          filters: [ LP638 ]
-          lasers: [ 639nm ]
-          cameras: [ vp-151mx ]
-      settings:
-        cameras: [binning]
-        lasers: [power_setpoint_mw]
-        filter_wheels: [filter]
+      488nm:
+        type: laser
+        driver: view.widgets.device_widgets.laser_widget
+        module: LaserWidget
+        init:
+          color: blue
+          advanced_user: False
+      561nm:
+        type: laser
+        driver: view.widgets.device_widgets.laser_widget
+        module: LaserWidget
+        init:
+          color: green
+          advanced_user: False
+      639nm:
+        type: laser
+        driver: view.widgets.device_widgets.laser_widget
+        module: LaserWidget
+        init:
+          color: red
+          advanced_user: False
+      ASI FW-1000:
+        type: filter_wheel
+        driver: view.widgets.device_widgets.filter_wheel_widget
+        module: FilterWheelWidget
+        init:
+          advanced_user: False
+      ASI MS8000 x axis:
+        type:   scanning_stage
+        driver: view.widgets.device_widgets.stage_widget
+        module: StageWidget
+        init:
+          advanced_user: False
+      ASI MS8000 y axis:
+        type: tiling_stage
+        driver: view.widgets.device_widgets.stage_widget
+        module: StageWidget
+        init:
+          advanced_user: False
+      ASI LS100 z axis:
+        type:   tiling_stage
+        driver: view.widgets.device_widgets.stage_widget
+        module: StageWidget
+        init:
+          advanced_user: False
+      ASI joystick:
+        type: joystick
+        driver: view.widgets.device_widgets.joystick_widget
+        module: JoystickWidget
+        init:
+          advanced_user: False
+      PCIe-6738:
+        type: daq
+        driver: view.widgets.device_widgets.ni_widget
+        module: NIWidget
+        init:
+            advanced_user: True
+            exposed_branches:
+              tasks.ao_task.ports.tunable lens:
+                parameters.amplitude_volts.channels:
+                      CH488: 1.0
+                      CH561: 1.0
+                      CH639: 1.0
+                parameters.offset_volts.channels:
+                      CH488: 1.0
+                      CH561: 1.0
+                      CH639: 1.0
+acquisition_view:
+  fov_dimensions: [ 10.672384, 8.00128 ]
+  coordinate_plane: [ '-x', 'y', 'z' ]
+  unit: 'mm'
+  settings:
+    cameras: [ binning ]
+    lasers: [ power_setpoint_mw ]
+    focusing_stages: [position_mm]
+    start_delay_time:
+      delegate: spin
+      type: float
+      minimum: 0
+    repeats:
+      delegate: spin
+      type: int
+      minimum: 0
+    example:
+      delegate: combo
+      type: str
+      items: ['this', 'is', 'an', 'example']
+  operation_widgets: {}
