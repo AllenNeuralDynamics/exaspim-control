@@ -4,6 +4,7 @@ from pathlib import Path
 import yaml
 from voxel.processes.gpu.gputools.downsample_2d import DownSample2D
 import inflection
+import numpy as np
 
 class ExASPIMInstrumentView(InstrumentView):
     """View for ExASPIM Instrument"""
@@ -14,9 +15,10 @@ class ExASPIMInstrumentView(InstrumentView):
 
         self.config_save_to = self.instrument.config_path
 
-    def update_layer(self, args):
-        """Multiscale image from exaspim
-        :param args: tuple containing image and camera name"""
+    def update_layer(self, args, snapshot: bool =False):
+        """Multiscale image from exaspim and rotate images for volume widget
+        :param args: tuple containing image and camera name
+        :param snapshot: if image taken is a snapshot or not """
 
         (image, camera_name) = args
         if image is not None:
@@ -25,7 +27,19 @@ class ExASPIMInstrumentView(InstrumentView):
             for binning in range(0, 5):  # TODO: variable or get from somewhere?
                 downsampled_frame = downsampler.run(multiscale[-1])
                 multiscale.append(downsampled_frame)
-            super().update_layer((multiscale, camera_name))
+            layer_name = f"{camera_name} {self.livestream_channel}" if not snapshot else \
+                f"{camera_name} {self.livestream_channel} snapshot"
+            if layer_name in self.viewer.layers and not snapshot:
+                layer = self.viewer.layers[layer_name]
+                layer.data = multiscale
+            else:
+                # Add image to a new layer if layer doesn't exist yet or image is snapshot
+                layer = self.viewer.add_image(multiscale, name=layer_name)
+                layer.mouse_drag_callbacks.append(self.save_image)
+                if snapshot:  # emit signal if snapshot
+                    self.snapshotTaken.emit(np.rot90(multiscale[-3], k=3), layer.contrast_limits)
+                    layer.events.contrast_limits.connect(lambda event: self.contrastChanged.emit(np.rot90(layer.data[-3], k=3),
+                                                                                                 layer.contrast_limits))
 
     def update_config_on_quit(self):
         """Add functionality to close function to save device properties to instrument config"""

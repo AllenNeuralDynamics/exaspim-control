@@ -26,10 +26,10 @@ instrument:
         pixel_type: mono16
         height_px: 10640
         width_px: 14192
-        trigger:
-          mode: 'on'
-          polarity: rising
-          source: external
+#        trigger:
+#          mode: 'on'
+#          polarity: rising
+#          source: external
         bit_packing_mode: msb
         binning: 1
     488 nm:
@@ -38,21 +38,21 @@ instrument:
       module: SimulatedLaser
       color: blue
       init:
-        port: COM1
+        id: COM1
     561 nm:
       type: laser
       driver: voxel.devices.lasers.simulated
       module: SimulatedLaser
       color: green
       init:
-        port: COM1
+        id: COM1
     639 nm:
       type: laser
       driver: voxel.devices.lasers.simulated
       module: SimulatedLaser
       color: red
       init:
-        port: COM1
+        id: COM1
     tiger controller:
       type: stage # is this correct? stage?
       driver: tigerasi.tiger_controller
@@ -265,7 +265,7 @@ instrument:
                   max_volts:
                     channels:
                       CH488: 0.0
-                      CH561: 5.0
+                      CH561: 10.0
                       CH639: 0.0
                   min_volts:
                     channels:
