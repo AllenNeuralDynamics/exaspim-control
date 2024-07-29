@@ -10,9 +10,11 @@ class ExASPIMInstrumentView(InstrumentView):
     """View for ExASPIM Instrument"""
 
     def __init__(self, instrument, config_path: Path, log_level='INFO'):
+
         super().__init__(instrument, config_path, log_level)
         QApplication.instance().aboutToQuit.connect(self.update_config_on_quit)
-
+        self.viewer.scale_bar.visible = True
+        self.viewer.scale_bar.unit = 'um'
         self.config_save_to = self.instrument.config_path
 
     def update_layer(self, args, snapshot: bool =False):
@@ -34,7 +36,8 @@ class ExASPIMInstrumentView(InstrumentView):
                 layer.data = multiscale
             else:
                 # Add image to a new layer if layer doesn't exist yet or image is snapshot
-                layer = self.viewer.add_image(multiscale, name=layer_name)
+                layer = self.viewer.add_image(multiscale, name=layer_name,
+                                              contrast_limits=(35, 70), scale=(0.75, 0.75))
                 layer.mouse_drag_callbacks.append(self.save_image)
                 if snapshot:  # emit signal if snapshot
                     self.snapshotTaken.emit(np.rot90(multiscale[-3], k=3), layer.contrast_limits)

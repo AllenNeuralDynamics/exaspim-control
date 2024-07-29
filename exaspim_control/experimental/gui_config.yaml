@@ -95,4 +95,13 @@ acquisition_view:
     cameras: [ binning ]
     lasers: [ power_setpoint_mw ]
     focusing_stages: [ position_mm ]
-  operation_widgets: {}
+  operation_widgets:
+    vp-151mx:
+      imaris:
+        type: writer
+#        updating_properties:
+#          - progress
+      robocopy:
+        type: transfer
+#        updating_properties:
+#          - progress

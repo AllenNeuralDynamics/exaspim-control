@@ -26,10 +26,10 @@ instrument:
         pixel_type: mono16
         height_px: 10640
         width_px: 14192
-#        trigger:
-#          mode: 'on'
-#          polarity: rising
-#          source: external
+        trigger:
+          mode: on
+          polarity: risingedge
+          source: line0
         bit_packing_mode: msb
         binning: 1
     488 nm:
@@ -228,9 +228,9 @@ instrument:
                 parameters:
                   start_time_ms:
                     channels:
-                      CH488: 40.0
-                      CH561: 40.0
-                      CH639: 40.0
+                      CH488: 0.0
+                      CH561: 0.0
+                      CH639: 0.0
                   end_time_ms:
                     channels:
                       CH488: 603.0
@@ -254,9 +254,9 @@ instrument:
                 parameters:
                   start_time_ms:
                     channels:
-                      CH488: 40.0
-                      CH561: 40.0
-                      CH639: 40.0
+                      CH488: 0.0
+                      CH561: 0.0
+                      CH639: 0.0
                   end_time_ms:
                     channels:
                       CH488: 603.0
@@ -280,9 +280,9 @@ instrument:
                 parameters:
                   start_time_ms:
                     channels:
-                      CH488: 40.0
-                      CH561: 40.0
-                      CH639: 40.0
+                      CH488: 0.0
+                      CH561: 0.0
+                      CH639: 0.0
                   end_time_ms:
                     channels:
                       CH488: 603.0
