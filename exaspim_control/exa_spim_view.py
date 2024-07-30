@@ -7,6 +7,7 @@ from voxel.processes.gpu.gputools.downsample_2d import DownSample2D
 import inflection
 import numpy as np
 import skimage.measure
+from copy import deepcopy
 
 class ExASPIMInstrumentView(InstrumentView):
     """View for ExASPIM Instrument"""
@@ -26,9 +27,10 @@ class ExASPIMInstrumentView(InstrumentView):
 
         (image, camera_name) = args
         if image is not None:
+            layers = self.viewer.layers
             multiscale = [image]
             downsampler = DownSample2D(binning=2)
-            for binning in range(0, 5):  # TODO: variable or get from somewhere?
+            for binning in range(1, 6):  # TODO: variable or get from somewhere?
                 downsampled_frame = downsampler.run(multiscale[-1])
                 multiscale.append(downsampled_frame)
             layer_name = f"{camera_name} {self.livestream_channel}" if not snapshot else \
@@ -93,15 +95,3 @@ class ExASPIMInstrumentView(InstrumentView):
                            f"to current instrument state?")
             self.config_save_to = folder[0]
 
-class ExASPIMAcquisitionView(AcquisitionView):
-    """View for ExASPIM Acquisition"""
-
-    def update_acquisition_layer(self, args):
-        """Update viewer with latest frame taken during acquisition
-        :param args: tuple containing image and camera name
-        """
-
-        (image, camera_name) = args
-        if image is not None:
-            downsampled = skimage.measure.block_reduce(image, (4,4), np.mean)
-            super().update_acquisition_layer((downsampled, camera_name))
