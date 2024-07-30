@@ -38,17 +38,17 @@ acquisition:
           verify_transfer: True
           max_retry: 3
           timeout_s: 60
-      max_projection:
-        type: process
-        driver: voxel.processes.cpu.max_projection
-        module: MaxProjection
-        init:
-          path: E:\local_test
-        settings:
-          data_type: uint16
-          x_projection_count_px: 3548
-          y_projection_count_px: 2660
-          z_projection_count_px: 256
+#      max_projection:
+#        type: process
+#        driver: voxel.processes.cpu.max_projection
+#        module: MaxProjection
+#        init:
+#          path: E:\local_test
+#        settings:
+#          data_type: uint16
+#          x_projection_count_px: 3548
+#          y_projection_count_px: 2660
+#          z_projection_count_px: 40
 #      background_collection:
 #        type: routine
 #        driver: voxel.routines.background_collection

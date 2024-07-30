@@ -1,6 +1,6 @@
 from qtpy.QtWidgets import QApplication
 import sys
-from exaspim_control.exa_spim_view import ExASPIMInstrumentView
+from exaspim_control.exa_spim_view import ExASPIMInstrumentView, ExASPIMAcquisitionView
 from view.acquisition_view import AcquisitionView
 from exaspim_control.exa_spim_instrument import ExASPIM
 from exaspim_control.exa_spim_acquisition import ExASPIMAcquisition
@@ -22,5 +22,5 @@ if __name__ == "__main__":
     acquisition = ExASPIMAcquisition(instrument, ACQUISITION_YAML, log_level= 'INFO')
     #acquisition.run()
     instrument_view = ExASPIMInstrumentView(instrument, GUI_YAML, 'INFO')
-    acquisition_view = AcquisitionView(acquisition, instrument_view)
+    acquisition_view = ExASPIMAcquisitionView(acquisition, instrument_view)
     sys.exit(app.exec_())

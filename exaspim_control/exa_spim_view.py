@@ -1,10 +1,12 @@
 from qtpy.QtWidgets import QApplication, QMessageBox, QPushButton, QFileDialog
 from view.instrument_view import InstrumentView
+from view.acquisition_view import AcquisitionView
 from pathlib import Path
 import yaml
 from voxel.processes.gpu.gputools.downsample_2d import DownSample2D
 import inflection
 import numpy as np
+import skimage.measure
 
 class ExASPIMInstrumentView(InstrumentView):
     """View for ExASPIM Instrument"""
@@ -90,3 +92,16 @@ class ExASPIMInstrumentView(InstrumentView):
             msgBox.setText(f"Do you want to update the instrument configuration file at {folder[0]} "
                            f"to current instrument state?")
             self.config_save_to = folder[0]
+
+class ExASPIMAcquisitionView(AcquisitionView):
+    """View for ExASPIM Acquisition"""
+
+    def update_acquisition_layer(self, args):
+        """Update viewer with latest frame taken during acquisition
+        :param args: tuple containing image and camera name
+        """
+
+        (image, camera_name) = args
+        if image is not None:
+            downsampled = skimage.measure.block_reduce(image, (4,4), np.mean)
+            super().update_acquisition_layer((downsampled, camera_name))
