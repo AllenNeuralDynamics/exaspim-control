@@ -20,7 +20,7 @@ instrument:
       driver: voxel.devices.camera.vieworks_egrabber
       module: Camera
       init:
-        id: MP151BBX006
+        id: MP151BBX050
       settings:
         exposure_time_ms: 10.0
         pixel_type: mono16
@@ -28,7 +28,7 @@ instrument:
         width_px: 14192
         bit_packing_mode: msb
         trigger:
-          mode: 'off'
+          mode: off
           polarity: risingedge
           source: line0
     488nm:
@@ -37,21 +37,21 @@ instrument:
       module: SimulatedLaser
       color: blue
       init:
-        port: COM3
+        id: COM3
     561nm:
       type: laser
       driver: voxel.devices.lasers.simulated
       module: SimulatedLaser
       color: green
       init:
-        port: COM4
+        id: COM4
     639nm:
       type: laser
       driver: voxel.devices.lasers.simulated
       module: SimulatedLaser
       color: red
       init:
-        port: COM5
+        id: COM5
     ASI FW-1000:
       type: filter_wheel
       driver: voxel.devices.filterwheel.simulated

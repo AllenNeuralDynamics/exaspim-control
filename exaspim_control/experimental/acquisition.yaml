@@ -18,15 +18,6 @@ acquisition:
         format: [ instrument_type, subject_id ]
   operations:
     vp-151mx:
-#      bdv:
-#        type: writer
-#        driver: voxel.writers.bdv
-#        module: Writer
-#        init:
-#          path: ./local_test
-#        settings:
-#          compression: none
-#          data_type: uint16
       imaris:
         type: writer
         driver: voxel.writers.imaris
@@ -43,13 +34,10 @@ acquisition:
         init:
           external_path: E:\external_test
           local_path: E:\local_test
-      rsync:
-        type: transfer
-        driver: voxel.transfers.rsync
-        module: FileTransfer
-        init:
-          external_path: E:\external_test_1
-          local_path: E:\local_test
+        settings:
+          verify_transfer: True
+          max_retry: 3
+          timeout_s: 60
       max_projection:
         type: process
         driver: voxel.processes.cpu.max_projection
@@ -58,38 +46,16 @@ acquisition:
           path: E:\local_test
         settings:
           data_type: uint16
-          projection_count_px: 32
-#      mean_projection:
-#        type: process
-#        driver: voxel.processes.cpu.mean_projection
-#        module: MeanProjection
+          x_projection_count_px: 3548
+          y_projection_count_px: 2660
+          z_projection_count_px: 40
+#      background_collection:
+#        type: routine
+#        driver: voxel.routines.background_collection
+#        module: BackgroundCollection
 #        init:
-#          path: ./local_test
+#          path: E:\local_test
 #        settings:
 #          data_type: uint16
-#          projection_count_px: 32
-      background_collection:
-        type: routine
-        driver: voxel.routines.background_collection
-        module: BackgroundCollection
-        init:
-          path: E:\local_test
-        settings:
-          data_type: uint16
-          frame_count_px: 10
+#          frame_count_px: 10
   tiles: []
-#    - channel: 'CH488'
-#      position_mm:
-#        x: -0.0053
-#        y: 0.001
-#        z: 0.0
-#      tile_number: 0
-#      488 nm:
-#        power_setpoint_mw: 0.0
-#      vp-151mx:
-#        binning: 1.0
-#      n stage axis:
-#        position_mm: -2.35
-#      steps: 66
-#      step_size: 0.0152
-#      prefix: ''

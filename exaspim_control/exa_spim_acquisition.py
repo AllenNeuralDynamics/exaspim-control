@@ -101,13 +101,21 @@ class ExASPIMAcquisition(Acquisition):
                 tile_position = tile['position_mm'][instrument_axis]
                 backlash_removal_position = tile_position - 0.01
                 self.log.info(f'moving stage {scanning_stage_id} to {instrument_axis} = {backlash_removal_position} mm')
-                scanning_stage.move_absolute_mm(tile_position - 0.01, wait=True)
+                scanning_stage.move_absolute_mm(tile_position - 0.01, wait=False)
                 self.log.info(f'moving stage {scanning_stage_id} to {instrument_axis} = {tile_position} mm')
-                scanning_stage.move_absolute_mm(tile_position, wait=True)
+                scanning_stage.move_absolute_mm(tile_position, wait=False)
                 self.log.info(f'backlash on {scanning_stage_id} removed')
                 step_size_um = tile['step_size']
                 self.log.info(f'setting step shoot scan step size to {step_size_um} um')
                 scanning_stage.setup_step_shoot_scan(step_size_um)
+
+            for scanning_stage_id, scanning_stage in self.instrument.scanning_stages.items():
+                while scanning_stage.is_axis_moving():
+                    instrument_axis = scanning_stage.instrument_axis
+                    tile_position = tile['position_mm'][instrument_axis]
+                    self.log.info(
+                        f'waiting for stage {scanning_stage_id}: {instrument_axis} = {scanning_stage.position_mm} -> {tile_position} mm')
+                    time.sleep(1.0)
 
             # setup channel i.e. laser and filter wheels
             self.log.info(f'setting up channel: {tile_channel}')
@@ -157,24 +165,27 @@ class ExASPIMAcquisition(Acquisition):
                 writer = self.writers[camera_id]
                 # check if any processes exist, they may not exist
                 processes = {} if not hasattr(self, 'processes') else self.processes[camera_id]
-                thread = Thread(target=self.engine,
-                                          args=(tile,
-                                                filename,
-                                                camera,
-                                                writer,
-                                                processes,
-                                                ))
-                self.acquisition_threads[camera_id] = thread
 
-            # start and arm the slaved cameras/writers
-            for camera_id in self.acquisition_threads:
+                self.engine(tile, filename, camera, writer, processes)
                 self.log.info(f'starting camera and writer for {camera_id}')
-                self.acquisition_threads[camera_id].start()
+                # thread = Thread(target=self.engine,
+                #                           args=(tile,
+                #                                 filename,
+                #                                 camera,
+                #                                 writer,
+                #                                 processes,
+                #                                 ))
+                # self.acquisition_threads[camera_id] = thread
 
-            # wait for the cameras/writers to finish
-            for camera_id in self.acquisition_threads:
-                self.log.info(f'waiting for camera {camera_id} to finish')
-                self.acquisition_threads[camera_id].join()
+            # # start and arm the slaved cameras/writers
+            # for camera_id in self.acquisition_threads:
+            #     self.log.info(f'starting camera and writer for {camera_id}')
+            #     self.acquisition_threads[camera_id].start()
+
+            # # wait for the cameras/writers to finish
+            # for camera_id in self.acquisition_threads:
+            #     self.log.info(f'waiting for camera {camera_id} to finish')
+            #     self.acquisition_threads[camera_id].join()
 
             # stop the daq
             for daq_id, daq in self.instrument.daqs.items():
