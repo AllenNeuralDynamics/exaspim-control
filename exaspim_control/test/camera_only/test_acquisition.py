@@ -1,5 +1,6 @@
 import logging
 import sys
+from logging import FileHandler
 from exaspim_control.exa_spim_instrument import ExASPIM
 from exaspim_control.exa_spim_acquisition import ExASPIMAcquisition
 
@@ -16,9 +17,13 @@ if __name__ == '__main__':
     fmt = '%(asctime)s.%(msecs)03d %(levelname)s %(name)s: %(message)s'
     datefmt = '%Y-%m-%d,%H:%M:%S'
     log_formatter = logging.Formatter(fmt=fmt, datefmt=datefmt)
+    file_handler = FileHandler('output.log', 'w')
+    file_handler.setLevel('INFO')
+    file_handler.setFormatter(log_formatter)
     log_handler = logging.StreamHandler(sys.stdout)
     log_handler.setLevel('INFO')
     log_handler.setFormatter(log_formatter)
+    logger.addHandler(file_handler)
     logger.addHandler(log_handler)
 
     # instrument
@@ -31,3 +36,6 @@ if __name__ == '__main__':
     # acquisition.check_gpu_memory()
     # acquisition.check_write_speed()
     acquisition.run()
+
+    log_handler.close()
+    logger.removeHandler(log_handler)

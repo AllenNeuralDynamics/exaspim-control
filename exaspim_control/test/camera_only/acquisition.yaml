@@ -12,7 +12,7 @@ acquisition:
         x_anatomical_direction: Anterior_to_posterior
         y_anatomical_direction: Inferior_to_superior
         z_anatomical_direction: Left_to_right
-      date_format: year/month/day/hour/minute/second
+      date_format: Year/Month/Day/Hour/Minute/Second
       name_specs:
         deliminator: _
         format: [ instrument_type, subject_id ]
@@ -46,8 +46,6 @@ acquisition:
           path: E:\\
         settings:
           data_type: uint16
-          x_projection_count_px: 3584
-          y_projection_count_px: 2660
           z_projection_count_px: 2048
       background_collection:
         type: routine
@@ -64,11 +62,11 @@ acquisition:
         x: 0
         y: 0
         z: 0
-      step_size: 1.000
-      prefix: tile
-      steps: 28672
+      step_size: 8.000
       binning: 8
-      channel: '488'
+      prefix: tile
+      steps: 3584
+      channel: '639'
       power_mw: 1000
     - tile_number: 1
       position_mm:
@@ -76,52 +74,30 @@ acquisition:
         y: 0
         z: 0
       step_size: 1.000
+      binning: 1
       prefix: tile
       steps: 28672
-      binning: 8
       channel: '488'
       power_mw: 1000
     - tile_number: 2
       position_mm:
-        x: 0
-        y: 0
-        z: 0
-      step_size: 1.000
-      prefix: tile
-      steps: 28672
+        x: 1
+        y: 1
+        z: 1
+      step_size: 8.000
       binning: 8
-      channel: '488'
+      prefix: tile
+      steps: 3584
+      channel: '639'
       power_mw: 1000
     - tile_number: 3
       position_mm:
-        x: 0
-        y: 0
-        z: 0
+        x: 1
+        y: 1
+        z: 1
       step_size: 1.000
+      binning: 1
       prefix: tile
       steps: 28672
-      binning: 8
-      channel: '488'
-      power_mw: 1000
-    - tile_number: 4
-      position_mm:
-        x: 0
-        y: 0
-        z: 0
-      step_size: 1.000
-      prefix: tile
-      steps: 28672
-      binning: 8
-      channel: '488'
-      power_mw: 1000
-    - tile_number: 5
-      position_mm:
-        x: 0
-        y: 0
-        z: 0
-      step_size: 1.000
-      prefix: tile
-      steps: 28672
-      binning: 8
       channel: '488'
       power_mw: 1000

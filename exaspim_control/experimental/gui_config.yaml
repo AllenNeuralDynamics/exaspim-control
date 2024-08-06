@@ -88,7 +88,7 @@ instrument_view:
               tasks.ao_task.ports.639 nm.parameters.max_volts.channels:
                 CH639: 10.0
 acquisition_view:
-  fov_dimensions: [ 10.672384, 8.00128 ]
+  fov_dimensions: [ 10.615616, 7.95872 ]
   coordinate_plane: [ '-x', 'y', 'z' ]
   unit: 'mm'
   settings:
