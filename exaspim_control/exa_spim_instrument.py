@@ -1,41 +1,27 @@
 import logging
-import shutil
-import datetime
-import subprocess
-import os
-import sys
-import inspect
-import importlib
 from pathlib import Path
-from serial import Serial
 from ruamel.yaml import YAML
 from voxel.instruments.instrument import Instrument
 
+DIRECTORY = Path(__file__).parent.resolve()
+
 class ExASPIM(Instrument):
 
-    def __init__(self, config_filename: str):
+    def __init__(self, config_filename: str, log_level='INFO'):
         self.log = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
-        # current working directory
-        this_dir = Path(__file__).parent.resolve()
-        self.config_path = this_dir / Path(config_filename)
-        #yaml = YAML(typ='safe', pure=True)    # loads yaml in as dict. May want to use in future
-        self.config = YAML(typ='safe', pure=True).load(self.config_path)
+        self.log.setLevel(log_level)
 
-        # store a dict of {device name: device type} for convenience
-        self.device_list = dict()
-        # store a list of stage axes
-        self.stage_axes = list()
-        # store a dict of instrument channels
-        self.channels = dict()
-        # construct microscope
-        self._construct()
+        # current working directory
+        super().__init__(DIRECTORY / Path(config_filename))
+
         # verify constructed microscope
         self._verify_instrument()
         # verify master device for microscope
         self._verify_master_device()
         # verify channels for microscope
     #     self._verify_channels()
-    #
+
+    # TODO: finish this?
     # def _verify_channels(self):
     #     setattr(self, 'channels', dict())
     #     for channel_name, channel in self.config['instrument']['channels'].items():
