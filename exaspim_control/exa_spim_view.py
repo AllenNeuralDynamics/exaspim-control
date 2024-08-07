@@ -1,54 +1,51 @@
 from qtpy.QtWidgets import QApplication, QMessageBox, QPushButton, QFileDialog
-import sys
 from view.instrument_view import InstrumentView
 from view.acquisition_view import AcquisitionView
-from exaspim_control.exa_spim_instrument import ExASPIM
-from exaspim_control.exa_spim_acquisition import ExASPIMAcquisition
 from pathlib import Path
-import os
 import yaml
-from napari.qt.threading import thread_worker
-import pyclesperanto as cle
+from voxel.processes.gpu.gputools.downsample_2d import DownSample2D
 import inflection
-
-RESOURCES_DIR = (Path(os.path.dirname(os.path.realpath(__file__))))
-ACQUISITION_YAML = RESOURCES_DIR / 'acquisition.yaml'
-INSTRUMENT_YAML = RESOURCES_DIR / 'instrument.yaml'
-GUI_YAML = RESOURCES_DIR / 'gui_config.yaml'
-
+import numpy as np
+import skimage.measure
 
 class ExASPIMInstrumentView(InstrumentView):
     """View for ExASPIM Instrument"""
 
     def __init__(self, instrument, config_path: Path, log_level='INFO'):
-        super().__init__(instrument, config_path, log_level)
-        app.aboutToQuit.connect(self.update_config_on_quit)
 
+        super().__init__(instrument, config_path, log_level)
+        QApplication.instance().aboutToQuit.connect(self.update_config_on_quit)
+        self.viewer.scale_bar.visible = True
+        self.viewer.scale_bar.unit = 'um'
         self.config_save_to = self.instrument.config_path
 
-    @thread_worker
-    def grab_frames(self, camera_name, frames=float("inf")):
-        """Grab frames from camera and create multiscale array
-        :param frames: how many frames to take
-        :param camera_name: name of camera"""
+    def update_layer(self, args, snapshot: bool =False):
+        """Multiscale image from exaspim and rotate images for volume widget
+        :param args: tuple containing image and camera name
+        :param snapshot: if image taken is a snapshot or not """
 
-        i = 0
-        while i < frames:  # while loop since frames can == inf
-            with self.camera_locks[camera_name]:
-                frame = self.instrument.cameras[camera_name].grab_frame()
-
-            # TODO: Do we want to import from exaspim what to use?
-            multiscale = [frame]
-            input_frame = cle.push(frame)
-            for binning in range(2,6): # TODO: variable or get from somewhere?
-                downsampled_frame = cle.scale(input_frame,
-                                              factor_x=1 / binning,
-                                              factor_y=1 / binning,
-                                              device=cle.select_device(),
-                                              resize=True)
-                multiscale.append(cle.pull(downsampled_frame))
-            yield multiscale, camera_name  # wait until unlocking camera to be able to quit napari thread
-            i += 1
+        (image, camera_name) = args
+        if image is not None:
+            layers = self.viewer.layers
+            multiscale = [image]
+            downsampler = DownSample2D(binning=2)
+            for binning in range(1, 6):  # TODO: variable or get from somewhere?
+                downsampled_frame = downsampler.run(multiscale[-1])
+                multiscale.append(downsampled_frame)
+            layer_name = f"{camera_name} {self.livestream_channel}" if not snapshot else \
+                f"{camera_name} {self.livestream_channel} snapshot"
+            if layer_name in self.viewer.layers and not snapshot:
+                layer = self.viewer.layers[layer_name]
+                layer.data = multiscale
+            else:
+                # Add image to a new layer if layer doesn't exist yet or image is snapshot
+                layer = self.viewer.add_image(multiscale, name=layer_name,
+                                              contrast_limits=(35, 70), scale=(0.75, 0.75))
+                layer.mouse_drag_callbacks.append(self.save_image)
+                if snapshot:  # emit signal if snapshot
+                    self.snapshotTaken.emit(np.rot90(multiscale[-3], k=3), layer.contrast_limits)
+                    layer.events.contrast_limits.connect(lambda event: self.contrastChanged.emit(np.rot90(layer.data[-3], k=3),
+                                                                                                 layer.contrast_limits))
 
     def update_config_on_quit(self):
         """Add functionality to close function to save device properties to instrument config"""
@@ -97,15 +94,15 @@ class ExASPIMInstrumentView(InstrumentView):
                            f"to current instrument state?")
             self.config_save_to = folder[0]
 
+class ExASPIMAcquisitionView(AcquisitionView):
+    """View for ExASPIM Acquisition"""
 
-if __name__ == "__main__":
-    app = QApplication(sys.argv)
+    def update_acquisition_layer(self, args):
+        """Update viewer with latest frame taken during acquisition
+        :param args: tuple containing image and camera name
+        """
 
-    # instrument
-    instrument = ExASPIM(INSTRUMENT_YAML)
-    # acquisition
-    acquisition = ExASPIMAcquisition(instrument, ACQUISITION_YAML)
-
-    instrument_view = ExASPIMInstrumentView(instrument, GUI_YAML)
-    acquisition_view = AcquisitionView(acquisition, instrument_view, GUI_YAML)
-    sys.exit(app.exec_())
+        (image, camera_name) = args
+        if image is not None:
+            downsampled = skimage.measure.block_reduce(image, (4,4), np.mean)
+            super().update_acquisition_layer((downsampled, camera_name))

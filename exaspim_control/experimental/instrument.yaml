@@ -2,15 +2,18 @@ instrument:
   id: exaspim-01
   master_device: pcie-6738
   channels:
-    CH488:
-      lasers: [488 nm]
-      cameras: [vp-151mx]
     CH561:
       lasers: [561 nm]
       cameras: [vp-151mx]
+      focusing_stages: [n stage axis]
     CH639:
       lasers: [639 nm]
       cameras: [vp-151mx]
+      focusing_stages: [n stage axis]
+    CH488:
+      lasers: [488 nm]
+      cameras: [vp-151mx]
+      focusing_stages: [n stage axis]
   devices:
     vp-151mx:
       type: camera
@@ -21,15 +24,12 @@ instrument:
       settings:
         exposure_time_ms: 10.0
         pixel_type: mono16
-        roi:
-          height_offest_px: 0
-          height_px: 10640
-          width_offset_px: 0
-          width_px: 14192
+        height_px: 10640
+        width_px: 14192
         trigger:
-          mode: 'on'
-          polarity: rising
-          source: external
+          mode: on
+          polarity: risingedge
+          source: line0
         bit_packing_mode: msb
         binning: 1
     488 nm:
@@ -38,21 +38,21 @@ instrument:
       module: SimulatedLaser
       color: blue
       init:
-        port: COM1
+        id: COM1
     561 nm:
       type: laser
       driver: voxel.devices.lasers.simulated
       module: SimulatedLaser
       color: green
       init:
-        port: COM1
+        id: COM1
     639 nm:
       type: laser
       driver: voxel.devices.lasers.simulated
       module: SimulatedLaser
       color: red
       init:
-        port: COM1
+        id: COM1
     tiger controller:
       type: stage # is this correct? stage?
       driver: tigerasi.tiger_controller
@@ -65,7 +65,6 @@ instrument:
           driver: voxel.devices.stage.asi
           module: Stage
           init:
-            port: COM3 # do we need to define port again here?
             hardware_axis: x
             instrument_axis: z
           settings:
@@ -75,11 +74,9 @@ instrument:
             acceleration_ms: 200.0
         x stage axis:
           type: tiling_stage
-          port: COM4
           driver: voxel.devices.stage.asi
           module: Stage
           init:
-            port: COM3
             hardware_axis: y
             instrument_axis: x
           settings:
@@ -92,7 +89,6 @@ instrument:
           driver: voxel.devices.stage.asi
           module: Stage
           init:
-            port: COM3
             hardware_axis: z
             instrument_axis: y
           settings:
@@ -100,13 +96,36 @@ instrument:
             speed_mm_s: 1.0
             backlash_mm: 0.004
             acceleration_ms: 200.0
-        # below is broken and needs to be updated...
-        # joystick:
-        #   type: joystick
-        #   driver: voxel.devices.stage.asi
-        #   module: Joystick
-        #   init:
-        #     port: COM3
+        n stage axis:
+          type: focusing_stage
+          driver: voxel.devices.stage.asi
+          module: Stage
+          init:
+            hardware_axis: n
+            instrument_axis: n
+        joystick:
+           type: joystick
+           driver: voxel.devices.joystick.asi
+           module: Joystick
+           init:
+             joystick_mapping:
+               joystick_x:
+                 instrument_axis: x
+                 polarity: default
+               joystick_y:
+                 instrument_axis: y
+                 polarity: default
+               wheel_z:
+                 instrument_axis: z
+                 polarity: default
+               wheel_f:
+                 instrument_axis: n
+                 polarity: default
+             axis_mapping:
+               x: y
+               y: z
+               z: x
+               n: n
     pcie-6738:
       type: daq
       driver: voxel.devices.daq.ni
@@ -136,9 +155,9 @@ instrument:
                       CH639: 593.0
                   amplitude_volts:
                     channels:
-                      CH488: 0.078
-                      CH561: 0.078
-                      CH639: 0.078
+                      CH488: -0.078
+                      CH561: -0.078
+                      CH639: -0.078
                   offset_volts:
                     channels:
                       CH488: 2.448
@@ -146,9 +165,9 @@ instrument:
                       CH639: 2.448
                   cutoff_frequency_hz:
                     channels:
-                      CH488: 200
-                      CH561: 200
-                      CH639: 200
+                      CH488: 1000
+                      CH561: 1000
+                      CH639: 1000
               stage:
                 port: ao0
                 waveform: square wave
@@ -204,14 +223,14 @@ instrument:
               488 nm:
                 port: ao5
                 waveform: square wave
-                device_max_volts: 5.0
+                device_max_volts: 10.0
                 device_min_volts: 0.0
                 parameters:
                   start_time_ms:
                     channels:
-                      CH488: 40.0
-                      CH561: 40.0
-                      CH639: 40.0
+                      CH488: 0.0
+                      CH561: 0.0
+                      CH639: 0.0
                   end_time_ms:
                     channels:
                       CH488: 603.0
@@ -230,14 +249,14 @@ instrument:
               561 nm:
                 port: ao4
                 waveform: square wave
-                device_max_volts: 5.0
+                device_max_volts: 10.0
                 device_min_volts: 0.0
                 parameters:
                   start_time_ms:
                     channels:
-                      CH488: 40.0
-                      CH561: 40.0
-                      CH639: 40.0
+                      CH488: 0.0
+                      CH561: 0.0
+                      CH639: 0.0
                   end_time_ms:
                     channels:
                       CH488: 603.0
@@ -246,7 +265,7 @@ instrument:
                   max_volts:
                     channels:
                       CH488: 0.0
-                      CH561: 5.0
+                      CH561: 10.0
                       CH639: 0.0
                   min_volts:
                     channels:
@@ -256,14 +275,14 @@ instrument:
               639 nm:
                 port: ao6
                 waveform: square wave
-                device_max_volts: 5.0
+                device_max_volts: 10.0
                 device_min_volts: 0.0
                 parameters:
                   start_time_ms:
                     channels:
-                      CH488: 40.0
-                      CH561: 40.0
-                      CH639: 40.0
+                      CH488: 0.0
+                      CH561: 0.0
+                      CH639: 0.0
                   end_time_ms:
                     channels:
                       CH488: 603.0

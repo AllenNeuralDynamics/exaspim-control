@@ -2,60 +2,56 @@ instrument:
   id: exaspim-01
   master_device: vp-151mx
   channels:
-    CH488:
+    '488':
       filters: [BP488]
       lasers: [488nm]
       cameras: [vp-151mx]
-      focusing_stages: [n stage axis]
-    CH561:
+    '561':
       filters: [BP561]
       lasers: [561nm]
       cameras: [vp-151mx]
-      focusing_stages: [n stage axis]
-    CH639:
+    '639':
       filters: [LP638]
       lasers: [639nm]
       cameras: [vp-151mx]
-      focusing_stages: [n stage axis]
   devices:
     vp-151mx:
       type: camera
-      driver: voxel.devices.camera.simulated
+      driver: voxel.devices.camera.vieworks_egrabber
       module: Camera
       init:
-        id: sim000
+        id: MP151BBX050
       settings:
-        exposure_time_ms: 20.0
+        exposure_time_ms: 10.0
         pixel_type: mono16
-        height_offest_px: 4744
-        height_px: 1152
-        width_offset_px: 6528
-        width_px: 1152
+        height_px: 10640
+        width_px: 14192
+        bit_packing_mode: msb
         trigger:
-          mode: 'off'
-          polarity: rising
-          source: external
+          mode: off
+          polarity: risingedge
+          source: line0
     488nm:
       type: laser
       driver: voxel.devices.lasers.simulated
       module: SimulatedLaser
       color: blue
       init:
-        port: COM3
+        id: COM3
     561nm:
       type: laser
       driver: voxel.devices.lasers.simulated
       module: SimulatedLaser
       color: green
       init:
-        port: COM4
+        id: COM4
     639nm:
       type: laser
       driver: voxel.devices.lasers.simulated
       module: SimulatedLaser
       color: red
       init:
-        port: COM5
+        id: COM5
     ASI FW-1000:
       type: filter_wheel
       driver: voxel.devices.filterwheel.simulated
@@ -128,22 +124,13 @@ instrument:
         instrument_axis: y
       settings:
         speed_mm_s: 1.0
-    n stage axis:
-      driver: voxel.devices.stage.simulated
-      init:
-        hardware_axis: n
-        instrument_axis: n
-      module: Stage
-      settings:
-        speed_mm_s: 1.0
-      type: focusing_stage
     ASI joystick:
       driver: voxel.devices.stage.simulated
       module: Joystick
       type: joystick
     PCIe-6738:
       type: daq
-      driver: voxel.devices.daq.ni
+      driver: voxel.devices.daq.simulated
       module: DAQ
       init:
         dev: Dev2
@@ -158,24 +145,24 @@ instrument:
                 parameters:
                   end_time_ms:
                     channels:
-                      CH488: 350.0
-                      CH561: 350.0
-                      CH639: 350.0
+                      '488': 350.0
+                      '561': 350.0
+                      '639': 350.0
                   max_volts:
                     channels:
-                      CH488: 5.0
-                      CH561: 5.0
-                      CH639: 5.0
+                      '488': 5.0
+                      '561': 5.0
+                      '639': 5.0
                   min_volts:
                     channels:
-                      CH488: 0.0
-                      CH561: 0.0
-                      CH639: 0.0
+                      '488': 0.0
+                      '561': 0.0
+                      '639': 0.0
                   start_time_ms:
                     channels:
-                      CH488: 60.0
-                      CH561: 60.0
-                      CH639: 60.0
+                      '488': 60.0
+                      '561': 60.0
+                      '639': 60.0
                 port: ao1
                 waveform: square wave
               tunable lens:
@@ -184,29 +171,29 @@ instrument:
                 parameters:
                   amplitude_volts:
                     channels:
-                      CH488: 1.5
-                      CH561: 1.0
-                      CH639: 1.0
+                      '488': 1.5
+                      '561': 1.0
+                      '639': 1.0
                   cutoff_frequency_hz:
                     channels:
-                      CH488: 200
-                      CH561: 200
-                      CH639: 200
+                      '488': 200
+                      '561': 200
+                      '639': 200
                   end_time_ms:
                     channels:
-                      CH488: 400.0
-                      CH561: 400.0
-                      CH639: 400.0
+                      '488': 400.0
+                      '561': 400.0
+                      '639': 400.0
                   offset_volts:
                     channels:
-                      CH488: 2.5
-                      CH561: 2.5
-                      CH639: 2.5
+                      '488': 2.5
+                      '561': 2.5
+                      '639': 2.5
                   start_time_ms:
                     channels:
-                      CH488: 10.0
-                      CH561: 10.0
-                      CH639: 10.0
+                      '488': 10.0
+                      '561': 10.0
+                      '639': 10.0
                 port: ao0
                 waveform: sawtooth
             timing:
