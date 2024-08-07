@@ -1,7 +1,7 @@
 from qtpy.QtWidgets import QApplication
 import sys
 from exaspim_control.exa_spim_view import ExASPIMInstrumentView
-from view.acquisition_view import AcquisitionView
+from exaspim_control.exa_spim_view import ExASPIMAcquisitionView
 from exaspim_control.exa_spim_instrument import ExASPIM
 from exaspim_control.exa_spim_acquisition import ExASPIMAcquisition
 from pathlib import Path
@@ -22,5 +22,5 @@ if __name__ == "__main__":
     acquisition = ExASPIMAcquisition(instrument, ACQUISITION_YAML)
 
     instrument_view = ExASPIMInstrumentView(instrument, GUI_YAML)
-    acquisition_view = AcquisitionView(acquisition, instrument_view)
+    acquisition_view = ExASPIMAcquisitionView(acquisition, instrument_view)
     sys.exit(app.exec_())

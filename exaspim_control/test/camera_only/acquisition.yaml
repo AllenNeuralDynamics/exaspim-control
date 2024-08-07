@@ -24,7 +24,7 @@ acquisition:
         module: Writer
         init:
           path: E:\\
-        settings:
+        properties:
           compression: lz4shuffle
           data_type: uint16
       robocopy:
@@ -34,7 +34,7 @@ acquisition:
         init:
           external_path: Z:\\scratch\\adam.glaser
           local_path: E:\\
-        settings:
+        properties:
           verify_transfer: True
           max_retry: 3
           timeout_s: 60
@@ -44,7 +44,7 @@ acquisition:
         module: MaxProjection
         init:
           path: E:\\
-        settings:
+        properties:
           data_type: uint16
           z_projection_count_px: 2048
       background_collection:
@@ -53,7 +53,7 @@ acquisition:
         module: BackgroundCollection
         init:
           path: E:\\
-        settings:
+        properties:
           data_type: uint16
           frame_count_px: 10
   tiles:
