@@ -17,7 +17,7 @@ GUI_YAML = RESOURCES_DIR / 'gui_config.yaml'
 if __name__ == "__main__":
     app = QApplication(sys.argv)
 
-    # create yaml handeler
+    # create yaml handler
     yaml = YAML()
     yaml.representer.add_representer(np.int32, lambda obj, val: obj.represent_int(int(val)))
     yaml.representer.add_representer(np.str_, lambda obj, val: obj.represent_str(str(val)))
@@ -32,7 +32,7 @@ if __name__ == "__main__":
     # acquisition
     acquisition = ExASPIMAcquisition(instrument=instrument,
                                      config_filename=ACQUISITION_YAML,
-                                     yaml_handler=yaml, 
+                                     yaml_handler=yaml,
                                      log_level='INFO')
 
     instrument_view = ExASPIMInstrumentView(instrument, GUI_YAML)
