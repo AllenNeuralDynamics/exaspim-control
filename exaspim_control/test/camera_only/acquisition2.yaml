@@ -15,7 +15,7 @@ acquisition:
         module: Writer
         init:
           path: D:\\local_test
-        settings:
+        properties:
           compression: lz4shuffle
           data_type: uint16
       robocopy:
@@ -31,7 +31,7 @@ acquisition:
         module: MaxProjection
         init:
           path: D:\\local_test
-        settings:
+        properties:
           data_type: uint16
           projection_count_px: 233
   tiles:
