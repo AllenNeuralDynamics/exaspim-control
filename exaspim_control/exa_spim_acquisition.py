@@ -15,9 +15,9 @@ DIRECTORY = Path(__file__).parent.resolve()
 
 class ExASPIMAcquisition(Acquisition):
 
-    def __init__(self, instrument: Instrument, config_filename: str, log_level='INFO'):
+    def __init__(self, instrument: Instrument, config_filename: str, yaml_handler: YAML, log_level='INFO'):
 
-        super().__init__(instrument, DIRECTORY / Path(config_filename), log_level)
+        super().__init__(instrument, DIRECTORY / Path(config_filename), yaml_handler, log_level)
 
         # verify acquisition
         self._verify_acquisition()
