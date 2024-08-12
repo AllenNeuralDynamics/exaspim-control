@@ -30,7 +30,7 @@ acquisition:
       imaris:
         type: writer
         driver: voxel.writers.imaris
-        module: Writer
+        module: ImarisWriter
         init:
           path: C:\local_test
         properties:
@@ -38,22 +38,22 @@ acquisition:
           data_type: uint16
       robocopy:
         type: transfer
-        driver: voxel.transfers.robocopy
-        module: FileTransfer
+        driver: voxel.file_transfers.robocopy
+        module: RobocopyFileTransfer
         init:
           external_path: C:\external_test
           local_path: C:\local_test
       rsync:
         type: transfer
-        driver: voxel.transfers.rsync
-        module: FileTransfer
+        driver: voxel.file_transfers.rsync
+        module: RsyncFileTransfer
         init:
           external_path: C:\external_test_1
           local_path: C:\local_test
       max_projection:
         type: process
-        driver: voxel.processes.cpu.max_projection
-        module: MaxProjection
+        driver: voxel.processes.max_projection.cpu.numpy
+        module: CPUMaxProjection
         init:
           path: C:\local_test
         properties:

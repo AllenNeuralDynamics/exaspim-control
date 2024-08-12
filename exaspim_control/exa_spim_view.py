@@ -2,8 +2,7 @@ from qtpy.QtWidgets import QApplication
 from view.instrument_view import InstrumentView
 from view.acquisition_view import AcquisitionView
 from pathlib import Path
-import yaml
-from voxel.processes.gpu.gputools.downsample_2d import DownSample2D
+from voxel.processes.downsample.gpu.gputools.downsample_2d import GPUToolsDownSample2D
 import inflection
 import numpy as np
 import skimage.measure
@@ -28,7 +27,7 @@ class ExASPIMInstrumentView(InstrumentView):
         if image is not None:
             layers = self.viewer.layers
             multiscale = [image]
-            downsampler = DownSample2D(binning=2)
+            downsampler = GPUToolsDownSample2D(binning=2)
             for binning in range(1, 6):  # TODO: variable or get from somewhere?
                 downsampled_frame = downsampler.run(multiscale[-1])
                 multiscale.append(downsampled_frame)
