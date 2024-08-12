@@ -1,6 +1,5 @@
 import numpy
 import time
-import logging
 from ruamel.yaml import YAML
 from pathlib import Path
 from threading import Event, Thread, Lock
@@ -53,205 +52,204 @@ class ExASPIMAcquisition(Acquisition):
     def run(self):
         """Run function for exaspim"""
 
-        super().run()
+        try:
+            super().run()
 
-        filenames = dict()
-        # initialize transfer threads
-        self.transfer_threads = {}
+            filenames = dict()
+            # initialize transfer threads
+            self.transfer_threads = {}
 
-        for tile in self.config['acquisition']['tiles']:
-            # check local disk space and run if enough disk space
-            if self.check_local_tile_disk_space(tile):
+            for tile in self.config['acquisition']['tiles']:
+                # check local disk space and run if enough disk space
+                if self.check_local_tile_disk_space(tile):
 
-                tile_num = tile['tile_number']
-                tile_channel = tile['channel']
-                filename_prefix = tile['prefix']
+                    tile_num = tile['tile_number']
+                    tile_channel = tile['channel']
+                    filename_prefix = tile['prefix']
 
-                # build filenames dict for all devices
-                for device_name, device_specs in self.instrument.config['instrument']['devices'].items():
-                    device_type = device_specs['type']
-                    filenames[device_name] = f'{filename_prefix}_{tile_num:06}_' \
-                                             f'ch_{tile_channel}_{device_type}_{device_name}'
-                # sanity check length of scan
-                for writer_dictionary in self.writers.values():
-                    for writer in writer_dictionary.values():
-                        chunk_count_px = writer.chunk_count_px
-                        tile_count_px = tile['steps']
-                        if tile_count_px < chunk_count_px:
-                            raise ValueError(f'tile frame count {tile_count_px} \
-                                is less than chunk size = {writer.chunk_count_px} px')
+                    # build filenames dict for all devices
+                    for device_name, device_specs in self.instrument.config['instrument']['devices'].items():
+                        device_type = device_specs['type']
+                        filenames[device_name] = f'{filename_prefix}_{tile_num:06}_' \
+                                                 f'ch_{tile_channel}_{device_type}_{device_name}'
+                    # sanity check length of scan
+                    for writer_dictionary in self.writers.values():
+                        for writer in writer_dictionary.values():
+                            chunk_count_px = writer.chunk_count_px
+                            tile_count_px = tile['steps']
+                            if tile_count_px < chunk_count_px:
+                                raise ValueError(f'tile frame count {tile_count_px} \
+                                    is less than chunk size = {writer.chunk_count_px} px')
 
-                # move all tiling stages to correct positions
-                for tiling_stage_id, tiling_stage in self.instrument.tiling_stages.items():
-                    # grab stage axis letter
-                    instrument_axis = tiling_stage.instrument_axis
-                    tile_position = tile['position_mm'][instrument_axis]
-                    self.log.info(f'moving stage {tiling_stage_id} to {instrument_axis} = {tile_position} mm')
-                    tiling_stage.move_absolute_mm(tile_position, wait=False)
-
-                # wait on all stages... simultaneously
-                for tiling_stage_id, tiling_stage in self.instrument.tiling_stages.items():
-                    while tiling_stage.is_axis_moving():
+                    # move all tiling stages to correct positions
+                    for tiling_stage_id, tiling_stage in self.instrument.tiling_stages.items():
+                        # grab stage axis letter
                         instrument_axis = tiling_stage.instrument_axis
                         tile_position = tile['position_mm'][instrument_axis]
-                        self.log.info(
-                            f'waiting for stage {tiling_stage_id}: {instrument_axis} = {tiling_stage.position_mm} -> {tile_position} mm')
-                        time.sleep(1.0)
+                        self.log.info(f'moving stage {tiling_stage_id} to {instrument_axis} = {tile_position} mm')
+                        tiling_stage.move_absolute_mm(tile_position, wait=False)
 
-                # prepare the scanning stage for step and shoot behavior
-                for scanning_stage_id, scanning_stage in self.instrument.scanning_stages.items():
-                    self.log.info(f'setting up scanning stage: {scanning_stage_id}')
-                    # grab stage axis letter
-                    instrument_axis = scanning_stage.instrument_axis
-                    tile_position = tile['position_mm'][instrument_axis]
-                    backlash_removal_position = tile_position - 0.01
-                    self.log.info(f'moving stage {scanning_stage_id} to {instrument_axis} = {backlash_removal_position} mm')
-                    scanning_stage.move_absolute_mm(tile_position - 0.01, wait=False)
-                    self.log.info(f'moving stage {scanning_stage_id} to {instrument_axis} = {tile_position} mm')
-                    scanning_stage.move_absolute_mm(tile_position, wait=False)
-                    self.log.info(f'backlash on {scanning_stage_id} removed')
-                    step_size_um = tile['step_size']
-                    self.log.info(f'setting step shoot scan step size to {step_size_um} um')
-                    scanning_stage.setup_step_shoot_scan(step_size_um)
+                    # wait on all stages... simultaneously
+                    for tiling_stage_id, tiling_stage in self.instrument.tiling_stages.items():
+                        while tiling_stage.is_axis_moving():
+                            instrument_axis = tiling_stage.instrument_axis
+                            tile_position = tile['position_mm'][instrument_axis]
+                            self.log.info(
+                                f'waiting for stage {tiling_stage_id}: {instrument_axis} = {tiling_stage.position_mm} -> {tile_position} mm')
+                            time.sleep(1.0)
 
-                for scanning_stage_id, scanning_stage in self.instrument.scanning_stages.items():
-                    while scanning_stage.is_axis_moving():
+                    # prepare the scanning stage for step and shoot behavior
+                    for scanning_stage_id, scanning_stage in self.instrument.scanning_stages.items():
+                        self.log.info(f'setting up scanning stage: {scanning_stage_id}')
+                        # grab stage axis letter
                         instrument_axis = scanning_stage.instrument_axis
                         tile_position = tile['position_mm'][instrument_axis]
-                        self.log.info(
-                            f'waiting for stage {scanning_stage_id}: {instrument_axis} = {scanning_stage.position_mm} -> {tile_position} mm')
-                        time.sleep(1.0)
+                        backlash_removal_position = tile_position - 0.01
+                        self.log.info(f'moving stage {scanning_stage_id} to {instrument_axis} = {backlash_removal_position} mm')
+                        scanning_stage.move_absolute_mm(tile_position - 0.01, wait=False)
+                        self.log.info(f'moving stage {scanning_stage_id} to {instrument_axis} = {tile_position} mm')
+                        scanning_stage.move_absolute_mm(tile_position, wait=False)
+                        self.log.info(f'backlash on {scanning_stage_id} removed')
+                        step_size_um = tile['step_size']
+                        self.log.info(f'setting step shoot scan step size to {step_size_um} um')
+                        scanning_stage.setup_step_shoot_scan(step_size_um)
 
-                # setup channel i.e. laser and filter wheels
-                self.log.info(f'setting up channel: {tile_channel}')
-                channel = self.instrument.channels[tile_channel]
-                for device_type, devices in channel.items():
-                    for device_name in devices:
-                        device = getattr(self.instrument, device_type)[device_name]
-                        if device_type in ['lasers', 'filters']:
-                            device.enable()
-                        for setting, value in tile.get(device_name, {}).items():
-                            # NEED TO CHECK HERE THAT FOCUSING STAGE POSITION GETS SET
-                            setattr(device, setting, value)
-                            self.log.info(f'setting {setting} for {device_type} {device_name} to {value}')
+                    for scanning_stage_id, scanning_stage in self.instrument.scanning_stages.items():
+                        while scanning_stage.is_axis_moving():
+                            instrument_axis = scanning_stage.instrument_axis
+                            tile_position = tile['position_mm'][instrument_axis]
+                            self.log.info(
+                                f'waiting for stage {scanning_stage_id}: {instrument_axis} = {scanning_stage.position_mm} -> {tile_position} mm')
+                            time.sleep(1.0)
 
-                # THIS PROBABLY SHOULD GET SET ABOVE?
-                # setup camera binning
-                for camera_id, camera in self.instrument.cameras.items():
-                    binning = tile[camera_id]['binning']
-                    self.log.info(f'setting {camera_id} binning to {binning}')
-                    camera.binning = binning
+                    # setup channel i.e. laser and filter wheels
+                    self.log.info(f'setting up channel: {tile_channel}')
+                    channel = self.instrument.channels[tile_channel]
+                    for device_type, devices in channel.items():
+                        for device_name in devices:
+                            device = getattr(self.instrument, device_type)[device_name]
+                            if device_type in ['lasers', 'filters']:
+                                device.enable()
+                            for setting, value in tile.get(device_name, {}).items():
+                                # NEED TO CHECK HERE THAT FOCUSING STAGE POSITION GETS SET
+                                setattr(device, setting, value)
+                                self.log.info(f'setting {setting} for {device_type} {device_name} to {value}')
 
-                for daq_name, daq in self.instrument.daqs.items():
-                    if daq.tasks.get('ao_task', None) is not None:
-                        daq.add_task('ao')
-                        daq.generate_waveforms('ao', tile_channel)
-                        daq.write_ao_waveforms()
-                    if daq.tasks.get('do_task', None) is not None:
-                        daq.add_task('do')
-                        daq.generate_waveforms('do', tile_channel)
-                        daq.write_do_waveforms()
-                    if daq.tasks.get('co_task', None) is not None:
-                        pulse_count = self.chunk_count_px
-                        daq.add_task('co', pulse_count)
+                    # THIS PROBABLY SHOULD GET SET ABOVE?
+                    # setup camera binning
+                    for camera_id, camera in self.instrument.cameras.items():
+                        binning = tile[camera_id]['binning']
+                        self.log.info(f'setting {camera_id} binning to {binning}')
+                        camera.binning = binning
 
-                # run any pre-routines for all devices
-                for device_name, routine_dictionary in getattr(self, 'routines', {}).items():
-                    device_type = self.instrument.config['instrument']['devices'][device_name]['type']
-                    self.log.info(f'running routines for {device_type} {device_name}')
-                    for routine_name, routine in routine_dictionary.items():
-                        # TODO: how to figure out what to pass in routines for different devices.
-                        # config seems like a good place but what about arguments generated in the acquisition?
-                        # make it a rule that routines must have filename property? And need to pass in device to start?
-                        device_object = getattr(self.instrument, inflection.pluralize(device_type))[device_name]
-                        routine.filename = filenames[device_name] + '_' + routine_name
-                        routine.start(device=device_object)
+                    for daq_name, daq in self.instrument.daqs.items():
+                        if daq.tasks.get('ao_task', None) is not None:
+                            daq.add_task('ao')
+                            daq.generate_waveforms('ao', tile_channel)
+                            daq.write_ao_waveforms()
+                        if daq.tasks.get('do_task', None) is not None:
+                            daq.add_task('do')
+                            daq.generate_waveforms('do', tile_channel)
+                            daq.write_do_waveforms()
+                        if daq.tasks.get('co_task', None) is not None:
+                            pulse_count = self.chunk_count_px
+                            daq.add_task('co', pulse_count)
 
-                # setup camera, data writing engines, and processes
-                for camera_id, camera in self.instrument.cameras.items():
-                    self.log.info(f'arming camera and writer for {camera_id}')
-                    # pass in camera specific camera, writer, and processes
-                    # a filename must exist for each camera
-                    filename = filenames[camera_id]
-                    # a writer must exist for each camera
-                    writer = self.writers[camera_id]
-                    # check if any processes exist, they may not exist
-                    processes = {} if not hasattr(self, 'processes') else self.processes[camera_id]
+                    # run any pre-routines for all devices
+                    for device_name, routine_dictionary in getattr(self, 'routines', {}).items():
+                        device_type = self.instrument.config['instrument']['devices'][device_name]['type']
+                        self.log.info(f'running routines for {device_type} {device_name}')
+                        for routine_name, routine in routine_dictionary.items():
+                            # TODO: how to figure out what to pass in routines for different devices.
+                            # config seems like a good place but what about arguments generated in the acquisition?
+                            # make it a rule that routines must have filename property? And need to pass in device to start?
+                            device_object = getattr(self.instrument, inflection.pluralize(device_type))[device_name]
+                            routine.filename = filenames[device_name] + '_' + routine_name
+                            routine.start(device=device_object)
 
-                    self.engine(tile, filename, camera, writer, processes)
-                    self.log.info(f'starting camera and writer for {camera_id}')
+                    # setup camera, data writing engines, and processes
+                    for camera_id, camera in self.instrument.cameras.items():
+                        self.log.info(f'arming camera and writer for {camera_id}')
+                        # pass in camera specific camera, writer, and processes
+                        # a filename must exist for each camera
+                        filename = filenames[camera_id]
+                        # a writer must exist for each camera
+                        writer = self.writers[camera_id]
+                        # check if any processes exist, they may not exist
+                        processes = {} if not hasattr(self, 'processes') else self.processes[camera_id]
 
-                # stop the daq
-                for daq_id, daq in self.instrument.daqs.items():
-                    self.log.info(f'stopping daq {daq_id}')
-                    daq.stop()
+                        self.engine(tile, filename, camera, writer, processes)
+                        self.log.info(f'starting camera and writer for {camera_id}')
 
-                # create and start transfer threads from previous tile
+                    # stop the daq
+                    for daq_id, daq in self.instrument.daqs.items():
+                        self.log.info(f'stopping daq {daq_id}')
+                        daq.stop()
+
+                    # create and start transfer threads from previous tile
+                    for device_name, transfer_dict in getattr(self, 'transfers', {}).items():
+                        self.transfer_threads[device_name] = {}
+                        for transfer_name, transfer in transfer_dict.items():
+                            self.transfer_threads[device_name][tile_num] = transfer
+                            self.transfer_threads[device_name][tile_num].filename = filenames[device_name]
+                            self.log.info(f"starting file transfer for {device_name} and tile {tile_num}")
+                            self.transfer_threads[device_name][tile_num].start()
+
+                # if not enough local disk space, but file transfers are running
+                # wait for them to finish, because this will free up disk space
+                elif len(self.transfer_threads) != 0:
+                    # check if any transfer threads are still running, if so wait on them
+                    for device_name, transfer_dict in self.transfer_threads.items():
+                        for tile_num, transfer_thread in transfer_dict.items():
+                            self.log.info(f"checking on file transfer for {device_name} and tile {tile_num}")
+                            if transfer_thread.is_alive():
+                                self.log.info(f"waiting on file transfer for {device_name} and tile {tile_num}")
+                                transfer_thread.wait_until_finished()
+                                self.log.info(f"deleting file transfer for {device_name} and tile {tile_num}")
+                                del self.transfer_threads[device_name][tile_num]
+                            else:
+                                # delete from transfer thread dictionary
+                                self.log.info(f"deleting file transfer for {device_name} and tile {tile_num}")
+                                del self.transfer_threads[device_name][tile_num]
+                # otherwise this is the first tile and there is simply not enough disk space
+                # for the first tile
+                else:
+                    raise ValueError(f"not enough local disk space")
+
+            # wait for last tiles file transfer
+            # TODO: We seem to do this logic a lot of looping through device then op.
+            # Should this be a function?
+            for device_name, transfer_dict in getattr(self, 'transfers', {}).items():
+                for transfer_id, transfer_thread in transfer_dict.items():
+                    if transfer_thread.is_alive():
+                        self.log.info(f"waiting on file transfer for {device_name} {transfer_id}")
+                        transfer_thread.wait_until_finished()
+        finally:
+            if getattr(self, 'transfers', {}) != {}:  # save to external paths
+                # save acquisition config
                 for device_name, transfer_dict in getattr(self, 'transfers', {}).items():
-                    self.transfer_threads[device_name] = {}
-                    for transfer_name, transfer in transfer_dict.items():
-                        self.transfer_threads[device_name][tile_num] = transfer
-                        self.transfer_threads[device_name][tile_num].filename = filenames[device_name]
-                        self.log.info(f"starting file transfer for {device_name} and tile {tile_num}")
-                        self.transfer_threads[device_name][tile_num].start()
+                    for transfer in transfer_dict.values():
+                        self.update_current_state_config()
+                        self.save_config(Path(transfer.external_path, transfer.acquisition_name)/'acquisition_config.yaml')
 
-            # if not enough local disk space, but file transfers are running
-            # wait for them to finish, because this will free up disk space
-            elif len(self.transfer_threads) != 0:
-                # check if any transfer threads are still running, if so wait on them
-                for device_name, transfer_dict in self.transfer_threads.items():
-                    for tile_num, transfer_thread in transfer_dict.items():
-                        self.log.info(f"checking on file transfer for {device_name} and tile {tile_num}")
-                        if transfer_thread.is_alive():
-                            self.log.info(f"waiting on file transfer for {device_name} and tile {tile_num}")
-                            transfer_thread.wait_until_finished()
-                            self.log.info(f"deleting file transfer for {device_name} and tile {tile_num}")
-                            del self.transfer_threads[device_name][tile_num]
-                        else:
-                            # delete from transfer thread dictionary
-                            self.log.info(f"deleting file transfer for {device_name} and tile {tile_num}")
-                            del self.transfer_threads[device_name][tile_num]
-            # otherwise this is the first tile and there is simply not enough disk space
-            # for the first tile
-            else:
-                raise ValueError(f"not enough local disk space")
+                # save instrument config
+                for device_name, transfer_dict in getattr(self, 'transfers', {}).items():
+                    for transfer in transfer_dict.values():
+                        self.instrument.update_current_state_config()
+                        self.instrument.save_config(Path(transfer.external_path, transfer.acquisition_name)/'instrument_config.yaml')
 
-        # wait for last tiles file transfer
-        # TODO: We seem to do this logic a lot of looping through device then op.
-        # Should this be a function?
-        for device_name, transfer_dict in getattr(self, 'transfers', {}).items():
-            for transfer_id, transfer_thread in transfer_dict.items():
-                if transfer_thread.is_alive():
-                    self.log.info(f"waiting on file transfer for {device_name} {transfer_id}")
-                    transfer_thread.wait_until_finished()
+            else: # no transfers so save locally
+                # save acquisition config
+                for device_name, writer_dict in self.writers.items():
+                    for writer in writer_dict.values():
+                        self.update_current_state_config()
+                        self.save_config(Path(writer.local_path, writer.acquisition_name)/'acquisition_config.yaml')
 
-        if getattr(self, 'transfers', {}) != {}:  # save to external paths
-            # save acquisition config
-            for device_name, transfer_dict in getattr(self, 'transfers', {}).items():
-                for transfer in transfer_dict.values():
-                    self.update_current_state_config()
-                    self.save_config(Path(transfer.external_path, transfer.acquisition_name)/'acquisition_config.yaml')
-
-            # save instrument config
-            for device_name, transfer_dict in getattr(self, 'transfers', {}).items():
-                for transfer in transfer_dict.values():
-                    self.instrument.update_current_state_config()
-                    self.instrument.save_config(Path(transfer.external_path, transfer.acquisition_name)/'instrument_config.yaml')
-
-        else: # no transfers so save locally
-            # save acquisition config
-            for device_name, writer_dict in self.writers.items():
-                for writer in writer_dict.values():
-                    self.update_current_state_config()
-                    self.save_config(Path(writer.local_path, writer.acquisition_name)/'acquisition_config.yaml')
-
-            # save instrument config
-            for device_name, writer_dict in self.writers.items():
-                for writer in writer_dict.values():
-                    self.instrument.update_current_state_config()
-                    self.instrument.save_config(Path(writer.local_path, writer.acquisition_name)/'instrument_config.yaml')
-
-
+                # save instrument config
+                for device_name, writer_dict in self.writers.items():
+                    for writer in writer_dict.values():
+                        self.instrument.update_current_state_config()
+                        self.instrument.save_config(Path(writer.local_path, writer.acquisition_name)/'instrument_config.yaml')
 
     def engine(self, tile, filename, camera, writers, processes):
 

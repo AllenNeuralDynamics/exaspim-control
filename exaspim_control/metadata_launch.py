@@ -6,6 +6,7 @@ from pathlib import Path
 from aind_data_schema.core import acquisition
 import numpy as np
 
+
 class MetadataLaunch:
     """Launch script used to parse and save metadata according to aind-data-schema"""
 
@@ -64,7 +65,7 @@ class MetadataLaunch:
                         local_drive=save_to)
                     acquisition_model.write_standard_file(output_directory=save_to, prefix="exaspim")
 
-    def parse_metadata(self, external_drive:str, local_drive:str):
+    def parse_metadata(self, external_drive: str, local_drive: str):
         """Method to parse through tiles to create an acquisition json
         :param external_drive: where data is transferred to
         :param local_drive: where data is written"""
@@ -101,10 +102,12 @@ class MetadataLaunch:
         for tile in self.acquisition.config['acquisition']['tiles']:
             tile_ch = tile['channel']
             laser = channels[tile_ch]['lasers'][0]  # FIXME: Is it okay to assume one laser for exaspim?
-            excitation_wavelength = laser.split(' ')[0] # FIXME: Is it okay to assume this convention for all lasers? Or add to baseclass of lasers?
+            excitation_wavelength = laser.split(' ')[
+                0]  # FIXME: Is it okay to assume this convention for all lasers? Or add to baseclass of lasers?
             tiles.append({
                 'file_name': f"{tile['prefix']}_{tile['tile_number']:06}_ch_{tile_ch}_camera_"
-                            f"{channels[tile_ch]['cameras'][0]}",  # FIXME: Is it okay to assume one camera for exaspim?
+                             f"{channels[tile_ch]['cameras'][0]}",
+                # FIXME: Is it okay to assume one camera for exaspim?
                 'coordinate_transformations': [
                     {
                         "type": "scale",
@@ -131,11 +134,12 @@ class MetadataLaunch:
                     "additional_device_names": np.array(
                         [x for x in channels[tile_ch] if x not in ['lasers', 'cameras']]).flatten(),
                     "excitation_wavelength": excitation_wavelength,
-                    "excitation_power": tile[laser]['power_setpoint_mw'],  # FIXME: Is it okay to assume power setpoint always included?
+                    "excitation_power": tile[laser]['power_setpoint_mw'],
+                    # FIXME: Is it okay to assume power setpoint always included?
                     "filter_wheel_index": 0
                 }
 
             })
         acq_dict['tiles'] = tiles
-        
+
         return acquisition.Acquisition(**acq_dict)
