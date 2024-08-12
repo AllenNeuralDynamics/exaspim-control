@@ -6,21 +6,21 @@ instrument_view:
         module: CameraWidget
         init:
           advanced_user: True
-      488nm:
+      488 nm:
         type: laser
         driver: view.widgets.device_widgets.laser_widget
         module: LaserWidget
         init:
           color: blue
           advanced_user: False
-      561nm:
+      561 nm:
         type: laser
         driver: view.widgets.device_widgets.laser_widget
         module: LaserWidget
         init:
           color: green
           advanced_user: False
-      639nm:
+      639 nm:
         type: laser
         driver: view.widgets.device_widgets.laser_widget
         module: LaserWidget
