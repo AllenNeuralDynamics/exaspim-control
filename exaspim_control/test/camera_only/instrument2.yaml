@@ -21,7 +21,7 @@ instrument:
       module: Camera
       init:
         id: 302482
-      properties:
+      settings:
         exposure_time_ms: 50.0
         pixel_type: mono16
         height_px: 2048
@@ -103,7 +103,7 @@ instrument:
       init:
         hardware_axis: x
         instrument_axis: z
-      properties:
+      settings:
         speed_mm_s: 1.0
     ASI MS8000 y axis:
       type: tiling_stage
@@ -112,7 +112,7 @@ instrument:
       init:
         hardware_axis: y
         instrument_axis: x
-      properties:
+      settings:
         speed_mm_s: 1.0
     ASI LS100 z axis:
       type: tiling_stage
@@ -121,7 +121,7 @@ instrument:
       init:
         hardware_axis: z
         instrument_axis: y
-      properties:
+      settings:
         speed_mm_s: 1.0
     ASI joystick:
       driver: voxel.devices.stage.simulated
@@ -133,7 +133,7 @@ instrument:
       module: DAQ
       init:
         dev: Dev2
-      properties:
+      settings:
         tasks:
           ao_task:
             name: ao task

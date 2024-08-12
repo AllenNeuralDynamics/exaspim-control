@@ -1,4 +1,4 @@
-from qtpy.QtWidgets import QApplication
+from qtpy.QtWidgets import QApplication, QMessageBox, QPushButton, QFileDialog
 from view.instrument_view import InstrumentView
 from view.acquisition_view import AcquisitionView
 from pathlib import Path
@@ -46,6 +46,53 @@ class ExASPIMInstrumentView(InstrumentView):
                     self.snapshotTaken.emit(np.rot90(multiscale[-3], k=3), layer.contrast_limits)
                     layer.events.contrast_limits.connect(lambda event: self.contrastChanged.emit(np.rot90(layer.data[-3], k=3),
                                                                                                  layer.contrast_limits))
+
+    def update_config_on_quit(self):
+        """Add functionality to close function to save device properties to instrument config"""
+
+        return_value = self.update_config_query()
+        if return_value == QMessageBox.Ok:
+            for device_name, device_specs in self.instrument.config['instrument']['devices'].items():
+                self.update_config(device_name, device_specs)
+            with open(self.config_save_to, 'w') as outfile:
+                yaml.dump(self.instrument.config, outfile)
+
+    def update_config(self, device_name, device_specs):
+        """Update setting in instrument config if already there
+        :param device_name: name of device
+        :param device_specs: dictionary dictating how device should be set up"""
+
+        device_type = inflection.pluralize(device_specs['type'])
+        for key in device_specs.get('settings', {}).keys():
+            device_object = getattr(self.instrument, device_type)[device_name]
+            device_specs.get('settings')[key] = getattr(device_object, key)
+            for subdevice_name, subdevice_specs in device_specs.get('subdevices', {}).items():
+                self.update_config(subdevice_name, subdevice_specs)
+
+    def update_config_query(self):
+        """Pop up message asking if configuration would like to be saved"""
+        msgBox = QMessageBox()
+        msgBox.setIcon(QMessageBox.Question)
+        msgBox.setText(f"Do you want to update the instrument configuration file at {self.config_save_to} "
+                       f"to current instrument state?")
+        msgBox.setWindowTitle("Updating Configuration")
+        msgBox.setStandardButtons(QMessageBox.Ok | QMessageBox.Cancel)
+        save_elsewhere = QPushButton('Change Directory')
+        msgBox.addButton(save_elsewhere, QMessageBox.DestructiveRole)
+
+        save_elsewhere.pressed.connect(lambda: self.select_directory(True, msgBox))
+
+        return msgBox.exec()
+
+    def select_directory(self, pressed, msgBox):
+        """Select directory"""
+
+        fname = QFileDialog()
+        folder = fname.getSaveFileName(directory=str(self.instrument.config_path))
+        if folder[0] != '': # user pressed cancel
+            msgBox.setText(f"Do you want to update the instrument configuration file at {folder[0]} "
+                           f"to current instrument state?")
+            self.config_save_to = folder[0]
 
 class ExASPIMAcquisitionView(AcquisitionView):
     """View for ExASPIM Acquisition"""

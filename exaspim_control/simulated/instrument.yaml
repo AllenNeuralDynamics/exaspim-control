@@ -24,7 +24,7 @@ instrument:
       module: Camera
       init:
         id: sim000
-      properties:
+      settings:
         exposure_time_ms: 20.0
         pixel_type: mono16
         height_offest_px: 4744
@@ -41,21 +41,21 @@ instrument:
       module: SimulatedLaser
       color: blue
       init:
-        id: COM3
+        port: COM3
     561nm:
       type: laser
       driver: voxel.devices.lasers.simulated
       module: SimulatedLaser
       color: green
       init:
-        id: COM4
+        port: COM4
     639nm:
       type: laser
       driver: voxel.devices.lasers.simulated
       module: SimulatedLaser
       color: red
       init:
-        id: COM5
+        port: COM5
     ASI FW-1000:
       type: filter_wheel
       driver: voxel.devices.filterwheel.simulated
@@ -108,7 +108,7 @@ instrument:
       init:
         hardware_axis: x
         instrument_axis: z
-      properties:
+      settings:
         speed_mm_s: 1.0
     ASI MS8000 y axis:
       type: tiling_stage
@@ -117,7 +117,7 @@ instrument:
       init:
         hardware_axis: y
         instrument_axis: x
-      properties:
+      settings:
         speed_mm_s: 1.0
     ASI LS100 z axis:
       type: tiling_stage
@@ -126,7 +126,7 @@ instrument:
       init:
         hardware_axis: z
         instrument_axis: y
-      properties:
+      settings:
         speed_mm_s: 1.0
     n stage axis:
       driver: voxel.devices.stage.simulated
@@ -134,7 +134,7 @@ instrument:
         hardware_axis: n
         instrument_axis: n
       module: Stage
-      properties:
+      settings:
         speed_mm_s: 1.0
       type: focusing_stage
     ASI joystick:
@@ -147,7 +147,7 @@ instrument:
       module: DAQ
       init:
         dev: Dev2
-      properties:
+      settings:
         tasks:
           ao_task:
             name: ao task

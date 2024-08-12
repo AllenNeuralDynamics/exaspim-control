@@ -21,7 +21,7 @@ instrument:
       module: Camera
       init:
         id: MP151BBX050
-      properties:
+      settings:
         exposure_time_ms: 10.0
         pixel_type: mono16
         height_px: 10640
@@ -67,7 +67,7 @@ instrument:
           init:
             hardware_axis: x
             instrument_axis: z
-          properties:
+          settings:
             mode: step shoot
             speed_mm_s: 1.0
             backlash_mm: 0.0
@@ -79,7 +79,7 @@ instrument:
           init:
             hardware_axis: y
             instrument_axis: x
-          properties:
+          settings:
             mode: off
             speed_mm_s: 1.0
             backlash_mm: 0.004
@@ -91,7 +91,7 @@ instrument:
           init:
             hardware_axis: z
             instrument_axis: y
-          properties:
+          settings:
             mode: off
             speed_mm_s: 1.0
             backlash_mm: 0.004
@@ -132,7 +132,7 @@ instrument:
       module: DAQ
       init:
         dev: Dev1
-      properties:
+      settings:
         tasks:
           ao_task:
             name: ao task
