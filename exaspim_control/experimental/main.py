@@ -5,10 +5,11 @@ from exaspim_control.exa_spim_view import ExASPIMAcquisitionView
 from exaspim_control.exa_spim_instrument import ExASPIM
 from exaspim_control.exa_spim_acquisition import ExASPIMAcquisition
 from logging import FileHandler
-from pathlib import Path
+from pathlib import Path, WindowsPath
 import logging
 import os
-
+import numpy as np
+from ruamel.yaml import YAML
 
 RESOURCES_DIR = (Path(os.path.dirname(os.path.realpath(__file__))))
 ACQUISITION_YAML = RESOURCES_DIR / 'acquisition.yaml'
@@ -39,10 +40,23 @@ if __name__ == "__main__":
 
     app = QApplication(sys.argv)
 
+    # create yaml handler
+    yaml = YAML()
+    yaml.representer.add_representer(np.int32, lambda obj, val: obj.represent_int(int(val)))
+    yaml.representer.add_representer(np.str_, lambda obj, val: obj.represent_str(str(val)))
+    yaml.representer.add_representer(np.float64, lambda obj, val: obj.represent_float(float(val)))
+    yaml.representer.add_representer(Path, lambda obj, val: obj.represent_str(str(val)))
+    yaml.representer.add_representer(WindowsPath, lambda obj, val: obj.represent_str(str(val)))
+
     # instrument
-    instrument = ExASPIM(INSTRUMENT_YAML, log_level='INFO')
+    instrument = ExASPIM(config_filename=INSTRUMENT_YAML,
+                         yaml_handler=yaml,
+                         log_level='INFO')
     # acquisition
-    acquisition = ExASPIMAcquisition(instrument, ACQUISITION_YAML, log_level='INFO')
+    acquisition = ExASPIMAcquisition(instrument=instrument,
+                                     config_filename=ACQUISITION_YAML,
+                                     yaml_handler=yaml,
+                                     log_level='INFO')
     instrument_view = ExASPIMInstrumentView(instrument, GUI_YAML, log_level='INFO')
     acquisition_view = ExASPIMAcquisitionView(acquisition, instrument_view)
 

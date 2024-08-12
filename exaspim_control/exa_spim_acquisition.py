@@ -15,9 +15,9 @@ DIRECTORY = Path(__file__).parent.resolve()
 
 class ExASPIMAcquisition(Acquisition):
 
-    def __init__(self, instrument: Instrument, config_filename: str, log_level='INFO'):
+    def __init__(self, instrument: Instrument, config_filename: str, yaml_handler: YAML, log_level='INFO'):
 
-        super().__init__(instrument, DIRECTORY / Path(config_filename), log_level)
+        super().__init__(instrument, DIRECTORY / Path(config_filename), yaml_handler, log_level)
 
         # verify acquisition
         self._verify_acquisition()
@@ -60,9 +60,8 @@ class ExASPIMAcquisition(Acquisition):
         self.transfer_threads = {}
 
         for tile in self.config['acquisition']['tiles']:
-
             # check local disk space and run if enough disk space
-            if self.check_local_tile_disk_space(tile) is True:
+            if self.check_local_tile_disk_space(tile):
 
                 tile_num = tile['tile_number']
                 tile_channel = tile['channel']
@@ -225,6 +224,34 @@ class ExASPIMAcquisition(Acquisition):
                 if transfer_thread.is_alive():
                     self.log.info(f"waiting on file transfer for {device_name} {transfer_id}")
                     transfer_thread.wait_until_finished()
+
+        if getattr(self, 'transfers', {}) != {}:  # save to external paths
+            # save acquisition config
+            for device_name, transfer_dict in getattr(self, 'transfers', {}).items():
+                for transfer in transfer_dict.values():
+                    self.update_current_state_config()
+                    self.save_config(Path(transfer.external_path, transfer.acquisition_name)/'acquisition_config.yaml')
+
+            # save instrument config
+            for device_name, transfer_dict in getattr(self, 'transfers', {}).items():
+                for transfer in transfer_dict.values():
+                    self.instrument.update_current_state_config()
+                    self.instrument.save_config(Path(transfer.external_path, transfer.acquisition_name)/'instrument_config.yaml')
+
+        else: # no transfers so save locally
+            # save acquisition config
+            for device_name, writer_dict in self.writers.items():
+                for writer in writer_dict.values():
+                    self.update_current_state_config()
+                    self.save_config(Path(writer.local_path, writer.acquisition_name)/'acquisition_config.yaml')
+
+            # save instrument config
+            for device_name, writer_dict in self.writers.items():
+                for writer in writer_dict.values():
+                    self.instrument.update_current_state_config()
+                    self.instrument.save_config(Path(writer.local_path, writer.acquisition_name)/'instrument_config.yaml')
+
+
 
     def engine(self, tile, filename, camera, writers, processes):
 

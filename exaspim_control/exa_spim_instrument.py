@@ -7,12 +7,12 @@ DIRECTORY = Path(__file__).parent.resolve()
 
 class ExASPIM(Instrument):
 
-    def __init__(self, config_filename: str, log_level='INFO'):
+    def __init__(self, config_filename: str, yaml_handler: YAML, log_level='INFO'):
         self.log = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
         self.log.setLevel(log_level)
 
         # current working directory
-        super().__init__(DIRECTORY / Path(config_filename))
+        super().__init__(DIRECTORY / Path(config_filename), yaml_handler, log_level)
 
         # verify constructed microscope
         self._verify_instrument()
