@@ -4,17 +4,17 @@ instrument:
   channels:
     CH488:
       filters: [BP488]
-      lasers: [488nm]
+      lasers: [488 nm]
       cameras: [vp-151mx]
       focusing_stages: [n stage axis]
     CH561:
       filters: [BP561]
-      lasers: [561nm]
+      lasers: [561 nm]
       cameras: [vp-151mx]
       focusing_stages: [n stage axis]
     CH639:
       filters: [LP638]
-      lasers: [639nm]
+      lasers: [639 nm]
       cameras: [vp-151mx]
       focusing_stages: [n stage axis]
   devices:
@@ -35,21 +35,21 @@ instrument:
           mode: 'off'
           polarity: rising
           source: external
-    488nm:
+    488 nm:
       type: laser
       driver: voxel.devices.lasers.simulated
       module: SimulatedLaser
       color: blue
       init:
         id: COM3
-    561nm:
+    561 nm:
       type: laser
       driver: voxel.devices.lasers.simulated
       module: SimulatedLaser
       color: green
       init:
         id: COM4
-    639nm:
+    639 nm:
       type: laser
       driver: voxel.devices.lasers.simulated
       module: SimulatedLaser

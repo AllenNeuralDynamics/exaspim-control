@@ -1,7 +1,6 @@
 from qtpy.QtWidgets import QApplication
 import sys
-from exaspim_control.exa_spim_view import ExASPIMInstrumentView
-from exaspim_control.exa_spim_view import ExASPIMAcquisitionView
+from exaspim_control.exa_spim_view import ExASPIMInstrumentView, ExASPIMAcquisitionView
 from exaspim_control.exa_spim_instrument import ExASPIM
 from exaspim_control.exa_spim_acquisition import ExASPIMAcquisition
 from logging import FileHandler
