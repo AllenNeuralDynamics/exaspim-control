@@ -5,6 +5,9 @@ import os
 import numpy as np
 from ruamel.yaml import YAML
 from exaspim_control.metadata_launch import MetadataLaunch
+from exaspim_control.exa_spim_view import ExASPIMInstrumentView, ExASPIMAcquisitionView
+from exaspim_control.exa_spim_instrument import ExASPIM
+from exaspim_control.exa_spim_acquisition import ExASPIMAcquisition
 
 RESOURCES_DIR = (Path(os.path.dirname(os.path.realpath(__file__))))
 ACQUISITION_YAML = RESOURCES_DIR / 'acquisition.yaml'
@@ -22,12 +25,21 @@ if __name__ == "__main__":
     yaml.representer.add_representer(Path, lambda obj, val: obj.represent_str(str(val)))
     yaml.representer.add_representer(WindowsPath, lambda obj, val: obj.represent_str(str(val)))
 
-    MetadataLaunch(
-        instrument_config_filename=INSTRUMENT_YAML,
-        instrument_yaml_handler=yaml,
-        log_level='INFO',
-        acquisition_config_filename=ACQUISITION_YAML,
-        acquisition_yaml_handler=yaml,
-        gui_config_filename=GUI_YAML)
+    # instrument
+    instrument = ExASPIM(config_filename=INSTRUMENT_YAML,
+                         yaml_handler=yaml,
+                         log_level='INFO')
+    # acquisition
+    acquisition = ExASPIMAcquisition(instrument=instrument,
+                                     config_filename=ACQUISITION_YAML,
+                                     yaml_handler=yaml,
+                                     log_level='INFO')
+    instrument_view = ExASPIMInstrumentView(instrument, GUI_YAML, log_level='INFO')
+    acquisition_view = ExASPIMAcquisitionView(acquisition, instrument_view)
+
+    MetadataLaunch(instrument=instrument,
+                   acquisition=acquisition,
+                   instrument_view=instrument_view,
+                   acquisition_view=acquisition_view)
 
     sys.exit(app.exec_())

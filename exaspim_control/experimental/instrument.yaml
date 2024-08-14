@@ -39,6 +39,7 @@ instrument:
       color: blue
       init:
         id: COM1
+        wavelength: 488
     561 nm:
       type: laser
       driver: voxel.devices.lasers.simulated
@@ -46,6 +47,7 @@ instrument:
       color: green
       init:
         id: COM1
+        wavelength: 561
     639 nm:
       type: laser
       driver: voxel.devices.lasers.simulated
@@ -53,6 +55,7 @@ instrument:
       color: red
       init:
         id: COM1
+        wavelength: 639
     tiger controller:
       type: stage # is this correct? stage?
       driver: tigerasi.tiger_controller

@@ -7,38 +7,38 @@ from aind_data_schema.core import acquisition
 import numpy as np
 
 
+X_ANATOMICAL_DIRECTIONS = {'Anterior to Posterior': 'Anterior_to_posterior',
+                           'Posterior to Anterior': 'Posterior_to_anterior'}
+
+Y_ANATOMICAL_DIRECTIONS = {'Inferior to Superior': 'Inferior_to_superior',
+                           'Superior to Inferior': 'Superior_to_inferior'}
+
+Z_ANATOMICAL_DIRECTIONS = {'Left to Right': 'Left_to_right',
+                           'Right to Left': 'Right_to_left'}
+
 class MetadataLaunch:
     """Launch script used to parse and save metadata according to aind-data-schema"""
 
-    def __init__(self, instrument_config_filename: Path,
-                 instrument_yaml_handler,
-                 acquisition_config_filename: Path,
-                 acquisition_yaml_handler,
-                 gui_config_filename: Path,
-                 log_level):
+    def __init__(self, instrument: ExASPIM,
+                 acquisition: ExASPIMAcquisition,
+                 instrument_view: ExASPIMInstrumentView,
+                 acquisition_view: ExASPIMAcquisitionView):
 
         """
         Create instrument, acquisition, and gui. Connect acquisitionEnded to parsing metadata method
-        :param instrument_config_filename:
-        :param instrument_yaml_handler:
-        :param acquisition_config_filename:
-        :param acquisition_yaml_handler:
-        :param gui_config_filename:
-        :param log_level:
+        :param instrument: ExASPIM instrument object
+        :param acquisition: ExASPIMAcquisition acquisition object
+        :param instrument_view: ExASPIMInstrumentView object
+        :param acquisition_view: ExASPIMAcquisitionView object
         """
 
         # instrument
-        self.instrument = ExASPIM(config_filename=instrument_config_filename,
-                                  yaml_handler=instrument_yaml_handler,
-                                  log_level=log_level)
+        self.instrument = instrument
         # acquisition
-        self.acquisition = ExASPIMAcquisition(instrument=self.instrument,
-                                              config_filename=acquisition_config_filename,
-                                              yaml_handler=acquisition_yaml_handler,
-                                              log_level=log_level)
+        self.acquisition = acquisition
 
-        self.instrument_view = ExASPIMInstrumentView(self.instrument, gui_config_filename, log_level=log_level)
-        self.acquisition_view = ExASPIMAcquisitionView(self.acquisition, self.instrument_view)
+        self.instrument_view = instrument_view
+        self.acquisition_view = acquisition_view
 
         self.acquisition_start_time = None  # variable will be filled when acquisitionStarted signal is emitted
         self.acquisition_view.acquisitionStarted.connect(lambda value: setattr(self, 'acquisition_start_time', value))
@@ -83,17 +83,17 @@ class MetadataLaunch:
                         {
                             'name': 'X',
                             'dimension': 2,
-                            'direction': getattr(self.acquisition.metadata, 'x_anatomical_direction', None)
+                            'direction': X_ANATOMICAL_DIRECTIONS[getattr(self.acquisition.metadata, 'x_anatomical_direction', None)]
                         },
                         {
                             'name': 'Y',
                             'dimension': 1,
-                            'direction': getattr(self.acquisition.metadata, 'y_anatomical_direction', None)
+                            'direction': Y_ANATOMICAL_DIRECTIONS[getattr(self.acquisition.metadata, 'y_anatomical_direction', None)]
                         },
                         {
                             'name': 'Z',
                             'dimension': 0,
-                            'direction': getattr(self.acquisition.metadata, 'z_anatomical_direction', None)
+                            'direction': Z_ANATOMICAL_DIRECTIONS[getattr(self.acquisition.metadata, 'z_anatomical_direction', None)]
                         }
                     ],
                     }
@@ -101,13 +101,11 @@ class MetadataLaunch:
         channels = self.instrument.config['instrument']['channels']
         for tile in self.acquisition.config['acquisition']['tiles']:
             tile_ch = tile['channel']
-            laser = channels[tile_ch]['lasers'][0]  # FIXME: Is it okay to assume one laser for exaspim?
-            excitation_wavelength = laser.split(' ')[
-                0]  # FIXME: Is it okay to assume this convention for all lasers? Or add to baseclass of lasers?
+            laser = channels[tile_ch]['lasers'][0]
+            excitation_wavelength = self.instrument.lasers[laser].wavelength
             tiles.append({
                 'file_name': f"{tile['prefix']}_{tile['tile_number']:06}_ch_{tile_ch}_camera_"
                              f"{channels[tile_ch]['cameras'][0]}",
-                # FIXME: Is it okay to assume one camera for exaspim?
                 'coordinate_transformations': [
                     {
                         "type": "scale",
@@ -128,14 +126,13 @@ class MetadataLaunch:
                 ],
                 'channel': {
                     'channel_name': tile_ch,
-                    "light_source_name": laser,  # FIXME: Is it okay to assume one laser for exaspim?
+                    "light_source_name": laser,
                     "filter_names": channels[tile_ch].get('filters', []),
                     "detector_name": channels[tile_ch]['cameras'][0],
                     "additional_device_names": np.array(
                         [x for x in channels[tile_ch] if x not in ['lasers', 'cameras']]).flatten(),
                     "excitation_wavelength": excitation_wavelength,
                     "excitation_power": tile[laser]['power_setpoint_mw'],
-                    # FIXME: Is it okay to assume power setpoint always included?
                     "filter_wheel_index": 0
                 }
 
