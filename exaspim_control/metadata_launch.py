@@ -41,12 +41,13 @@ class MetadataLaunch:
         self.acquisition_view = acquisition_view
 
         self.acquisition_start_time = None  # variable will be filled when acquisitionStarted signal is emitted
+        self.acquisition_end_time = None  # variable will be filled when acquisitionStarted signal is emitted
         self.acquisition_view.acquisitionStarted.connect(lambda value: setattr(self, 'acquisition_start_time', value))
+        self.acquisition_view.acquisitionEnded.connect(lambda: setattr(self, 'acquisition_end_time', datetime.now()))
         self.acquisition_view.acquisitionEnded.connect(self.create_acquisition_json)
 
     def create_acquisition_json(self):
         """Method to create and save acquisition.json"""
-
         if getattr(self.acquisition, 'transfers', {}) != {}:  # save to external paths
             for device_name, transfer_dict in getattr(self.acquisition, 'transfers', {}).items():
                 for transfer in transfer_dict.values():
@@ -57,7 +58,7 @@ class MetadataLaunch:
                     acquisition_model.write_standard_file(output_directory=save_to, prefix="exaspim")
 
         else:  # no transfers so save locally
-            for device_name, writer_dict in self.writers.items():
+            for device_name, writer_dict in self.acquisition.writers.items():
                 for writer in writer_dict.values():
                     save_to = str(Path(writer.local_path, writer.acquisition_name))
                     acquisition_model = self.parse_metadata(
@@ -75,7 +76,7 @@ class MetadataLaunch:
                     'subject_id': str(getattr(self.acquisition.metadata, 'subject_id', '')),
                     'instrument_id': getattr(self.acquisition.metadata, 'instrument_id', ''),
                     'session_start_time': self.acquisition_start_time,
-                    'session_end_time': datetime.now(),
+                    'session_end_time': self.acquisition_end_time,
                     'local_storage_directory': local_drive,
                     'external_storage_directory': external_drive,
                     'chamber_immersion': getattr(self.acquisition.metadata, 'chamber_immersion', None),
@@ -130,7 +131,7 @@ class MetadataLaunch:
                     "filter_names": channels[tile_ch].get('filters', []),
                     "detector_name": channels[tile_ch]['cameras'][0],
                     "additional_device_names": np.array(
-                        [x for x in channels[tile_ch] if x not in ['lasers', 'cameras']]).flatten(),
+                        [v for k,v in channels[tile_ch].items() if k not in ['lasers', 'cameras']]).flatten(),
                     "excitation_wavelength": excitation_wavelength,
                     "excitation_power": tile[laser]['power_setpoint_mw'],
                     "filter_wheel_index": 0
