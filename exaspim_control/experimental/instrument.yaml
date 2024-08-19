@@ -150,9 +150,9 @@ instrument:
                       CH639: 0.0
                   end_time_ms:
                     channels:
-                      CH488: 593.0
-                      CH561: 593.0
-                      CH639: 593.0
+                      CH488: 544.0
+                      CH561: 544.0
+                      CH639: 544.0
                   amplitude_volts:
                     channels:
                       CH488: -0.078
@@ -176,14 +176,14 @@ instrument:
                 parameters:
                   start_time_ms:
                     channels:
-                      CH488: 593.0
-                      CH561: 593.0
-                      CH639: 593.0
+                      CH488: 544.0
+                      CH561: 544.0
+                      CH639: 544.0
                   end_time_ms:
                     channels:
-                      CH488: 603.0
-                      CH561: 603.0
-                      CH639: 603.0
+                      CH488: 554.0
+                      CH561: 554.0
+                      CH639: 554.0
                   max_volts:
                     channels:
                       CH488: 5.0
@@ -202,14 +202,14 @@ instrument:
                 parameters:
                   start_time_ms:
                     channels:
-                      CH488: 50.0
-                      CH561: 50.0
-                      CH639: 50.0
+                      CH488: 25.0
+                      CH561: 25.0
+                      CH639: 25.0
                   end_time_ms:
                     channels:
-                      CH488: 60.0
-                      CH561: 60.0
-                      CH639: 60.0
+                      CH488: 35.0
+                      CH561: 35.0
+                      CH639: 35.0
                   max_volts:
                     channels:
                       CH488: 5.0
@@ -228,14 +228,14 @@ instrument:
                 parameters:
                   start_time_ms:
                     channels:
-                      CH488: 0.0
-                      CH561: 0.0
-                      CH639: 0.0
+                      CH488: 15.0
+                      CH561: 15.0
+                      CH639: 15.0
                   end_time_ms:
                     channels:
-                      CH488: 603.0
-                      CH561: 603.0
-                      CH639: 603.0
+                      CH488: 549.0
+                      CH561: 549.0
+                      CH639: 549.0
                   max_volts:
                     channels:
                       CH488: 5.0
@@ -254,14 +254,14 @@ instrument:
                 parameters:
                   start_time_ms:
                     channels:
-                      CH488: 0.0
-                      CH561: 0.0
-                      CH639: 0.0
+                      CH488: 15.0
+                      CH561: 15.0
+                      CH639: 15.0
                   end_time_ms:
                     channels:
-                      CH488: 603.0
-                      CH561: 603.0
-                      CH639: 603.0
+                      CH488: 549.0
+                      CH561: 549.0
+                      CH639: 549.0
                   max_volts:
                     channels:
                       CH488: 0.0
@@ -280,14 +280,14 @@ instrument:
                 parameters:
                   start_time_ms:
                     channels:
-                      CH488: 0.0
-                      CH561: 0.0
-                      CH639: 0.0
+                      CH488: 15.0
+                      CH561: 15.0
+                      CH639: 15.0
                   end_time_ms:
                     channels:
-                      CH488: 603.0
-                      CH561: 603.0
-                      CH639: 603.0
+                      CH488: 549.0
+                      CH561: 549.0
+                      CH639: 549.0
                   max_volts:
                     channels:
                       CH488: 0.0
@@ -299,7 +299,7 @@ instrument:
                       CH561: 0.0
                       CH639: 0.0
             timing:
-              period_time_ms: 603.0
+              period_time_ms: 544.0
               rest_time_ms: 50.0
               retriggerable: 'on'
               sample_mode: finite
