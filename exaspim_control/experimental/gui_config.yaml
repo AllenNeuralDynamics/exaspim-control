@@ -91,10 +91,12 @@ acquisition_view:
   fov_dimensions: [ 10.615616, 7.95872 ]
   coordinate_plane: [ '-x', 'y', 'z' ]
   unit: 'mm'
-  properties:
-    cameras: [ binning ]
-    lasers: [ power_setpoint_mw ]
-    focusing_stages: [ position_mm ]
+  channel_plan:
+    init:
+      properties:
+        cameras: [ binning ]
+        lasers: [ power_setpoint_mw ]
+        focusing_stages: [ position_mm ]
   operation_widgets:
     vp-151mx:
       imaris:
