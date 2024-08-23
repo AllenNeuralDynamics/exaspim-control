@@ -1,13 +1,13 @@
 from qtpy.QtWidgets import QApplication
 import sys
-from exaspim_control.exa_spim_view import ExASPIMInstrumentView
-from exaspim_control.exa_spim_view import ExASPIMAcquisitionView
-from exaspim_control.exa_spim_instrument import ExASPIM
-from exaspim_control.exa_spim_acquisition import ExASPIMAcquisition
 from pathlib import Path, WindowsPath
 import os
 import numpy as np
 from ruamel.yaml import YAML
+from exaspim_control.metadata_launch import MetadataLaunch
+from exaspim_control.exa_spim_view import ExASPIMInstrumentView, ExASPIMAcquisitionView
+from exaspim_control.exa_spim_instrument import ExASPIM
+from exaspim_control.exa_spim_acquisition import ExASPIMAcquisition
 
 RESOURCES_DIR = (Path(os.path.dirname(os.path.realpath(__file__))))
 ACQUISITION_YAML = RESOURCES_DIR / 'acquisition.yaml'
@@ -34,7 +34,12 @@ if __name__ == "__main__":
                                      config_filename=ACQUISITION_YAML,
                                      yaml_handler=yaml,
                                      log_level='INFO')
-
-    instrument_view = ExASPIMInstrumentView(instrument, GUI_YAML)
+    instrument_view = ExASPIMInstrumentView(instrument, GUI_YAML, log_level='INFO')
     acquisition_view = ExASPIMAcquisitionView(acquisition, instrument_view)
+
+    MetadataLaunch(instrument=instrument,
+                   acquisition=acquisition,
+                   instrument_view=instrument_view,
+                   acquisition_view=acquisition_view)
+
     sys.exit(app.exec_())

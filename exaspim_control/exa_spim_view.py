@@ -3,10 +3,10 @@ from view.instrument_view import InstrumentView
 from view.acquisition_view import AcquisitionView
 from pathlib import Path
 from voxel.processes.downsample.gpu.gputools.downsample_2d import GPUToolsDownSample2D
-import inflection
 import numpy as np
 import skimage.measure
-
+from qtpy.QtCore import Slot, Signal
+from datetime import datetime
 class ExASPIMInstrumentView(InstrumentView):
     """View for ExASPIM Instrument"""
 
@@ -49,6 +49,9 @@ class ExASPIMInstrumentView(InstrumentView):
 class ExASPIMAcquisitionView(AcquisitionView):
     """View for ExASPIM Acquisition"""
 
+    acquisitionEnded = Signal()
+    acquisitionStarted = Signal((datetime))
+
     def update_acquisition_layer(self, args):
         """Update viewer with latest frame taken during acquisition
         :param args: tuple containing image and camera name
@@ -58,3 +61,14 @@ class ExASPIMAcquisitionView(AcquisitionView):
         if image is not None:
             downsampled = skimage.measure.block_reduce(image, (4,4), np.mean)
             super().update_acquisition_layer((downsampled, camera_name))
+
+    def start_acquisition(self):
+        """Overwrite to emit acquisitionStarted signal"""
+
+        super().start_acquisition()
+        self.acquisitionStarted.emit(datetime.now())
+
+    def acquisition_ended(self):
+        """Overwrite to emit acquisitionEnded signal """
+        super().acquisition_ended()
+        self.acquisitionEnded.emit()

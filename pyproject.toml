@@ -24,5 +24,6 @@ dependencies = [
     'scikit-tensor-py3',
     'tensorstore >= 0.1.56',
     'pyclesperanto >= 0.8.2',
-    'pylablib >= 1.4.2'
+    'pylablib >= 1.4.2',
+    'aind_data_schema >= 0.26.7'
 ]
