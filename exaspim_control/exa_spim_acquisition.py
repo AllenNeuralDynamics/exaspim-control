@@ -26,10 +26,10 @@ class ExASPIMAcquisition(Acquisition):
         self.transfer_threads = dict()
         self.stop_engine = Event()  # Event to flag a stop in engine
 
-    def _setup_operation(self, device: object, settings: dict):
+    def _setup_class(self, device: object, settings: dict):
         """Overwrite so metadata class can pass in acquisition_name to devices that require it"""
 
-        super()._setup_operation(device, settings)
+        super()._setup_class(device, settings)
 
         # set acquisition_name attribute if it exists for object
         if hasattr(device, 'acquisition_name'):

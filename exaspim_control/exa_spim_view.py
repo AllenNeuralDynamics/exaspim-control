@@ -15,7 +15,7 @@ class ExASPIMInstrumentView(InstrumentView):
         super().__init__(instrument, config_path, log_level)
         self.viewer.scale_bar.visible = True
         self.viewer.scale_bar.unit = 'um'
-    
+
     def update_layer(self, args, snapshot: bool =False):
         """Multiscale image from exaspim and rotate images for volume widget
         :param args: tuple containing image and camera name
