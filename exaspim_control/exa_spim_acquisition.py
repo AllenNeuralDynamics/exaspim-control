@@ -15,7 +15,7 @@ DIRECTORY = Path(__file__).parent.resolve()
 class ExASPIMAcquisition(Acquisition):
 
     def __init__(self, instrument: Instrument, config_filename: str, yaml_handler: YAML, log_level='INFO'):
-
+        self.metadata = None  # initialize as none since setting up metadata class with call setup_class
         super().__init__(instrument, DIRECTORY / Path(config_filename), yaml_handler, log_level)
 
         # verify acquisition
@@ -32,7 +32,7 @@ class ExASPIMAcquisition(Acquisition):
         super()._setup_class(device, settings)
 
         # set acquisition_name attribute if it exists for object
-        if hasattr(device, 'acquisition_name'):
+        if hasattr(device, 'acquisition_name') and self.metadata is not None:
             setattr(device, 'acquisition_name', self.metadata.acquisition_name)
 
     def _verify_acquisition(self):
