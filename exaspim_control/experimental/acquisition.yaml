@@ -22,7 +22,7 @@ acquisition:
       imaris:
         type: writer
         driver: voxel.writers.imaris
-        module: Writer
+        module: ImarisWriter
         init:
           path: E:\\
         properties:
@@ -30,8 +30,8 @@ acquisition:
           data_type: uint16
       robocopy:
         type: transfer
-        driver: voxel.transfers.robocopy
-        module: FileTransfer
+        driver: voxel.file_transfers.robocopy
+        module: RobocopyFileTransfer
         init:
           external_path: Z:\\scratch\\adam.glaser
           local_path: E:\\
@@ -41,8 +41,8 @@ acquisition:
           timeout_s: 60
       max_projection:
         type: process
-        driver: voxel.processes.cpu.max_projection
-        module: MaxProjection
+        driver: voxel.processes.max_projection.cpu.numpy
+        module: CPUMaxProjection
         init:
           path: E:\\
         properties:

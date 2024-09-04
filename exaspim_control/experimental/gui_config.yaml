@@ -88,15 +88,25 @@ instrument_view:
               tasks.ao_task.ports.639 nm.parameters.max_volts.channels:
                 CH639: 10.0
 acquisition_view:
-  fov_dimensions: [ 10.615616, 7.95872 ]
+  fov_dimensions: [ 10.615616, 7.95872, 0 ]
   coordinate_plane: [ '-x', 'y', 'z' ]
   unit: 'mm'
-  channel_plan:
-    init:
-      properties:
-        cameras: [ binning ]
-        lasers: [ power_setpoint_mw ]
-        focusing_stages: [ position_mm ]
+  acquisition_widgets:
+    channel_plan:
+      init:
+        properties:
+          cameras: [ binning ]
+          lasers: [ power_setpoint_mw ]
+          focusing_stages: [ position_mm ]
+          start_delay_time:
+            delegate: spin
+            type: float
+            minimum: 0
+            initial_value: 10
+          repeats:
+            delegate: spin
+            type: int
+            minimum: 0
   operation_widgets:
     vp-151mx:
       imaris:
