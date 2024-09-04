@@ -261,9 +261,9 @@ class ExASPIMAcquisition(Acquisition):
             writer.row_count_px = camera.height_px // camera.binning
             writer.column_count_px = camera.width_px // camera.binning
             writer.frame_count_px = tile['steps']
-            writer.x_pos_mm = tile['position_mm']['x']
-            writer.y_pos_mm = tile['position_mm']['y']
-            writer.z_pos_mm = tile['position_mm']['z']
+            writer.x_position_mm = tile['position_mm']['x']
+            writer.y_position_mm = tile['position_mm']['y']
+            writer.z_position_mm = tile['position_mm']['z']
             writer.x_voxel_size_um = 0.748 * camera.binning  # TODO pull this from instrument yaml
             writer.y_voxel_size_um = 0.748 * camera.binning # TODO pull this from instrument yaml
             writer.z_voxel_size_um = tile['step_size']

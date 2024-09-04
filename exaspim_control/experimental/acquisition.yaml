@@ -33,7 +33,7 @@ acquisition:
         driver: voxel.file_transfers.robocopy
         module: RobocopyFileTransfer
         init:
-          external_path: Z:\\scratch\\adam.glaser
+          external_path: E:\\scratch\\adam.glaser
           local_path: E:\\
         properties:
           verify_transfer: True

@@ -7,7 +7,7 @@ from aind_data_schema.core import acquisition
 import numpy as np
 
 
-X_ANATOMICAL_DIRECTIONS = {'Anterior to Posterior': 'Anterior_to_posterior',
+X_ANATOMICAL_DIRECTIONS = {'Anterior_to_Posterior': 'Anterior_to_posterior',
                            'Posterior to Anterior': 'Posterior_to_anterior'}
 
 Y_ANATOMICAL_DIRECTIONS = {'Inferior to Superior': 'Inferior_to_superior',
@@ -84,17 +84,17 @@ class MetadataLaunch:
                         {
                             'name': 'X',
                             'dimension': 2,
-                            'direction': X_ANATOMICAL_DIRECTIONS[getattr(self.acquisition.metadata, 'x_anatomical_direction', None)]
+                            'direction': getattr(self.acquisition.metadata, 'x_anatomical_direction', None)
                         },
                         {
                             'name': 'Y',
                             'dimension': 1,
-                            'direction': Y_ANATOMICAL_DIRECTIONS[getattr(self.acquisition.metadata, 'y_anatomical_direction', None)]
+                            'direction': getattr(self.acquisition.metadata, 'y_anatomical_direction', None)
                         },
                         {
                             'name': 'Z',
                             'dimension': 0,
-                            'direction': Z_ANATOMICAL_DIRECTIONS[getattr(self.acquisition.metadata, 'z_anatomical_direction', None)]
+                            'direction': getattr(self.acquisition.metadata, 'z_anatomical_direction', None)
                         }
                     ],
                     }
