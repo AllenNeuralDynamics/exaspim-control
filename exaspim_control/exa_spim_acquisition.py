@@ -9,6 +9,7 @@ from voxel.writers.data_structures.shared_double_buffer import SharedDoubleBuffe
 from voxel.acquisition.acquisition import Acquisition
 import inflection
 import math
+from nidaqmx.constants import AcquisitionType as AcqType
 
 DIRECTORY = Path(__file__).parent.resolve()
 
@@ -317,10 +318,10 @@ class ExASPIMAcquisition(Acquisition):
             if chunk_index == 0:
                 chunks_filled = math.floor(stack_index / self.chunk_count_px)
                 remaining_chunks = chunk_count - chunks_filled
-                # num_pulses = last_chunk_size if remaining_chunks == 1 else self.chunk_count_px
-                # for daq_name, daq in self.instrument.daqs.items():
-                    # daq.co_task.timing.cfg_implicit_timing(sample_mode= AcqType.FINITE,
-                    #                                         samps_per_chan= num_pulses)
+                num_pulses = last_chunk_size if remaining_chunks == 1 else self.chunk_count_px
+                for daq_name, daq in self.instrument.daqs.items():
+                    daq.co_task.timing.cfg_implicit_timing(sample_mode= AcqType.FINITE,
+                                                            samps_per_chan= num_pulses)
                     #################### IMPORTANT ####################
                     # for the exaspim, the NIDAQ is the master, so we start this last
                 for daq_id, daq in self.instrument.daqs.items():
@@ -342,8 +343,6 @@ class ExASPIMAcquisition(Acquisition):
             if chunk_index + 1 == self.chunk_count_px or stack_index == last_frame_index:
                 for daq_name, daq in self.instrument.daqs.items():
                     daq.stop()
-                while not writer.done_reading.is_set() and not self.stop_engine.is_set():
-                    time.sleep(0.001)
                 for writer_name, writer in writers.items():
                     # Dispatch chunk to each StackWriter compression process.
                     # Toggle double buffer to continue writing images.
@@ -352,6 +351,8 @@ class ExASPIMAcquisition(Acquisition):
                     # Lock out the buffer before toggling it such that we
                     # don't provide an image from a place that hasn't been
                     # written yet.
+                    while not writer.done_reading.is_set() and not self.stop_engine.is_set():
+                        time.sleep(0.001)
                     with chunk_locks[writer_name]:
                         img_buffers[writer_name].toggle_buffers()
                         if writer.path is not None:

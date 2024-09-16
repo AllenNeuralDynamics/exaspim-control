@@ -184,9 +184,9 @@ instrument:
                       CH639: 544.0
                   end_time_ms:
                     channels:
-                      CH488: 544.0
-                      CH561: 544.0
-                      CH639: 544.0
+                      CH488: 554.0
+                      CH561: 554.0
+                      CH639: 554.0
                   max_volts:
                     channels:
                       CH488: 5.0
@@ -302,7 +302,7 @@ instrument:
                       CH561: 0.0
                       CH639: 0.0
             timing:
-              period_time_ms: 550.0
+              period_time_ms: 544.0
               rest_time_ms: 50.0
               retriggerable: 'on'
               sample_mode: finite
