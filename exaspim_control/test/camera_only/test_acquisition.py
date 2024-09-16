@@ -2,7 +2,7 @@ import logging
 import sys
 from logging import FileHandler
 from exaspim_control.exa_spim_instrument import ExASPIM
-from exaspim_control.exa_spim_acquisition import ExASPIMAcquisition
+from exaspim_control.exa_spim_acquisition_zarr import ExASPIMAcquisition
 
 if __name__ == '__main__':
 
@@ -13,7 +13,7 @@ if __name__ == '__main__':
     # Remove any handlers already attached to the root logger.
     logging.getLogger().handlers.clear()
     # logger level must be set to the lowest level of any handler.
-    logger.setLevel(logging.DEBUG)
+    logger.setLevel(logging.INFO)
     fmt = '%(asctime)s.%(msecs)03d %(levelname)s %(name)s: %(message)s'
     datefmt = '%Y-%m-%d,%H:%M:%S'
     log_formatter = logging.Formatter(fmt=fmt, datefmt=datefmt)

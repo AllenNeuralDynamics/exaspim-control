@@ -17,16 +17,15 @@ instrument:
   devices:
     vp-151mx:
       type: camera
-      driver: voxel.devices.camera.vieworks_egrabber
+      driver: voxel.devices.camera.vieworks_acquire
       module: Camera
       init:
-        id: MP151BBX050
+        id: MP151BBX006
       settings:
         exposure_time_ms: 10.0
         pixel_type: mono16
         height_px: 10640
         width_px: 14192
-        bit_packing_mode: msb
         trigger:
           mode: off
           polarity: risingedge
