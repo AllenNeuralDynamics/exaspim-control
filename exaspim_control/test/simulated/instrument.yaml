@@ -22,12 +22,13 @@ instrument:
       init:
         id: sim000
       settings:
-        exposure_time_ms: 200.0
+        binning: 1
+        exposure_time_ms: 80.0
         pixel_type: mono16
         height_offest_px: 0
-        height_px: 2048
+        height_px: 14192
         width_offset_px: 0
-        width_px: 2048
+        width_px: 10640
         trigger:
           mode: 'off'
           polarity: rising
@@ -38,21 +39,24 @@ instrument:
       module: SimulatedLaser
       color: blue
       init:
-        port: COM3
+        wavelength: 488
+        id: COM3
     561nm:
       type: laser
       driver: voxel.devices.lasers.simulated
       module: SimulatedLaser
       color: green
       init:
-        port: COM4
+        wavelength: 561
+        id: COM4
     639nm:
       type: laser
       driver: voxel.devices.lasers.simulated
       module: SimulatedLaser
       color: red
       init:
-        port: COM5
+        wavelength: 639
+        id: COM5
     ASI FW-1000:
       type: filter_wheel
       driver: voxel.devices.filterwheel.simulated

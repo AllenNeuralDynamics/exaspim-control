@@ -143,18 +143,18 @@ class ExASPIMAcquisition(Acquisition):
                         self.log.info(f'setting {camera_id} binning to {binning}')
                         camera.binning = binning
 
-                    for daq_name, daq in self.instrument.daqs.items():
-                        if daq.tasks.get('ao_task', None) is not None:
-                            daq.add_task('ao')
-                            daq.generate_waveforms('ao', tile_channel)
-                            daq.write_ao_waveforms()
-                        if daq.tasks.get('do_task', None) is not None:
-                            daq.add_task('do')
-                            daq.generate_waveforms('do', tile_channel)
-                            daq.write_do_waveforms()
-                        if daq.tasks.get('co_task', None) is not None:
-                            pulse_count = self.chunk_count_px
-                            daq.add_task('co', pulse_count)
+                    # for daq_name, daq in self.instrument.daqs.items():
+                    #     if daq.tasks.get('ao_task', None) is not None:
+                    #         daq.add_task('ao')
+                    #         daq.generate_waveforms('ao', tile_channel)
+                    #         daq.write_ao_waveforms()
+                    #     if daq.tasks.get('do_task', None) is not None:
+                    #         daq.add_task('do')
+                    #         daq.generate_waveforms('do', tile_channel)
+                    #         daq.write_do_waveforms()
+                    #     if daq.tasks.get('co_task', None) is not None:
+                    #         pulse_count = self.chunk_count_px
+                    #         daq.add_task('co', pulse_count)
 
                     # run any pre-routines for all devices
                     for device_name, routine_dictionary in getattr(self, 'routines', {}).items():
@@ -193,7 +193,7 @@ class ExASPIMAcquisition(Acquisition):
                         for transfer_name, transfer in transfer_dict.items():
                             self.transfer_threads[device_name][tile_num] = transfer
                             self.transfer_threads[device_name][tile_num].filename = filenames[device_name]
-                            self.log.info(f"starting file transfer for {device_name} and tile {tile_num}")
+                            self.log.info(f"starting file transfer for {filenames[device_name]}")
                             self.transfer_threads[device_name][tile_num].start()
 
                 # if not enough local disk space, but file transfers are running
@@ -218,8 +218,6 @@ class ExASPIMAcquisition(Acquisition):
                     raise ValueError(f"not enough local disk space")
 
             # wait for last tiles file transfer
-            # TODO: We seem to do this logic a lot of looping through device then op.
-            # Should this be a function?
             for device_name, transfer_dict in getattr(self, 'transfers', {}).items():
                 for transfer_id, transfer_thread in transfer_dict.items():
                     if transfer_thread.is_alive():
@@ -311,6 +309,7 @@ class ExASPIMAcquisition(Acquisition):
 
         # Images arrive serialized in repeating channel order.
         for stack_index in range(tile['steps']):
+
             if self.stop_engine.is_set():
                 break
             chunk_index = stack_index % self.chunk_count_px
@@ -318,12 +317,12 @@ class ExASPIMAcquisition(Acquisition):
             if chunk_index == 0:
                 chunks_filled = math.floor(stack_index / self.chunk_count_px)
                 remaining_chunks = chunk_count - chunks_filled
-                num_pulses = last_chunk_size if remaining_chunks == 1 else self.chunk_count_px
-                for daq_name, daq in self.instrument.daqs.items():
-                    daq.co_task.timing.cfg_implicit_timing(sample_mode= AcqType.FINITE,
-                                                            samps_per_chan= num_pulses)
-                    #################### IMPORTANT ####################
-                    # for the exaspim, the NIDAQ is the master, so we start this last
+                # num_pulses = last_chunk_size if remaining_chunks == 1 else self.chunk_count_px
+                # for daq_name, daq in self.instrument.daqs.items():
+                #     daq.co_task.timing.cfg_implicit_timing(sample_mode= AcqType.FINITE,
+                #                                             samps_per_chan= num_pulses)
+                #################### IMPORTANT ####################
+                # for the exaspim, the NIDAQ is the master, so we start this last
                 for daq_id, daq in self.instrument.daqs.items():
                     self.log.info(f'starting daq {daq_id}')
                     for task in [daq.ao_task, daq.do_task, daq.co_task]:
@@ -333,8 +332,10 @@ class ExASPIMAcquisition(Acquisition):
             # Grab camera frame
             current_frame = camera.grab_frame()
             camera.signal_acquisition_state()
-            # TODO: Update writer variables?
-            # writer.signal_progress_percent
+            for writer in writers.values():
+                while not writer._log_queue.empty():
+                    self.log.info(f"{writer_name} writer: {writer._log_queue.get_nowait()}")
+
             for img_buffer in img_buffers.values():
                 img_buffer.add_image(current_frame)
 
@@ -374,9 +375,13 @@ class ExASPIMAcquisition(Acquisition):
         for writer in writers.values():
             writer.wait_to_finish()
 
+        # log any statements in the writer log queue
+        for writer in writers.values():
+            while not writer._log_queue.empty():
+                self.log.info(writer._log_queue.get_nowait())
+
         for process in processes.values():
             process.wait_to_finish()
-            # process.close()
 
         # clean up the image buffer
         self.log.debug(f"deallocating shared double buffer.")

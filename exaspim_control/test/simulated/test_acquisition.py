@@ -1,5 +1,9 @@
-import logging
 import sys
+from logging import FileHandler
+from pathlib import Path, WindowsPath
+import logging
+import numpy as np
+from ruamel.yaml import YAML
 from exaspim_control.exa_spim_instrument import ExASPIM
 from exaspim_control.exa_spim_acquisition import ExASPIMAcquisition
 
@@ -16,18 +20,34 @@ if __name__ == '__main__':
     fmt = '%(asctime)s.%(msecs)03d %(levelname)s %(name)s: %(message)s'
     datefmt = '%Y-%m-%d,%H:%M:%S'
     log_formatter = logging.Formatter(fmt=fmt, datefmt=datefmt)
+    file_handler = FileHandler('C:\\Users\\adam.glaser\\Desktop\\output.log', 'w')
+    file_handler.setLevel('INFO')
+    file_handler.setFormatter(log_formatter)
     log_handler = logging.StreamHandler(sys.stdout)
     log_handler.setLevel('INFO')
     log_handler.setFormatter(log_formatter)
+    logger.addHandler(file_handler)
     logger.addHandler(log_handler)
 
+    # create yaml handler
+    yaml = YAML()
+    yaml.representer.add_representer(np.int32, lambda obj, val: obj.represent_int(int(val)))
+    yaml.representer.add_representer(np.str_, lambda obj, val: obj.represent_str(str(val)))
+    yaml.representer.add_representer(np.float64, lambda obj, val: obj.represent_float(float(val)))
+    yaml.representer.add_representer(Path, lambda obj, val: obj.represent_str(str(val)))
+    yaml.representer.add_representer(WindowsPath, lambda obj, val: obj.represent_str(str(val)))
+
     # instrument
-    microscope = ExASPIM('./test/simulated/instrument.yaml')
+    instrument = ExASPIM('./test/simulated/instrument.yaml',
+                         yaml_handler=yaml,
+                         log_level='INFO')
+
     # acquisition
-    acquisition = ExASPIMAcquisition(microscope, './test/simulated/acquisition.yaml')
-    # acquisition.check_local_acquisition_disk_space()
-    # acquisition.check_external_acquisition_disk_space()
-    # acquisition.check_system_memory()
-    # acquisition.check_gpu_memory()
-    # acquisition.check_write_speed()
+    acquisition = ExASPIMAcquisition(instrument=instrument,
+                                     config_filename='./test/simulated/acquisition.yaml',
+                                     yaml_handler=yaml,
+                                     log_level='INFO')
     acquisition.run()
+
+    log_handler.close()
+    logger.removeHandler(log_handler)
