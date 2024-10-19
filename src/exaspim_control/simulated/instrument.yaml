@@ -4,17 +4,17 @@ instrument:
   channels:
     CH488:
       filters: [BP488]
-      lasers: [488nm]
+      lasers: [488 nm]
       cameras: [vp-151mx]
       focusing_stages: [n stage axis]
     CH561:
       filters: [BP561]
-      lasers: [561nm]
+      lasers: [561 nm]
       cameras: [vp-151mx]
       focusing_stages: [n stage axis]
     CH639:
       filters: [LP638]
-      lasers: [639nm]
+      lasers: [639 nm]
       cameras: [vp-151mx]
       focusing_stages: [n stage axis]
   devices:
@@ -24,7 +24,7 @@ instrument:
       module: Camera
       init:
         id: sim000
-      settings:
+      properties:
         exposure_time_ms: 20.0
         pixel_type: mono16
         height_offest_px: 4744
@@ -35,27 +35,30 @@ instrument:
           mode: 'off'
           polarity: rising
           source: external
-    488nm:
+    488 nm:
       type: laser
-      driver: voxel.devices.lasers.simulated
+      driver: voxel.devices.laser.simulated
       module: SimulatedLaser
       color: blue
       init:
-        port: COM3
-    561nm:
+        id: COM3
+        wavelength: 488
+    561 nm:
       type: laser
-      driver: voxel.devices.lasers.simulated
+      driver: voxel.devices.laser.simulated
       module: SimulatedLaser
       color: green
       init:
-        port: COM4
-    639nm:
+        id: COM4
+        wavelength: 561
+    639 nm:
       type: laser
-      driver: voxel.devices.lasers.simulated
+      driver: voxel.devices.laser.simulated
       module: SimulatedLaser
       color: red
       init:
-        port: COM5
+        id: COM5
+        wavelength: 639
     ASI FW-1000:
       type: filter_wheel
       driver: voxel.devices.filterwheel.simulated
@@ -108,7 +111,7 @@ instrument:
       init:
         hardware_axis: x
         instrument_axis: z
-      settings:
+      properties:
         speed_mm_s: 1.0
     ASI MS8000 y axis:
       type: tiling_stage
@@ -117,7 +120,7 @@ instrument:
       init:
         hardware_axis: y
         instrument_axis: x
-      settings:
+      properties:
         speed_mm_s: 1.0
     ASI LS100 z axis:
       type: tiling_stage
@@ -126,7 +129,7 @@ instrument:
       init:
         hardware_axis: z
         instrument_axis: y
-      settings:
+      properties:
         speed_mm_s: 1.0
     n stage axis:
       driver: voxel.devices.stage.simulated
@@ -134,7 +137,7 @@ instrument:
         hardware_axis: n
         instrument_axis: n
       module: Stage
-      settings:
+      properties:
         speed_mm_s: 1.0
       type: focusing_stage
     ASI joystick:
@@ -143,11 +146,11 @@ instrument:
       type: joystick
     PCIe-6738:
       type: daq
-      driver: voxel.devices.daq.ni
+      driver: voxel.devices.daq.simulated
       module: DAQ
       init:
         dev: Dev2
-      settings:
+      properties:
         tasks:
           ao_task:
             name: ao task

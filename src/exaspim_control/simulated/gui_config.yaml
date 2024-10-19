@@ -1,11 +1,5 @@
 instrument_view:
   device_widgets:
-      joystick:
-        type: joystick
-        driver: view.widgets.device_widgets.joystick_widget
-        module: JoystickWidget
-        init:
-          advanced_user: False
       vp-151mx:
         type: camera
         driver: view.widgets.device_widgets.camera_widget
@@ -33,39 +27,37 @@ instrument_view:
         init:
           color: red
           advanced_user: False
-      z stage axis:
+      ASI FW-1000:
+        type: filter_wheel
+        driver: view.widgets.device_widgets.filter_wheel_widget
+        module: FilterWheelWidget
+        init:
+          advanced_user: False
+      ASI MS8000 x axis:
         type:   scanning_stage
         driver: view.widgets.device_widgets.stage_widget
         module: StageWidget
         init:
           advanced_user: False
-        updating_properties:
-          - position_mm
-      x stage axis:
+      ASI MS8000 y axis:
         type: tiling_stage
         driver: view.widgets.device_widgets.stage_widget
         module: StageWidget
         init:
           advanced_user: False
-        updating_properties:
-          - position_mm
-      y stage axis:
+      ASI LS100 z axis:
         type:   tiling_stage
         driver: view.widgets.device_widgets.stage_widget
         module: StageWidget
         init:
           advanced_user: False
-        updating_properties:
-          - position_mm
-      n stage axis:
-        type: focusing_stage
-        driver: view.widgets.device_widgets.stage_widget
-        module: StageWidget
+      ASI joystick:
+        type: joystick
+        driver: view.widgets.device_widgets.joystick_widget
+        module: JoystickWidget
         init:
           advanced_user: False
-        updating_properties:
-          - position_mm
-      pcie-6738:
+      PCIe-6738:
         type: daq
         driver: view.widgets.device_widgets.ni_widget
         module: NIWidget
@@ -74,34 +66,36 @@ instrument_view:
             exposed_branches:
               tasks.ao_task.ports.tunable lens:
                 parameters.amplitude_volts.channels:
-                      CH488: 0.078
-                      CH561: 0.078
-                      CH639: 0.078
+                      CH488: 1.0
+                      CH561: 1.0
+                      CH639: 1.0
                 parameters.offset_volts.channels:
-                      CH488: 2.448
-                      CH561: 2.448
-                      CH639: 2.448
-              tasks.ao_task.ports.488 nm.parameters.max_volts.channels:
-                CH488: 10.0
-              tasks.ao_task.ports.561 nm.parameters.max_volts.channels:
-                CH561: 10.0
-              tasks.ao_task.ports.639 nm.parameters.max_volts.channels:
-                CH639: 10.0
+                      CH488: 1.0
+                      CH561: 1.0
+                      CH639: 1.0
 acquisition_view:
-  fov_dimensions: [ 10.615616, 7.95872 ]
+  fov_dimensions: [ 10.672384, 8.00128, 0 ]
   coordinate_plane: [ '-x', 'y', 'z' ]
   unit: 'mm'
-  settings:
-    cameras: [ binning ]
-    lasers: [ power_setpoint_mw ]
-    focusing_stages: [ position_mm ]
-  operation_widgets:
-    vp-151mx:
-      imaris:
-        type: writer
-        updating_properties:
-          - progress
-      robocopy:
-        type: transfer
-        updating_properties:
-          - progress
+  acquisition_widgets:
+    channel_plan:
+      init:
+        properties:
+          cameras: [ binning ]
+          lasers: [ power_setpoint_mw ]
+          focusing_stages: [ position_mm ]
+          start_delay_time:
+            delegate: spin
+            type: float
+            minimum: 0
+            initial_value: 10
+          repeats:
+            delegate: spin
+            type: int
+            minimum: 0
+          example:
+            delegate: combo
+            type: str
+            items: [ 'this', 'is', 'an', 'example' ]
+            initial_value: example
+  operation_widgets: {}

@@ -1,18 +1,19 @@
 acquisition:
   metadata:
-    driver: voxel.metadata.metadata_class
-    module: MetadataClass
+    driver: exaspim_control.metadata.aind_metadata_class
+    module: AINDMetadataClass
     init:
       metadata_dictionary:
         instrument_type: exaspim
         subject_id: 123456
-        experimenter_name: adam glaser
-        immersion_medium: 0.05X SSC
-        immersion_medium_refractive_index: 1.33
+        experimenter_full_name: [adam glaser]
+        chamber_immersion:
+          medium: other
+          refractive_index: 1.33
         x_anatomical_direction: Anterior_to_posterior
         y_anatomical_direction: Inferior_to_superior
         z_anatomical_direction: Left_to_right
-      date_format: year/month/day/hour/minute/second
+      date_format: Year/Month/Day/Hour/Minute/Second
       name_specs:
         deliminator: _
         format: [instrument_type, subject_id]
@@ -24,39 +25,39 @@ acquisition:
 #        module: Writer
 #        init:
 #          path: ./local_test
-#        settings:
+#        properties:
 #          compression: none
 #          data_type: uint16
       imaris:
         type: writer
         driver: voxel.writers.imaris
-        module: Writer
+        module: ImarisWriter
         init:
           path: C:\local_test
-        settings:
+        properties:
           compression: lz4shuffle
           data_type: uint16
       robocopy:
         type: transfer
-        driver: voxel.transfers.robocopy
-        module: FileTransfer
+        driver: voxel.file_transfers.robocopy
+        module: RobocopyFileTransfer
         init:
           external_path: C:\external_test
           local_path: C:\local_test
       rsync:
         type: transfer
-        driver: voxel.transfers.rsync
-        module: FileTransfer
+        driver: voxel.file_transfers.rsync
+        module: RsyncFileTransfer
         init:
           external_path: C:\external_test_1
           local_path: C:\local_test
       max_projection:
         type: process
-        driver: voxel.processes.cpu.max_projection
-        module: MaxProjection
+        driver: voxel.processes.max_projection.cpu.numpy
+        module: CPUMaxProjection
         init:
           path: C:\local_test
-        settings:
+        properties:
           data_type: uint16
           projection_count_px: 32
 #      mean_projection:
@@ -65,7 +66,7 @@ acquisition:
 #        module: MeanProjection
 #        init:
 #          path: ./local_test
-#        settings:
+#        properties:
 #          data_type: uint16
 #          projection_count_px: 32
       background_collection:
@@ -74,7 +75,7 @@ acquisition:
         module: BackgroundCollection
         init:
           path: C:\local_test
-        settings:
+        properties:
           data_type: uint16
           frame_count_px: 10
   tiles: []
