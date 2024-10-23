@@ -6,7 +6,7 @@ import skimage.measure
 from qtpy.QtCore import Signal
 from view.acquisition_view import AcquisitionView
 from view.instrument_view import InstrumentView
-from voxel.processes.downsample.gpu.gputools.downsample_2d import GPUToolsDownSample2D
+from voxel.processes.downsample.gpu.gputools.rank_downsample_2d import GPUToolsRankDownSample2D
 
 
 class ExASPIMInstrumentView(InstrumentView):
@@ -18,16 +18,14 @@ class ExASPIMInstrumentView(InstrumentView):
         self.viewer.scale_bar.visible = True
         self.viewer.scale_bar.unit = "um"
 
-    def update_layer(self, args, snapshot: bool = False):
+    def update_layer(self, image: np.ndarray, camera_name: str, snapshot: bool = False) -> None:
         """Multiscale image from exaspim and rotate images for volume widget
         :param args: tuple containing image and camera name
         :param snapshot: if image taken is a snapshot or not"""
-
-        (image, camera_name) = args
         if image is not None:
             _ = self.viewer.layers
             multiscale = [image]
-            downsampler = GPUToolsDownSample2D(binning=2)
+            downsampler = GPUToolsRankDownSample2D(binning=2, rank=-2, data_type='uint16')
             for binning in range(1, 6):  # TODO: variable or get from somewhere?
                 downsampled_frame = downsampler.run(multiscale[-1])
                 multiscale.append(downsampled_frame)

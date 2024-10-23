@@ -25,12 +25,12 @@ instrument:
       init:
         id: sim000
       properties:
-        exposure_time_ms: 20.0
+        exposure_time_ms: 200.0
         pixel_type: mono16
-        height_offest_px: 4744
-        height_px: 1152
-        width_offset_px: 6528
-        width_px: 1152
+        height_offest_px: 0
+        height_px: 10640
+        width_offset_px: 0
+        width_px: 14192
         trigger:
           mode: 'off'
           polarity: rising

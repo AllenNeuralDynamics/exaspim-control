@@ -21,7 +21,7 @@ def launch(config_path, simulated: bool) -> None:
     """Launch the ExASPIM application."""
 
     def launch_simulated() -> None:
-        from exaspim_control.simulated.simulated_main import launch_simulated_exaspim
+        from exaspim_control.simulated.main import launch_simulated_exaspim
 
         launch_simulated_exaspim()
 
