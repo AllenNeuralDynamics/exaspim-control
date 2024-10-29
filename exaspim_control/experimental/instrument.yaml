@@ -315,6 +315,6 @@ instrument:
               - ctr0
             name: co task
             timing:
-              frequency_hz: 1.5
+              frequency_hz: 1.66
               output_port: PFI0
               trigger_mode: 'off'

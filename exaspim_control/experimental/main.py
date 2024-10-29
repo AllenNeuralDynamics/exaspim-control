@@ -10,6 +10,7 @@ from exaspim_control.metadata_launch import MetadataLaunch
 from exaspim_control.exa_spim_view import ExASPIMInstrumentView, ExASPIMAcquisitionView
 from exaspim_control.exa_spim_instrument import ExASPIM
 from exaspim_control.exa_spim_acquisition import ExASPIMAcquisition
+from datetime import datetime
 
 RESOURCES_DIR = (Path(os.path.dirname(os.path.realpath(__file__))))
 ACQUISITION_YAML = RESOURCES_DIR / 'acquisition.yaml'
@@ -29,7 +30,7 @@ if __name__ == "__main__":
     fmt = '%(asctime)s.%(msecs)03d %(levelname)s %(name)s: %(message)s'
     datefmt = '%Y-%m-%d,%H:%M:%S'
     log_formatter = logging.Formatter(fmt=fmt, datefmt=datefmt)
-    file_handler = FileHandler('output.log', 'w')
+    file_handler = FileHandler(f'output_{datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}.log', 'w')
     file_handler.setLevel('INFO')
     file_handler.setFormatter(log_formatter)
     log_handler = logging.StreamHandler(sys.stdout)

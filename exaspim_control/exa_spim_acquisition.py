@@ -193,7 +193,7 @@ class ExASPIMAcquisition(Acquisition):
                         for transfer_name, transfer in transfer_dict.items():
                             self.transfer_threads[device_name][tile_num] = transfer
                             self.transfer_threads[device_name][tile_num].filename = filenames[device_name]
-                            self.log.info(f"starting file transfer for {device_name} and tile {tile_num}")
+                            self.log.info(f"starting file transfer for {filenames[device_name]}")
                             self.transfer_threads[device_name][tile_num].start()
 
                 # if not enough local disk space, but file transfers are running
@@ -333,8 +333,9 @@ class ExASPIMAcquisition(Acquisition):
             # Grab camera frame
             current_frame = camera.grab_frame()
             camera.signal_acquisition_state()
-            # TODO: Update writer variables?
-            # writer.signal_progress_percent
+            for writer in writers.values():
+                while not writer._log_queue.empty():
+                    self.log.info(f"{writer_name} writer: {writer._log_queue.get_nowait()}")
             for img_buffer in img_buffers.values():
                 img_buffer.add_image(current_frame)
 
@@ -352,6 +353,8 @@ class ExASPIMAcquisition(Acquisition):
                     # don't provide an image from a place that hasn't been
                     # written yet.
                     while not writer.done_reading.is_set() and not self.stop_engine.is_set():
+                        print('while not writer.done_reading.is_set() and not self.stop_engine.is_set(). writer.done_reading.is_set():', writer.done_reading.is_set(),
+                        '. self.stop_engine.is_set(): ', self.stop_engine.is_set())
                         time.sleep(0.001)
                     with chunk_locks[writer_name]:
                         img_buffers[writer_name].toggle_buffers()
@@ -374,9 +377,13 @@ class ExASPIMAcquisition(Acquisition):
         for writer in writers.values():
             writer.wait_to_finish()
 
+        # log any statements in the writer log queue
+        for writer in writers.values():
+            while not writer._log_queue.empty():
+                self.log.info(writer._log_queue.get_nowait())
+
         for process in processes.values():
             process.wait_to_finish()
-            # process.close()
 
         # clean up the image buffer
         self.log.debug(f"deallocating shared double buffer.")
