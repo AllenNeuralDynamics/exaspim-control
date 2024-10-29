@@ -3,7 +3,7 @@ import sys
 from pathlib import Path, WindowsPath
 import os
 import numpy as np
-from ruamel.yaml import YAML
+from ruamel.yaml import YAML, SafeDumper
 from exaspim_control.metadata_launch import MetadataLaunch
 from exaspim_control.exa_spim_view import ExASPIMInstrumentView, ExASPIMAcquisitionView
 from exaspim_control.exa_spim_instrument import ExASPIM
@@ -24,6 +24,7 @@ if __name__ == "__main__":
     yaml.representer.add_representer(np.float64, lambda obj, val: obj.represent_float(float(val)))
     yaml.representer.add_representer(Path, lambda obj, val: obj.represent_str(str(val)))
     yaml.representer.add_representer(WindowsPath, lambda obj, val: obj.represent_str(str(val)))
+    yaml.representer.ignore_aliases = lambda x: True    # hack way of forcing yaml to not alias when saving
 
     # instrument
     instrument = ExASPIM(config_filename=INSTRUMENT_YAML,
