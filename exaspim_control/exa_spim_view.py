@@ -50,12 +50,12 @@ class ExASPIMAcquisitionView(AcquisitionView):
     acquisitionEnded = Signal()
     acquisitionStarted = Signal((datetime))
 
-    def update_acquisition_layer(self, args):
+    def update_acquisition_layer(self, image: np.ndarray , camera_name: str):
         """Update viewer with latest frame taken during acquisition
-        :param args: tuple containing image and camera name
+        :param image: numpy array to add to viewer
+        :param camera_name: name of camera that image came off
         """
 
-        (image, camera_name) = args
         if image is not None:
             downsampled = skimage.measure.block_reduce(image, (4,4), np.mean)
             super().update_acquisition_layer((downsampled, camera_name))
