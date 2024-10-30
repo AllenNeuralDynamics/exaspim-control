@@ -12,10 +12,10 @@ from exaspim_control.exa_spim_instrument import ExASPIM
 from exaspim_control.exa_spim_acquisition import ExASPIMAcquisition
 from datetime import datetime
 
-RESOURCES_DIR = (Path(os.path.dirname(os.path.realpath(__file__))))
-ACQUISITION_YAML = RESOURCES_DIR / 'acquisition.yaml'
-INSTRUMENT_YAML = RESOURCES_DIR / 'instrument.yaml'
-GUI_YAML = RESOURCES_DIR / 'gui_config.yaml'
+RESOURCES_DIR = Path(os.path.dirname(os.path.realpath(__file__)))
+ACQUISITION_YAML = RESOURCES_DIR / "acquisition.yaml"
+INSTRUMENT_YAML = RESOURCES_DIR / "instrument.yaml"
+GUI_YAML = RESOURCES_DIR / "gui_config.yaml"
 
 if __name__ == "__main__":
 
@@ -27,14 +27,14 @@ if __name__ == "__main__":
     logging.getLogger().handlers.clear()
     # logger level must be set to the lowest level of any handler.
     logger.setLevel(logging.DEBUG)
-    fmt = '%(asctime)s.%(msecs)03d %(levelname)s %(name)s: %(message)s'
-    datefmt = '%Y-%m-%d,%H:%M:%S'
+    fmt = "%(asctime)s.%(msecs)03d %(levelname)s %(name)s: %(message)s"
+    datefmt = "%Y-%m-%d,%H:%M:%S"
     log_formatter = logging.Formatter(fmt=fmt, datefmt=datefmt)
-    file_handler = FileHandler(f'output_{datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}.log', 'w')
-    file_handler.setLevel('INFO')
+    file_handler = FileHandler(f'output_{datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}.log', "w")
+    file_handler.setLevel("INFO")
     file_handler.setFormatter(log_formatter)
     log_handler = logging.StreamHandler(sys.stdout)
-    log_handler.setLevel('INFO')
+    log_handler.setLevel("INFO")
     log_handler.setFormatter(log_formatter)
     logger.addHandler(file_handler)
     logger.addHandler(log_handler)
@@ -51,20 +51,19 @@ if __name__ == "__main__":
     yaml.representer.add_representer(WindowsPath, lambda obj, val: obj.represent_str(str(val)))
 
     # instrument
-    instrument = ExASPIM(config_filename=INSTRUMENT_YAML,
-                         yaml_handler=yaml,
-                         log_level='INFO')
+    instrument = ExASPIM(config_filename=INSTRUMENT_YAML, yaml_handler=yaml, log_level="INFO")
     # acquisition
-    acquisition = ExASPIMAcquisition(instrument=instrument,
-                                     config_filename=ACQUISITION_YAML,
-                                     yaml_handler=yaml,
-                                     log_level='INFO')
-    instrument_view = ExASPIMInstrumentView(instrument, GUI_YAML, log_level='INFO')
+    acquisition = ExASPIMAcquisition(
+        instrument=instrument, config_filename=ACQUISITION_YAML, yaml_handler=yaml, log_level="INFO"
+    )
+    instrument_view = ExASPIMInstrumentView(instrument, GUI_YAML, log_level="INFO")
     acquisition_view = ExASPIMAcquisitionView(acquisition, instrument_view)
 
-    MetadataLaunch(instrument=instrument,
-                   acquisition=acquisition,
-                   instrument_view=instrument_view,
-                   acquisition_view=acquisition_view)
+    MetadataLaunch(
+        instrument=instrument,
+        acquisition=acquisition,
+        instrument_view=instrument_view,
+        acquisition_view=acquisition_view,
+    )
 
     sys.exit(app.exec_())

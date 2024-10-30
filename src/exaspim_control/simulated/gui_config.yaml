@@ -85,7 +85,7 @@ instrument_view:
         driver: view.widgets.device_widgets.camera_widget
         module: CameraWidget
         init:
-          advanced_user: True
+          advanced_user: False
       488 nm:
         type: laser
         driver: view.widgets.device_widgets.laser_widget
@@ -107,34 +107,46 @@ instrument_view:
         init:
           color: red
           advanced_user: False
-      ASI FW-1000:
-        type: filter_wheel
-        driver: view.widgets.device_widgets.filter_wheel_widget
-        module: FilterWheelWidget
-        init:
-          advanced_user: False
-      ASI MS8000 x axis:
+      z stage:
         type:   scanning_stage
         driver: view.widgets.device_widgets.stage_widget
         module: StageWidget
         init:
           advanced_user: False
-      ASI MS8000 y axis:
+      y stage:
         type: tiling_stage
         driver: view.widgets.device_widgets.stage_widget
         module: StageWidget
         init:
           advanced_user: False
-      ASI LS100 z axis:
+      x stage:
         type:   tiling_stage
         driver: view.widgets.device_widgets.stage_widget
         module: StageWidget
         init:
           advanced_user: False
-      ASI joystick:
-        type: joystick
-        driver: view.widgets.device_widgets.joystick_widget
-        module: JoystickWidget
+      theta stage:
+        type:   tiling_stage
+        driver: view.widgets.device_widgets.stage_widget
+        module: StageWidget
+        init:
+          advanced_user: False
+      left focusing stage:
+        type:   focusing_stage
+        driver: view.widgets.device_widgets.stage_widget
+        module: StageWidget
+        init:
+          advanced_user: False
+      right focusing stage:
+        type:   focusing_stage
+        driver: view.widgets.device_widgets.stage_widget
+        module: StageWidget
+        init:
+          advanced_user: False
+      camera focusing stage:
+        type:   focusing_stage
+        driver: view.widgets.device_widgets.stage_widget
+        module: StageWidget
         init:
           advanced_user: True
       PCIe-6738:
@@ -142,17 +154,26 @@ instrument_view:
         driver: view.widgets.device_widgets.ni_widget
         module: NIWidget
         init:
-            advanced_user: True
+            advanced_user: False
             exposed_branches:
-              tasks.ao_task.ports.tunable lens:
+              tasks.ao_task.ports.left tunable lens:
                 parameters.amplitude_volts.channels:
-                      CH488: 1.0
-                      CH561: 1.0
-                      CH639: 1.0
+                      CH488: -0.078
+                      CH561: -0.078
+                      CH639: -0.078
                 parameters.offset_volts.channels:
-                      CH488: 1.0
-                      CH561: 1.0
-                      CH639: 1.0
+                      CH488: 2.448
+                      CH561: 2.448
+                      CH639: 2.448
+              tasks.ao_task.ports.right tunable lens:
+                parameters.amplitude_volts.channels:
+                      CH488: -0.078
+                      CH561: -0.078
+                      CH639: -0.078
+                parameters.offset_volts.channels:
+                      CH488: 2.448
+                      CH561: 2.448
+                      CH639: 2.448
 acquisition_view:
   data_acquisition_tasks:
     PCIe-6738:
@@ -245,18 +266,4 @@ acquisition_view:
           cameras: [ binning ]
           lasers: [ power_setpoint_mw ]
           focusing_stages: [ position_mm ]
-          start_delay_time:
-            delegate: spin
-            type: float
-            minimum: 0
-            initial_value: 10
-          repeats:
-            delegate: spin
-            type: int
-            minimum: 0
-          example:
-            delegate: combo
-            type: str
-            items: [ 'this', 'is', 'an', 'example' ]
-            initial_value: example
   operation_widgets: {}
