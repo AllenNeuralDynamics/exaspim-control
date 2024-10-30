@@ -19,6 +19,7 @@ if __name__ == "__main__":
 
     # create yaml handler
     yaml = YAML()
+    yaml.representer.add_representer(np.int64, lambda obj, val: obj.represent_int(int(val)))
     yaml.representer.add_representer(np.int32, lambda obj, val: obj.represent_int(int(val)))
     yaml.representer.add_representer(np.str_, lambda obj, val: obj.represent_str(str(val)))
     yaml.representer.add_representer(np.float64, lambda obj, val: obj.represent_float(float(val)))
