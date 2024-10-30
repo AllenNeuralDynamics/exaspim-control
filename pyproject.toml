@@ -28,8 +28,6 @@ keywords = [
 dynamic = ["version"]
 
 dependencies = [
-    "voxel @ git+https://github.com/AllenNeuralDynamics/voxel.git@release/0.1.0",
-    "view @ git+https://github.com/AllenNeuralDynamics/view.git@release/0.1.0",
     "coherent-lasers @ git+https://github.com/AllenNeuralDynamics/coherent-lasers.git",
     "voxel[imaris]",
     "nidaqmx >= 0.9.0",
@@ -39,11 +37,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-"dev" = [
-    "black",
-    "isort",
-    "flake8"
-]
+"dev" = ["black", "isort", "flake8"]
 
 [project.urls]
 "Homepage" = "https://github.com/AllenNeuralDynamics/exaspim-control"
