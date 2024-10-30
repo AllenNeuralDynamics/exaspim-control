@@ -1,4 +1,84 @@
 instrument_view:
+  livestream_tasks:
+    PCIe-6738:
+      tasks:
+        ao_task:
+          name: ao task
+          ports:
+            stage:
+              device_max_volts: 5.0
+              device_min_volts: 0.0
+              parameters:
+                end_time_ms:
+                  channels:
+                    CH488: 350.0
+                    CH561: 350.0
+                    CH639: 350.0
+                max_volts:
+                  channels:
+                    CH488: 5.0
+                    CH561: 5.0
+                    CH639: 5.0
+                min_volts:
+                  channels:
+                    CH488: 0.0
+                    CH561: 0.0
+                    CH639: 0.0
+                start_time_ms:
+                  channels:
+                    CH488: 60.0
+                    CH561: 60.0
+                    CH639: 60.0
+              port: ao1
+              waveform: square wave
+            tunable lens:
+              device_max_volts: 5.0
+              device_min_volts: 0.0
+              parameters:
+                amplitude_volts:
+                  channels:
+                    CH488: 1.5
+                    CH561: 1.0
+                    CH639: 1.0
+                cutoff_frequency_hz:
+                  channels:
+                    CH488: 200
+                    CH561: 200
+                    CH639: 200
+                end_time_ms:
+                  channels:
+                    CH488: 400.0
+                    CH561: 400.0
+                    CH639: 400.0
+                offset_volts:
+                  channels:
+                    CH488: 2.5
+                    CH561: 2.5
+                    CH639: 2.5
+                start_time_ms:
+                  channels:
+                    CH488: 10.0
+                    CH561: 10.0
+                    CH639: 10.0
+              port: ao0
+              waveform: sawtooth
+          timing:
+            period_time_ms: 500
+            rest_time_ms: 50
+            retriggerable: 'on'
+            sample_mode: finite
+            sampling_frequency_hz: 10000
+            trigger_mode: 'on'
+            trigger_polarity: rising
+            trigger_port: PFI0
+        co_task:
+          counters:
+            - ctr0
+          name: co task
+          timing:
+            frequency_hz: 2.0
+            output_port: PFI0
+            trigger_mode: 'off'
   device_widgets:
       vp-151mx:
         type: camera
@@ -68,7 +148,7 @@ instrument_view:
         driver: view.widgets.device_widgets.stage_widget
         module: StageWidget
         init:
-          advanced_user: False
+          advanced_user: True
       PCIe-6738:
         type: daq
         driver: view.widgets.device_widgets.ni_widget
@@ -95,6 +175,87 @@ instrument_view:
                       CH561: 2.448
                       CH639: 2.448
 acquisition_view:
+  data_acquisition_tasks:
+    PCIe-6738:
+      tasks:
+        ao_task:
+          name: ao task
+          ports:
+            stage:
+              device_max_volts: 5.0
+              device_min_volts: 0.0
+              parameters:
+                end_time_ms:
+                  channels:
+                    CH488: 350.0
+                    CH561: 350.0
+                    CH639: 350.0
+                max_volts:
+                  channels:
+                    CH488: 5.0
+                    CH561: 5.0
+                    CH639: 5.0
+                min_volts:
+                  channels:
+                    CH488: 0.0
+                    CH561: 0.0
+                    CH639: 0.0
+                start_time_ms:
+                  channels:
+                    CH488: 60.0
+                    CH561: 60.0
+                    CH639: 60.0
+              port: ao1
+              waveform: square wave
+            tunable lens:
+              device_max_volts: 5.0
+              device_min_volts: 0.0
+              parameters:
+                amplitude_volts:
+                  channels:
+                    CH488: 1.5
+                    CH561: 1.0
+                    CH639: 1.0
+                cutoff_frequency_hz:
+                  channels:
+                    CH488: 200
+                    CH561: 200
+                    CH639: 200
+                end_time_ms:
+                  channels:
+                    CH488: 400.0
+                    CH561: 400.0
+                    CH639: 400.0
+                offset_volts:
+                  channels:
+                    CH488: 2.5
+                    CH561: 2.5
+                    CH639: 2.5
+                start_time_ms:
+                  channels:
+                    CH488: 10.0
+                    CH561: 10.0
+                    CH639: 10.0
+              port: ao0
+              waveform: sawtooth
+          timing:
+            period_time_ms: 500
+            rest_time_ms: 50
+            retriggerable: 'on'
+            sample_mode: finite
+            sampling_frequency_hz: 10000
+            trigger_mode: 'on'
+            trigger_polarity: rising
+            trigger_port: PFI0
+        co_task:
+          counters:
+            - ctr0
+          name: co task
+          timing:
+            frequency_hz: 2.0
+            output_port: PFI2
+            trigger_mode: 'off'
+
   fov_dimensions: [ 10.672384, 8.00128, 0 ]
   coordinate_plane: [ '-x', 'y', 'z' ]
   unit: 'mm'
