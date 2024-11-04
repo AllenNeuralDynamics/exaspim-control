@@ -63,6 +63,7 @@ class ExASPIMAcquisition(Acquisition):
             self.transfer_threads = {}
 
             for tile in self.config["acquisition"]["tiles"]:
+
                 # check local disk space and run if enough disk space
                 if self.check_local_tile_disk_space(tile):
 
@@ -200,7 +201,7 @@ class ExASPIMAcquisition(Acquisition):
                         daq.stop()
 
                     # create and start transfer threads from previous tile
-                    for device_name, transfer_dict in getattr(self, "transfers", {}).items():
+                    for device_name, transfer_dict in getattr(self, "file_transfers", {}).items():
                         self.transfer_threads[device_name] = {}
                         for transfer_name, transfer in transfer_dict.items():
                             self.transfer_threads[device_name][tile_num] = transfer
@@ -232,15 +233,15 @@ class ExASPIMAcquisition(Acquisition):
             # wait for last tiles file transfer
             # TODO: We seem to do this logic a lot of looping through device then op.
             # Should this be a function?
-            for device_name, transfer_dict in getattr(self, "transfers", {}).items():
+            for device_name, transfer_dict in getattr(self, "file_transfers", {}).items():
                 for transfer_id, transfer_thread in transfer_dict.items():
                     if transfer_thread.is_alive():
                         self.log.info(f"waiting on file transfer for {device_name} {transfer_id}")
                         transfer_thread.wait_until_finished()
         finally:
-            if getattr(self, "transfers", {}) != {}:  # save to external paths
+            if getattr(self, "file_transfers", {}) != {}:  # save to external paths
                 # save acquisition config
-                for device_name, transfer_dict in getattr(self, "transfers", {}).items():
+                for device_name, transfer_dict in getattr(self, "file_transfers", {}).items():
                     for transfer in transfer_dict.values():
                         self.update_current_state_config()
                         self.save_config(
@@ -248,7 +249,7 @@ class ExASPIMAcquisition(Acquisition):
                         )
 
                 # save instrument config
-                for device_name, transfer_dict in getattr(self, "transfers", {}).items():
+                for device_name, transfer_dict in getattr(self, "file_transfers", {}).items():
                     for transfer in transfer_dict.values():
                         self.instrument.update_current_state_config()
                         self.instrument.save_config(
@@ -260,14 +261,14 @@ class ExASPIMAcquisition(Acquisition):
                 for device_name, writer_dict in self.writers.items():
                     for writer in writer_dict.values():
                         self.update_current_state_config()
-                        self.save_config(Path(writer.local_path, writer.acquisition_name) / "acquisition_config.yaml")
+                        self.save_config(Path(writer.path, writer.acquisition_name) / "acquisition_config.yaml")
 
                 # save instrument config
                 for device_name, writer_dict in self.writers.items():
                     for writer in writer_dict.values():
                         self.instrument.update_current_state_config()
                         self.instrument.save_config(
-                            Path(writer.local_path, writer.acquisition_name) / "instrument_config.yaml"
+                            Path(writer.path, writer.acquisition_name) / "instrument_config.yaml"
                         )
 
     def engine(self, tile, filename, camera, writers, processes):
@@ -343,10 +344,10 @@ class ExASPIMAcquisition(Acquisition):
                 chunks_filled = math.floor(stack_index / self.chunk_count_px)
                 remaining_chunks = chunk_count - chunks_filled
                 num_pulses = last_chunk_size if remaining_chunks == 1 else self.chunk_count_px
-                for daq_name, daq in self.instrument.daqs.items():
-                    daq.co_task.timing.cfg_implicit_timing(sample_mode=AcqType.FINITE, samps_per_chan=num_pulses)
-                    #################### IMPORTANT ####################
-                    # for the exaspim, the NIDAQ is the master, so we start this last
+                # for daq_name, daq in self.instrument.daqs.items():
+                #     daq.co_task.timing.cfg_implicit_timing(sample_mode=AcqType.FINITE, samps_per_chan=num_pulses)
+                #################### IMPORTANT ####################
+                # for the exaspim, the NIDAQ is the master, so we start this last
                 for daq_id, daq in self.instrument.daqs.items():
                     self.log.info(f"starting daq {daq_id}")
                     for task in [daq.ao_task, daq.do_task, daq.co_task]:

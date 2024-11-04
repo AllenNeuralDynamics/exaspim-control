@@ -25,7 +25,7 @@ class ExASPIMInstrumentView(InstrumentView):
         if image is not None:
             _ = self.viewer.layers
             multiscale = [image]
-            downsampler = GPUToolsRankDownSample2D(binning=2, rank=-2, data_type='uint16')
+            downsampler = GPUToolsRankDownSample2D(binning=2, rank=-2, data_type="uint16")
             for binning in range(1, 6):  # TODO: variable or get from somewhere?
                 downsampled_frame = downsampler.run(multiscale[-1])
                 multiscale.append(downsampled_frame)
@@ -39,7 +39,9 @@ class ExASPIMInstrumentView(InstrumentView):
                 layer.data = multiscale
             else:
                 # Add image to a new layer if layer doesn't exist yet or image is snapshot
-                layer = self.viewer.add_image(multiscale, name=layer_name, contrast_limits=(35, 70), scale=(0.75, 0.75))
+                layer = self.viewer.add_image(
+                    multiscale, name=layer_name, contrast_limits=(30, 400), scale=(0.75, 0.75), rotate=-90
+                )
                 layer.mouse_drag_callbacks.append(self.save_image)
                 if snapshot:  # emit signal if snapshot
                     self.snapshotTaken.emit(np.rot90(multiscale[-3], k=3), layer.contrast_limits)
@@ -54,15 +56,17 @@ class ExASPIMAcquisitionView(AcquisitionView):
     acquisitionEnded = Signal()
     acquisitionStarted = Signal((datetime))
 
-    def update_acquisition_layer(self, image: np.ndarray , camera_name: str):
+    def update_acquisition_layer(self, image: np.ndarray, camera_name: str):
         """Update viewer with latest frame taken during acquisition
         :param image: numpy array to add to viewer
         :param camera_name: name of camera that image came off
         """
 
         if image is not None:
+            # downsampler = GPUToolsRankDownSample2D(binning=4, rank=-2, data_type="uint16")
+            # downsampled = downsampler.run(image)
             downsampled = skimage.measure.block_reduce(image, (4, 4), np.mean)
-            super().update_acquisition_layer((downsampled, camera_name))
+            super().update_acquisition_layer(downsampled, camera_name)
 
     def start_acquisition(self):
         """Overwrite to emit acquisitionStarted signal"""

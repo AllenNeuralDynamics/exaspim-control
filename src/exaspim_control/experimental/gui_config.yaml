@@ -5,7 +5,10 @@ instrument_view:
         driver: view.widgets.device_widgets.camera_widget
         module: CameraWidget
         init:
-          advanced_user: False
+          advanced_user: True
+        # updating_properties:
+        #   - sensor_temperature_c
+        #   - mainboard_temperature_c
       488 nm:
         type: laser
         driver: view.widgets.device_widgets.laser_widget
@@ -33,43 +36,61 @@ instrument_view:
         module: StageWidget
         init:
           advanced_user: False
+        updating_properties:
+          - position_mm
       y stage:
         type: tiling_stage
         driver: view.widgets.device_widgets.stage_widget
         module: StageWidget
         init:
           advanced_user: False
+        updating_properties:
+          - position_mm
       x stage:
         type:   tiling_stage
         driver: view.widgets.device_widgets.stage_widget
         module: StageWidget
         init:
           advanced_user: False
+        updating_properties:
+          - position_mm
       theta stage:
-        type:   tiling_stage
+        type:   focusing_stage
         driver: view.widgets.device_widgets.stage_widget
         module: StageWidget
         init:
           advanced_user: False
+        updating_properties:
+          - position_mm
       left focusing stage:
         type:   focusing_stage
         driver: view.widgets.device_widgets.stage_widget
         module: StageWidget
         init:
           advanced_user: False
+        updating_properties:
+          - position_mm
       right focusing stage:
         type:   focusing_stage
         driver: view.widgets.device_widgets.stage_widget
         module: StageWidget
         init:
           advanced_user: False
+        updating_properties:
+          - position_mm
       camera focusing stage:
         type:   focusing_stage
         driver: view.widgets.device_widgets.stage_widget
         module: StageWidget
         init:
           advanced_user: False
-      PCIe-6738:
+      # left tunable lens:
+      #   type: tunable_lens
+      #   driver: view.widgets.base_device_widget
+      #   module: BaseDeviceWidget
+      #   updating_properties:
+      #     - temperature_c
+      pcie-6738:
         type: daq
         driver: view.widgets.device_widgets.ni_widget
         module: NIWidget
@@ -78,24 +99,24 @@ instrument_view:
             exposed_branches:
               tasks.ao_task.ports.left tunable lens:
                 parameters.amplitude_volts.channels:
-                      CH488: -0.078
-                      CH561: -0.078
-                      CH639: -0.078
+                      CH488: 2.845
+                      CH561: 2.845
+                      CH639: 2.845
                 parameters.offset_volts.channels:
-                      CH488: 2.448
-                      CH561: 2.448
-                      CH639: 2.448
-              tasks.ao_task.ports.right tunable lens:
-                parameters.amplitude_volts.channels:
-                      CH488: -0.078
-                      CH561: -0.078
-                      CH639: -0.078
-                parameters.offset_volts.channels:
-                      CH488: 2.448
-                      CH561: 2.448
-                      CH639: 2.448
+                      CH488: 6.074
+                      CH561: 6.241
+                      CH639: 6.422
+              # tasks.ao_task.ports.right tunable lens:
+              #   parameters.amplitude_volts.channels:
+              #         CH488: -0.078
+              #         CH561: -0.078
+              #         CH639: -0.078
+              #   parameters.offset_volts.channels:
+              #         CH488: 2.448
+              #         CH561: 2.448
+              #         CH639: 2.448
 acquisition_view:
-  fov_dimensions: [ 10.672384, 8.00128, 0 ]
+  fov_dimensions: [8.00128, 10.672384, 0 ]
   coordinate_plane: [ '-x', 'y', 'z' ]
   unit: 'mm'
   acquisition_widgets:

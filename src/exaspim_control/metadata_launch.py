@@ -66,7 +66,7 @@ class MetadataLaunch:
         else:  # no transfers so save locally
             for device_name, writer_dict in self.acquisition.writers.items():
                 for writer in writer_dict.values():
-                    save_to = str(Path(writer.local_path, writer.acquisition_name))
+                    save_to = str(Path(writer.path, writer.acquisition_name))
                     acquisition_model = self.parse_metadata(external_drive=save_to, local_drive=save_to)
                     acquisition_model.write_standard_file(output_directory=save_to, prefix="exaspim")
 
