@@ -233,14 +233,14 @@ instrument:
                       CH639: 544.0
                   amplitude_volts:
                     channels:
-                      CH488: 2.845
-                      CH561: 2.845
-                      CH639: 2.845
+                      CH488: 2.795
+                      CH561: 2.795
+                      CH639: 2.795
                   offset_volts:
                     channels:
-                      CH488: 6.074
-                      CH561: 6.241
-                      CH639: 6.422
+                      CH488: 4.315
+                      CH561: 4.16
+                      CH639: 4.715
                   cutoff_frequency_hz:
                     channels:
                       CH488: 1000
@@ -487,7 +487,7 @@ instrument:
                       CH639: 0.0
             timing:
               period_time_ms: 544.0
-              rest_time_ms: 50.0
+              rest_time_ms: 150.0
               retriggerable: 'on'
               sample_mode: finite
               sampling_frequency_hz: 10000
@@ -499,6 +499,6 @@ instrument:
               - ctr0
             name: co task
             timing:
-              frequency_hz: 1.65
+              frequency_hz: 1.4
               output_port: PFI0
               trigger_mode: 'off'

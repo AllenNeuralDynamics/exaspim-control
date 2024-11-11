@@ -99,13 +99,13 @@ instrument_view:
             exposed_branches:
               tasks.ao_task.ports.left tunable lens:
                 parameters.amplitude_volts.channels:
-                      CH488: 2.845
-                      CH561: 2.845
-                      CH639: 2.845
+                      CH488: 2.795
+                      CH561: 2.795
+                      CH639: 2.795
                 parameters.offset_volts.channels:
-                      CH488: 6.074
-                      CH561: 6.241
-                      CH639: 6.422
+                      CH488: 4.315
+                      CH561: 4.16
+                      CH639: 4.715
               # tasks.ao_task.ports.right tunable lens:
               #   parameters.amplitude_volts.channels:
               #         CH488: -0.078

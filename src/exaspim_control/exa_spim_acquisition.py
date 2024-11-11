@@ -61,12 +61,9 @@ class ExASPIMAcquisition(Acquisition):
             filenames = dict()
             # initialize transfer threads
             self.transfer_threads = {}
-
             for tile in self.config["acquisition"]["tiles"]:
-
                 # check local disk space and run if enough disk space
                 if self.check_local_tile_disk_space(tile):
-
                     tile_num = tile["tile_number"]
                     tile_channel = tile["channel"]
                     filename_prefix = tile["prefix"]
@@ -219,12 +216,10 @@ class ExASPIMAcquisition(Acquisition):
                             if transfer_thread.is_alive():
                                 self.log.info(f"waiting on file transfer for {device_name} and tile {tile_num}")
                                 transfer_thread.wait_until_finished()
-                                self.log.info(f"deleting file transfer for {device_name} and tile {tile_num}")
-                                del self.transfer_threads[device_name][tile_num]
+                                self.log.info(f"file transfer for {device_name} and tile {tile_num} completed")
                             else:
                                 # delete from transfer thread dictionary
-                                self.log.info(f"deleting file transfer for {device_name} and tile {tile_num}")
-                                del self.transfer_threads[device_name][tile_num]
+                                self.log.info(f"file transfer for {device_name} and tile {tile_num} completed")
                 # otherwise this is the first tile and there is simply not enough disk space
                 # for the first tile
                 else:
