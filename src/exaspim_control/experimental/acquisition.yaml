@@ -37,17 +37,17 @@ acquisition:
       #   properties:
       #     compression: none
       #     data_type: uint16
-      # robocopy:
-      #   type: transfer
-      #   driver: voxel.file_transfers.robocopy
-      #   module: RobocopyFileTransfer
-      #   init:
-      #     external_path: Y:\\scratch\\adam.glaser
-      #     local_path: E:\\
-      #   properties:
-      #     verify_transfer: True
-      #     max_retry: 3
-      #     timeout_s: 60
+      robocopy:
+        type: transfer
+        driver: voxel.file_transfers.robocopy
+        module: RobocopyFileTransfer
+        init:
+          external_path: Z:\\scratch\\adam.glaser
+          local_path: D:\\
+        properties:
+          verify_transfer: True
+          max_retry: 3
+          timeout_s: 60
       # max_projection:
       #   type: process
       #   driver: voxel.processes.max_projection.cpu.numpy

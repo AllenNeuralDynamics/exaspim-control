@@ -6,9 +6,9 @@ instrument_view:
         module: CameraWidget
         init:
           advanced_user: True
-        # updating_properties:
-        #   - sensor_temperature_c
-        #   - mainboard_temperature_c
+        updating_properties:
+          - sensor_temperature_c
+          - mainboard_temperature_c
       488 nm:
         type: laser
         driver: view.widgets.device_widgets.laser_widget
@@ -16,6 +16,8 @@ instrument_view:
         init:
           color: blue
           advanced_user: False
+        updating_properties:
+          - power_mw
       561 nm:
         type: laser
         driver: view.widgets.device_widgets.laser_widget
@@ -23,6 +25,8 @@ instrument_view:
         init:
           color: green
           advanced_user: False
+        updating_properties:
+          - power_mw
       639 nm:
         type: laser
         driver: view.widgets.device_widgets.laser_widget
@@ -30,6 +34,8 @@ instrument_view:
         init:
           color: red
           advanced_user: False
+        updating_properties:
+          - power_mw
       z stage:
         type:   scanning_stage
         driver: view.widgets.device_widgets.stage_widget
@@ -84,6 +90,8 @@ instrument_view:
         module: StageWidget
         init:
           advanced_user: False
+        updating_properties:
+          - position_mm
       # left tunable lens:
       #   type: tunable_lens
       #   driver: view.widgets.base_device_widget
@@ -104,7 +112,7 @@ instrument_view:
                       CH639: 2.795
                 parameters.offset_volts.channels:
                       CH488: 4.315
-                      CH561: 4.16
+                      CH561: 4.4
                       CH639: 4.715
               # tasks.ao_task.ports.right tunable lens:
               #   parameters.amplitude_volts.channels:
