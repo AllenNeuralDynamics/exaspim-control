@@ -112,7 +112,7 @@ instrument_view:
                       CH639: 2.795
                 parameters.offset_volts.channels:
                       CH488: 4.315
-                      CH561: 4.4
+                      CH561: 4.585
                       CH639: 4.715
               # tasks.ao_task.ports.right tunable lens:
               #   parameters.amplitude_volts.channels:
