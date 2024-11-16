@@ -1,10 +1,10 @@
 from view.widgets.device_widgets.camera_widget import CameraWidget
 from view.widgets.base_device_widget import BaseDeviceWidget, create_widget, scan_for_properties
-from qtpy.QtWidgets import QPushButton, QStyle, QWidget
+from qtpy.QtWidgets import QPushButton, QStyle, QWidget, QCheckBox
 from qtpy.QtCore import Qt
 
 
-class ExaSPIMCameraWidget(CameraWidget):
+class ExaSPIMCameraWidget(BaseDeviceWidget):
 
     def __init__(self, camera, advanced_user: bool = True):
         """Modify CameraWidget to be specific for ExaSPIM.
@@ -13,9 +13,20 @@ class ExaSPIMCameraWidget(CameraWidget):
         hidden and only the snapshot and live button will be shown.
         """
 
-        super().__init__(camera, advanced_user)
+        self.camera_properties = scan_for_properties(camera)
+        del self.camera_properties["latest_frame"]  # remove image property
 
+        super().__init__(type(camera), self.camera_properties)
+
+        if not advanced_user:  # hide widgets
+            for widget in self.property_widgets.values():
+                widget.setVisible(False)
+
+        # create and format livestream button and snapshot button
+        self.live_button = self.create_live_button()
+        self.snapshot_button = self.create_snapshot_button()
         self.alignment_button = self.create_alignment_button()
+        self.crosshairs_button = self.create_crosshairs_button()
         picture_buttons = create_widget(
             "H", self.live_button, self.snapshot_button, self.alignment_button, self.crosshairs_button
         )
@@ -95,6 +106,23 @@ class ExaSPIMCameraWidget(CameraWidget):
             central_widget.layout().setSpacing(0)  # remove space between central widget and newly formatted widgets
             self.setCentralWidget(create_widget("H", self.live_button, self.snapshot_button))
 
+    def create_live_button(self) -> QPushButton:
+        """Add live button"""
+
+        button = QPushButton("Live")
+        icon = self.style().standardIcon(QStyle.StandardPixmap.SP_MediaPlay)
+        button.setIcon(icon)
+
+        return button
+
+    def create_snapshot_button(self) -> QPushButton:
+        """Add snapshot button"""
+
+        button = QPushButton("Snapshot")
+        icon = self.style().standardIcon(QStyle.StandardPixmap.SP_DialogSaveButton)
+        button.setIcon(icon)
+        return button
+    
     def create_alignment_button(self) -> QPushButton:
         """Add alignment button"""
 
@@ -102,3 +130,9 @@ class ExaSPIMCameraWidget(CameraWidget):
         icon = self.style().standardIcon(QStyle.StandardPixmap.SP_ToolBarHorizontalExtensionButton)
         button.setIcon(icon)
         return button
+
+    def create_crosshairs_button(self) -> QPushButton:
+        """Add edges button"""
+
+        checkbox = QCheckBox("Crosshair")
+        return checkbox
