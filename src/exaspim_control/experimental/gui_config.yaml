@@ -2,7 +2,7 @@ instrument_view:
   device_widgets:
       vp-151mx:
         type: camera
-        driver: view.widgets.device_widgets.camera_widget
+        driver: exaspim_control.widgets.camera_widget
         module: CameraWidget
         init:
           advanced_user: True
@@ -11,31 +11,34 @@ instrument_view:
           - mainboard_temperature_c
       488 nm:
         type: laser
-        driver: view.widgets.device_widgets.laser_widget
+        driver: exaspim_control.widgets.laser_widget
         module: LaserWidget
         init:
           color: blue
           advanced_user: False
         updating_properties:
           - power_mw
+          - temperature_c
       561 nm:
         type: laser
-        driver: view.widgets.device_widgets.laser_widget
+        driver: exaspim_control.widgets.laser_widget
         module: LaserWidget
         init:
           color: green
           advanced_user: False
         updating_properties:
           - power_mw
+          - temperature_c
       639 nm:
         type: laser
-        driver: view.widgets.device_widgets.laser_widget
+        driver: exaspim_control.widgets.laser_widget
         module: LaserWidget
         init:
           color: red
           advanced_user: False
         updating_properties:
           - power_mw
+          - temperature_c
       z stage:
         type:   scanning_stage
         driver: view.widgets.device_widgets.stage_widget
@@ -92,6 +95,10 @@ instrument_view:
           advanced_user: False
         updating_properties:
           - position_mm
+      flip mount:
+        type:   flip_mount
+        driver: exaspim_control.widgets.flip_mount_widget
+        module: FlipMountWidget
       # left tunable lens:
       #   type: tunable_lens
       #   driver: view.widgets.base_device_widget
@@ -112,7 +119,7 @@ instrument_view:
                       CH639: 2.795
                 parameters.offset_volts.channels:
                       CH488: 4.315
-                      CH561: 4.585
+                      CH561: 4.66
                       CH639: 4.715
               # tasks.ao_task.ports.right tunable lens:
               #   parameters.amplitude_volts.channels:

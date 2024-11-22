@@ -19,18 +19,6 @@ class ExASPIM(Instrument):
         self._verify_instrument()
         # verify master device for microscope
         self._verify_master_device()
-        # verify channels for microscope
-
-    #     self._verify_channels()
-
-    # TODO: finish this?
-    # def _verify_channels(self):
-    #     setattr(self, 'channels', dict())
-    #     for channel_name, channel in self.config['instrument']['channels'].items():
-    #         self.channels[channel_name] = {
-    #             'laser': channel['lasers'],
-    #             'filter_wheel': channel['filter_wheel']
-    #         }
 
     def _verify_master_device(self):
         """Define master_device dictionary if it is defined in yaml. master_device will be used later to calculate
