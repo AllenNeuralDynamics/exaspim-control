@@ -135,32 +135,32 @@ instrument:
           init:
             hardware_axis: m
             instrument_axis: m
-        joystick:
-           type: joystick
-           driver: voxel.devices.joystick.asi
-           module: Joystick
-           init:
-             joystick_mapping:
-               joystick_x:
-                 instrument_axis: x
-                 polarity: default
-               joystick_y:
-                 instrument_axis: z
-                 polarity: default
-               wheel_z:
-                 instrument_axis: a
-                 polarity: default
-               wheel_f:
-                 instrument_axis: b
-                 polarity: default
-             axis_mapping:
-               x: x
-               y: v
-               z: z
-               t: t
-               a: a
-               b: b
-               m: m
+        # joystick:
+        #    type: joystick
+        #    driver: voxel.devices.joystick.asi
+        #    module: Joystick
+        #    init:
+        #      joystick_mapping:
+        #        joystick_x:
+        #          instrument_axis: x
+        #          polarity: default
+        #        joystick_y:
+        #          instrument_axis: z
+        #          polarity: default
+        #        wheel_z:
+        #          instrument_axis: a
+        #          polarity: default
+        #        wheel_f:
+        #          instrument_axis: b
+        #          polarity: default
+        #      axis_mapping:
+        #        x: x
+        #        y: v
+        #        z: z
+        #        t: t
+        #        a: a
+        #        b: b
+        #        m: m
     # power meter:
     #   type: power_meter
     #   driver: voxel.devices.power_meter.thorlabs_pm100
@@ -239,7 +239,7 @@ instrument:
                   offset_volts:
                     channels:
                       CH488: 4.315
-                      CH561: 4.40
+                      CH561: 4.66
                       CH639: 4.715
                   cutoff_frequency_hz:
                     channels:

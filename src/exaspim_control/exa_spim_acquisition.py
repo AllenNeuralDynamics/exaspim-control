@@ -372,13 +372,6 @@ class ExASPIMAcquisition(Acquisition):
                     # don't provide an image from a place that hasn't been
                     # written yet.
                     while not writer.done_reading.is_set() and not self.stop_engine.is_set():
-                        print(
-                            "while not writer.done_reading.is_set() and not self.stop_engine.is_set(). \
-                            writer.done_reading.is_set():",
-                            writer.done_reading.is_set(),
-                            ". self.stop_engine.is_set(): ",
-                            self.stop_engine.is_set(),
-                        )
                         time.sleep(0.001)
                     with chunk_locks[writer_name]:
                         img_buffers[writer_name].toggle_buffers()
