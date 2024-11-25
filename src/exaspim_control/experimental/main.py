@@ -30,7 +30,8 @@ if __name__ == "__main__":
     fmt = "%(asctime)s.%(msecs)03d %(levelname)s %(name)s: %(message)s"
     datefmt = "%Y-%m-%d,%H:%M:%S"
     log_formatter = logging.Formatter(fmt=fmt, datefmt=datefmt)
-    file_handler = FileHandler(f'output_{datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}.log', "w")
+    log_filename = f'output_{datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}.log'
+    file_handler = FileHandler(log_filename, "w")
     file_handler.setLevel("INFO")
     file_handler.setFormatter(log_formatter)
     log_handler = logging.StreamHandler(sys.stdout)
@@ -64,6 +65,7 @@ if __name__ == "__main__":
         acquisition=acquisition,
         instrument_view=instrument_view,
         acquisition_view=acquisition_view,
+        log_filename=log_filename,
     )
 
     sys.exit(app.exec_())

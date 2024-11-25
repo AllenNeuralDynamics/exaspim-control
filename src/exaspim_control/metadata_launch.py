@@ -5,6 +5,8 @@ from datetime import datetime
 from pathlib import Path
 from aind_data_schema.core import acquisition
 import numpy as np
+import shutil
+import os
 
 
 X_ANATOMICAL_DIRECTIONS = {
@@ -29,6 +31,7 @@ class MetadataLaunch:
         acquisition: ExASPIMAcquisition,
         instrument_view: ExASPIMInstrumentView,
         acquisition_view: ExASPIMAcquisitionView,
+        log_filename: str = None,
     ):
         """
         Create instrument, acquisition, and gui. Connect acquisitionEnded to parsing metadata method
@@ -36,16 +39,19 @@ class MetadataLaunch:
         :param acquisition: ExASPIMAcquisition acquisition object
         :param instrument_view: ExASPIMInstrumentView object
         :param acquisition_view: ExASPIMAcquisitionView object
+        :param log_filename: log filename
         """
 
         # instrument
         self.instrument = instrument
         # acquisition
         self.acquisition = acquisition
-
+        # guis
         self.instrument_view = instrument_view
         self.acquisition_view = acquisition_view
-
+        # log filename
+        self.log_filename = log_filename
+        # start and finish the acquisition
         self.acquisition_start_time = None  # variable will be filled when acquisitionStarted signal is emitted
         self.acquisition_end_time = None  # variable will be filled when acquisitionStarted signal is emitted
         self.acquisition_view.acquisitionStarted.connect(lambda value: setattr(self, "acquisition_start_time", value))
@@ -62,13 +68,23 @@ class MetadataLaunch:
                         external_drive=save_to, local_drive=str(Path(transfer.local_path, transfer.acquisition_name))
                     )
                     acquisition_model.write_standard_file(output_directory=save_to, prefix="exaspim")
-
+                    # move the log file
+                    shutil.copy(
+                        Path(self.log_filename),
+                        Path(save_to, self.log_filename),
+                    )
         else:  # no transfers so save locally
             for device_name, writer_dict in self.acquisition.writers.items():
                 for writer in writer_dict.values():
                     save_to = str(Path(writer.path, writer.acquisition_name))
                     acquisition_model = self.parse_metadata(external_drive=save_to, local_drive=save_to)
                     acquisition_model.write_standard_file(output_directory=save_to, prefix="exaspim")
+                    # move the log file
+                    shutil.copy(
+                        Path(self.log_filename),
+                        Path(save_to, self.log_filename),
+                    )
+        os.remove(self.log_filename)  # remove local logfile
 
     def parse_metadata(self, external_drive: str, local_drive: str):
         """Method to parse through tiles to create an acquisition json

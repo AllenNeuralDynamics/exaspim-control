@@ -1,18 +1,65 @@
 import math
+from re import I
 import time
 from multiprocessing.shared_memory import SharedMemory
 from pathlib import Path
 from threading import Event, Lock
-
+import threading
+import logging
 import inflection
 import numpy
 from nidaqmx.constants import AcquisitionType as AcqType
 from ruamel.yaml import YAML
+from voxel.acquisition import acquisition
 from voxel.acquisition.acquisition import Acquisition
 from voxel.instruments.instrument import Instrument
 from voxel.writers.data_structures.shared_double_buffer import SharedDoubleBuffer
 
 DIRECTORY = Path(__file__).parent.resolve()
+
+
+class AcquisitionLogger:
+
+    def __init__(self, tile: dict, instrument: Instrument):
+        self.log = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
+        self.tile = tile
+        self.instrument = instrument
+        self.stop_acquisition_logger = False
+
+    def _run(self):
+        """
+        Run the acquisitiong logger.
+        """
+        while True:
+            if self.stop_acquisition_logger:
+                break
+            channel = self.instrument.channels[self.tile["channel"]]
+            for device_type, devices in channel.items():
+                for device_name in devices:
+                    device = getattr(self.instrument, device_type)[device_name]
+                    if device_type in ["lasers"]:
+                        self.laser_temperature_c = device.temperature_c
+                        self.laser_power_mw = device.power_mw
+                    elif device_type in ["cameras"]:
+                        self.camera_sensor_temperature_c = device.sensor_temperature_c
+                        self.camera_mainboard_temperature_c = device.mainboard_temperature_c
+            time.sleep(0.5)
+
+    def start(self):
+        """
+        Start the acquisitiong logger.
+        """
+        self.log.info(f"starting acquisition logger")
+        self.thread = threading.Thread(target=self._run)
+        self.thread.start()
+
+    def close(self):
+        """
+        Close the acquisition logger.
+        """
+        self.stop_acquisition_logger = True
+        self.log.info(f"closing acquisition logger")
+        self.thread.join()
 
 
 class ExASPIMAcquisition(Acquisition):
@@ -188,14 +235,17 @@ class ExASPIMAcquisition(Acquisition):
                         writer = self.writers[camera_id]
                         # check if any processes exist, they may not exist
                         processes = {} if not hasattr(self, "processes") else self.processes[camera_id]
-
-                        self.engine(tile, filename, camera, writer, processes)
                         self.log.info(f"starting camera and writer for {camera_id}")
+                        self.engine(tile, filename, camera, writer, processes)
 
                     # stop the daq
                     for daq_id, daq in self.instrument.daqs.items():
                         self.log.info(f"stopping daq {daq_id}")
                         daq.stop()
+
+                    # disable scanning stage stepping
+                    for scanning_stage_id, scanning_stage in self.instrument.scanning_stages.items():
+                        scanning_stage.mode = "off"  # turn off step and shoot mode
 
                     # create and start transfer threads from previous tile
                     for device_name, transfer_dict in getattr(self, "file_transfers", {}).items():
@@ -267,6 +317,9 @@ class ExASPIMAcquisition(Acquisition):
                         )
 
     def engine(self, tile, filename, camera, writers, processes):
+
+        acquisition_logger = AcquisitionLogger(tile, self.instrument)
+        acquisition_logger.start()
 
         chunk_locks = {}
         img_buffers = {}
@@ -358,6 +411,12 @@ class ExASPIMAcquisition(Acquisition):
             for img_buffer in img_buffers.values():
                 img_buffer.add_image(current_frame)
 
+            # log cached properties of relevant devices from acquisition logger
+            self.log.info(f"camera sensor temperature = {acquisition_logger.camera_sensor_temperature_c:.2f} [C]")
+            self.log.info(f"camera mainboard temperature = {acquisition_logger.camera_mainboard_temperature_c:.2f} [C]")
+            self.log.info(f"laser temperature = {acquisition_logger.laser_temperature_c:.2f} [C]")
+            self.log.info(f"laser power = {acquisition_logger.laser_power_mw:.2f} [mW]")
+
             # Dispatch either a full chunk of frames or the last chunk,
             # which may not be a multiple of the chunk size.
             if chunk_index + 1 == self.chunk_count_px or stack_index == last_frame_index:
@@ -410,6 +469,8 @@ class ExASPIMAcquisition(Acquisition):
             buffer.close()
             buffer.unlink()
             del buffer
+
+        acquisition_logger.close()
 
     def stop_acquisition(self):
         """Overwriting to better stop acquisition"""

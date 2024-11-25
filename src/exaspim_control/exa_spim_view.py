@@ -27,6 +27,7 @@ class ExASPIMInstrumentView(InstrumentView):
 
     def __init__(self, instrument, config_path: Path, log_level="INFO"):
 
+        self.flip_mount_widgets = {}
         super().__init__(instrument, config_path, log_level)
         self.setup_flip_mount_widgets()
         # viewer constants for ExA-SPIM

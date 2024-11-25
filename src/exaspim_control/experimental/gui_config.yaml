@@ -41,7 +41,7 @@ instrument_view:
           - temperature_c
       z stage:
         type:   scanning_stage
-        driver: view.widgets.device_widgets.stage_widget
+        driver: exaspim_control.widgets.stage_widget
         module: StageWidget
         init:
           advanced_user: False
@@ -49,7 +49,7 @@ instrument_view:
           - position_mm
       y stage:
         type: tiling_stage
-        driver: view.widgets.device_widgets.stage_widget
+        driver: exaspim_control.widgets.stage_widget
         module: StageWidget
         init:
           advanced_user: False
@@ -57,7 +57,7 @@ instrument_view:
           - position_mm
       x stage:
         type:   tiling_stage
-        driver: view.widgets.device_widgets.stage_widget
+        driver: exaspim_control.widgets.stage_widget
         module: StageWidget
         init:
           advanced_user: False
@@ -65,7 +65,7 @@ instrument_view:
           - position_mm
       theta stage:
         type:   focusing_stage
-        driver: view.widgets.device_widgets.stage_widget
+        driver: exaspim_control.widgets.stage_widget
         module: StageWidget
         init:
           advanced_user: False
@@ -73,7 +73,7 @@ instrument_view:
           - position_mm
       left focusing stage:
         type:   focusing_stage
-        driver: view.widgets.device_widgets.stage_widget
+        driver: exaspim_control.widgets.stage_widget
         module: StageWidget
         init:
           advanced_user: False
@@ -81,7 +81,7 @@ instrument_view:
           - position_mm
       right focusing stage:
         type:   focusing_stage
-        driver: view.widgets.device_widgets.stage_widget
+        driver: exaspim_control.widgets.stage_widget
         module: StageWidget
         init:
           advanced_user: False
@@ -89,7 +89,7 @@ instrument_view:
           - position_mm
       camera focusing stage:
         type:   focusing_stage
-        driver: view.widgets.device_widgets.stage_widget
+        driver: exaspim_control.widgets.stage_widget
         module: StageWidget
         init:
           advanced_user: False

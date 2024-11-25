@@ -38,7 +38,7 @@ acquisition:
       #     compression: none
       #     data_type: uint16
       robocopy:
-        type: transfer
+        type: file_transfer
         driver: voxel.file_transfers.robocopy
         module: RobocopyFileTransfer
         init:
@@ -48,17 +48,17 @@ acquisition:
           verify_transfer: True
           max_retry: 3
           timeout_s: 60
-      # max_projection:
-      #   type: process
-      #   driver: voxel.processes.max_projection.cpu.numpy
-      #   module: CPUMaxProjection
-      #   init:
-      #     path: E:\\
-      #   properties:
-      #     data_type: uint16
-      #     x_projection_count_px: 3548
-      #     y_projection_count_px: 2660
-      #     z_projection_count_px: 2048
+      max_projection:
+        type: process
+        driver: voxel.processes.max_projection.cpu.numpy
+        module: CPUMaxProjection
+        init:
+          path: D:\\
+        properties:
+          data_type: uint16
+          x_projection_count_px: 3548
+          y_projection_count_px: 2660
+          z_projection_count_px: 256
       # background_collection:
       #   type: routine
       #   driver: voxel.routines.background_collection
