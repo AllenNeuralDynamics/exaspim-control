@@ -7,6 +7,7 @@ from aind_data_schema.core import acquisition
 import numpy as np
 import shutil
 import os
+import logging
 
 
 X_ANATOMICAL_DIRECTIONS = {
@@ -41,7 +42,8 @@ class MetadataLaunch:
         :param acquisition_view: ExASPIMAcquisitionView object
         :param log_filename: log filename
         """
-
+        # logger
+        self.log = logging.getLogger(__name__ + "." + self.__class__.__name__)
         # instrument
         self.instrument = instrument
         # acquisition
@@ -56,12 +58,12 @@ class MetadataLaunch:
         self.acquisition_end_time = None  # variable will be filled when acquisitionStarted signal is emitted
         self.acquisition_view.acquisitionStarted.connect(lambda value: setattr(self, "acquisition_start_time", value))
         self.acquisition_view.acquisitionEnded.connect(lambda: setattr(self, "acquisition_end_time", datetime.now()))
-        self.acquisition_view.acquisitionEnded.connect(self.create_acquisition_json)
+        self.acquisition_view.acquisitionEnded.connect(self.finalize_acquisition)
 
-    def create_acquisition_json(self):
-        """Method to create and save acquisition.json"""
-        if getattr(self.acquisition, "transfers", {}) != {}:  # save to external paths
-            for device_name, transfer_dict in getattr(self.acquisition, "transfers", {}).items():
+    def finalize_acquisition(self):
+        # create and save acquisition.json
+        if getattr(self.acquisition, "file_transfers", {}) != {}:  # save to external paths
+            for device_name, transfer_dict in getattr(self.acquisition, "file_transfers", {}).items():
                 for transfer in transfer_dict.values():
                     save_to = str(Path(transfer.external_path, transfer.acquisition_name))
                     acquisition_model = self.parse_metadata(
@@ -69,10 +71,22 @@ class MetadataLaunch:
                     )
                     acquisition_model.write_standard_file(output_directory=save_to, prefix="exaspim")
                     # move the log file
+                    self.log.info(f"copying {self.log_filename} to {save_to}")
                     shutil.copy(
-                        Path(self.log_filename),
-                        Path(save_to, self.log_filename),
+                        self.log_filename,
+                        str(Path(save_to, self.log_filename)),
                     )
+            # re-arrange external directory
+            os.makedirs(Path(save_to, "exaSPIM"))
+            os.makedirs(Path(save_to, "derivatives"))
+            for file in os.listdir(save_to):
+                if file.endswith(".ims"):
+                    os.rename(str(Path(save_to, file)), str(Path(save_to, "exaSPIM", file)))
+                if file.endswith(".tiff"):
+                    os.rename(str(Path(save_to, file)), str(Path(save_to, "derivatives", file)))
+            # delete local directory
+            self.log.info(f"deleting {str(Path(transfer.local_path, transfer.acquisition_name))}")
+            shutil.rmtree(str(Path(transfer.local_path, transfer.acquisition_name)))
         else:  # no transfers so save locally
             for device_name, writer_dict in self.acquisition.writers.items():
                 for writer in writer_dict.values():
@@ -80,11 +94,19 @@ class MetadataLaunch:
                     acquisition_model = self.parse_metadata(external_drive=save_to, local_drive=save_to)
                     acquisition_model.write_standard_file(output_directory=save_to, prefix="exaspim")
                     # move the log file
+                    self.log.info(f"copying {self.log_filename} to {save_to}")
                     shutil.copy(
-                        Path(self.log_filename),
-                        Path(save_to, self.log_filename),
+                        self.log_filename,
+                        str(Path(save_to, self.log_filename)),
                     )
-        os.remove(self.log_filename)  # remove local logfile
+            # re-arrange external directory
+            os.makedirs(Path(save_to, "exaSPIM"))
+            os.makedirs(Path(save_to, "derivatives"))
+            for file in os.listdir(save_to):
+                if file.endswith(".ims"):
+                    os.rename(str(Path(save_to, file)), str(Path(save_to, "exaSPIM", file)))
+                if file.endswith(".tiff"):
+                    os.rename(str(Path(save_to, file)), str(Path(save_to, "derivatives", file)))
 
     def parse_metadata(self, external_drive: str, local_drive: str):
         """Method to parse through tiles to create an acquisition json
