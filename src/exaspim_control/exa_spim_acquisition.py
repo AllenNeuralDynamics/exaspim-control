@@ -212,6 +212,14 @@ class ExASPIMAcquisition(Acquisition):
                             pulse_count = self.chunk_count_px
                             daq.add_task("co", pulse_count)
 
+                    # log daq values
+                    for name, port_values in daq.tasks["ao_task"]["ports"].items():
+                        parameters = port_values["parameters"]
+                        port = port_values["port"]
+                        for parameter, channel_values in parameters.items():
+                            daq_value = channel_values["channels"][tile_channel]
+                            self.log.info(f"{name} on {port}: {parameter} = {daq_value}")
+
                     # run any pre-routines for all devices
                     for device_name, routine_dictionary in getattr(self, "routines", {}).items():
                         device_type = self.instrument.config["instrument"]["devices"][device_name]["type"]

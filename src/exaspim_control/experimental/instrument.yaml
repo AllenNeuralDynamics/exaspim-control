@@ -34,6 +34,8 @@ instrument:
         binning: 1
     488 nm:
       type: laser
+      # driver: voxel.devices.laser.simulated
+      # module: SimulatedLaser
       driver: voxel.devices.laser.coherent.genesis_mx
       module: GenesisMXLaser
       color: blue
@@ -168,18 +170,18 @@ instrument:
     #   init:
     #     id: pm100d
     #     conn: P0044066
-    flip mount:
-      type: flip_mount
-      driver: voxel.devices.flip_mount.thorlabs_mff101
-      module: ThorlabsFlipMount
-      init:
-        id: powell lens
-        conn: '37008111'
-        positions:
-          alignment mode: 0
-          imaging mode: 1
-      properties:
-        flip_time_ms: 2800
+    # flip mount:
+    #   type: flip_mount
+    #   driver: voxel.devices.flip_mount.thorlabs_mff101
+    #   module: ThorlabsFlipMount
+    #   init:
+    #     id: powell lens
+    #     conn: '37008111'
+    #     positions:
+    #       alignment mode: 0
+    #       imaging mode: 1
+    #   properties:
+    #     flip_time_ms: 2800
     # aotf:
     #   type: aotf
     #   driver: voxel.devices.aotf.aaopto
@@ -238,9 +240,9 @@ instrument:
                       CH639: 2.795
                   offset_volts:
                     channels:
-                      CH488: 4.315
-                      CH561: 4.66
-                      CH639: 4.715
+                      CH488: 5.21
+                      CH561: 5.39
+                      CH639: 5.62
                   cutoff_frequency_hz:
                     channels:
                       CH488: 1000
