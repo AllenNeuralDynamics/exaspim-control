@@ -99,12 +99,12 @@ instrument_view:
         type:   flip_mount
         driver: exaspim_control.widgets.flip_mount_widget
         module: FlipMountWidget
-      # left tunable lens:
-      #   type: tunable_lens
-      #   driver: view.widgets.base_device_widget
-      #   module: BaseDeviceWidget
-      #   updating_properties:
-      #     - temperature_c
+      left tunable lens:
+        type: tunable_lens
+        driver: exaspim_control.widgets.tunable_lens_widget
+        module: TunableLensWidget
+        updating_properties:
+          - temperature_c
       pcie-6738:
         type: daq
         driver: view.widgets.device_widgets.ni_widget

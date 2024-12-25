@@ -6,7 +6,7 @@ class FlipMountWidget(BaseDeviceWidget):
 
     def __init__(self, flip_mount):
         """
-        Modify BaseDeviceWidget to be specifically for laser. Main need is adding slider .
+        Modify BaseDeviceWidget to be specifically for a flip mount.
         :param flip_mount: flip mount object
         """
 
@@ -21,4 +21,4 @@ class FlipMountWidget(BaseDeviceWidget):
 
         central_widget = self.centralWidget()
         central_widget.layout().setSpacing(0)  # remove space between central widget and newly formatted widgets
-        self.setCentralWidget(create_widget("H", positions, self.property_widgets["flip_time_ms"]))
+        self.setCentralWidget(create_widget("H", self.property_widgets["position"], self.property_widgets["flip_time_ms"]))
