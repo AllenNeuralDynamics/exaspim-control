@@ -31,8 +31,6 @@ class ExASPIMInstrumentView(InstrumentView):
         super().__init__(instrument, config_path, log_level)
         self.setup_flip_mount_widgets()
         # viewer constants for ExA-SPIM
-        self.pixel_size_x_um = 0.748
-        self.pixel_size_y_um = 0.748
         self.intensity_min = 30
         self.intensity_max = 400
         self.camera_rotation = -90
@@ -128,8 +126,8 @@ class ExASPIMInstrumentView(InstrumentView):
         (image, camera_name) = args
 
         # calculate centroid of image
-        y_center_um = image.shape[0] // 2 * self.pixel_size_y_um
-        x_center_um = image.shape[1] // 2 * self.pixel_size_x_um
+        y_center_um = image.shape[0] // 2 * self.instrument.cameras[camera_name].sampling_um_px
+        x_center_um = image.shape[1] // 2 * self.instrument.cameras[camera_name].sampling_um_px
 
         if image is not None:
             _ = self.viewer.layers
@@ -158,13 +156,21 @@ class ExASPIMInstrumentView(InstrumentView):
             if layer_name in self.viewer.layers and not snapshot:
                 layer = self.viewer.layers[layer_name]
                 layer.data = multiscale
+                layer.scale = (
+                    self.instrument.cameras[camera_name].sampling_um_px,
+                    self.instrument.cameras[camera_name].sampling_um_px,
+                )
+                layer.translate = (-x_center_um, y_center_um)
             else:
                 # Add image to a new layer if layer doesn't exist yet or image is snapshot
                 layer = self.viewer.add_image(
                     multiscale,
                     name=layer_name,
                     contrast_limits=(self.intensity_min, self.intensity_max),
-                    scale=(self.pixel_size_y_um, self.pixel_size_x_um),
+                    scale=(
+                        self.instrument.cameras[camera_name].sampling_um_px,
+                        self.instrument.cameras[camera_name].sampling_um_px,
+                    ),
                     translate=(-x_center_um, y_center_um),
                     rotate=self.camera_rotation,
                 )
@@ -318,34 +324,36 @@ class ExASPIMAcquisitionView(AcquisitionView):
         """
 
         if image is not None:
-            self.instrument_view.update_layer((image, camera_name))
+            downsampler = GPUToolsRankDownSample2D(binning=self.acquisition_binning, rank=-2, data_type="uint16")
+            acquisition_image = downsampler.run(image)
+            # downsampled = skimage.measure.block_reduce(image, (4, 4), np.mean)
 
-        # if image is not None:
-        #     downsampler = GPUToolsRankDownSample2D(binning=self.acquisition_binning, rank=-2, data_type="uint16")
-        #     acquisition_image = downsampler.run(image)
-        #     # downsampled = skimage.measure.block_reduce(image, (4, 4), np.mean)
+            # calculate centroid of image
+            y_center_um = image.shape[0] // 2 * self.instrument.cameras[camera_name].sampling_um_px
+            x_center_um = image.shape[1] // 2 * self.instrument.cameras[camera_name].sampling_um_px
 
-        #     # calculate centroid of image
-        #     y_center_um = image.shape[0] // 2 * self.instrument_view.pixel_size_y_um
-        #     x_center_um = image.shape[1] // 2 * self.instrument_view.pixel_size_x_um
-
-        #     layer_name = f"{camera_name} acquisition"
-        #     if layer_name in self.instrument_view.viewer.layers:
-        #         layer = self.instrument_view.viewer.layers[layer_name]
-        #         layer.data = acquisition_image
-        #     else:
-        #         # Add image to a new layer if layer doesn't exist yet or image is snapshot
-        #         layer = self.instrument_view.viewer.add_image(
-        #             acquisition_image,
-        #             name=layer_name,
-        #             contrast_limits=(self.instrument_view.intensity_min, self.instrument_view.intensity_max),
-        #             scale=(
-        #                 self.instrument_view.pixel_size_y_um * self.acquisition_binning,
-        #                 self.instrument_view.pixel_size_x_um * self.acquisition_binning,
-        #             ),
-        #             translate=(-x_center_um, y_center_um),
-        #             rotate=self.instrument_view.camera_rotation,
-        #         )
+            layer_name = f"{camera_name} acquisition"
+            if layer_name in self.instrument_view.viewer.layers:
+                layer = self.instrument_view.viewer.layers[layer_name]
+                layer.data = acquisition_image
+                layer.scale = (
+                    self.acquisition_binning * self.instrument.cameras[camera_name].sampling_um_px,
+                    self.acquisition_binning * self.instrument.cameras[camera_name].sampling_um_px,
+                )
+                layer.translate = (-x_center_um, y_center_um)
+            else:
+                # Add image to a new layer if layer doesn't exist yet or image is snapshot
+                layer = self.instrument_view.viewer.add_image(
+                    acquisition_image,
+                    name=layer_name,
+                    contrast_limits=(self.instrument_view.intensity_min, self.instrument_view.intensity_max),
+                    scale=(
+                        self.acquisition_binning * self.instrument.cameras[camera_name].sampling_um_px,
+                        self.acquisition_binning * self.instrument.cameras[camera_name].sampling_um_px,
+                    ),
+                    translate=(-x_center_um, y_center_um),
+                    rotate=self.instrument_view.camera_rotation,
+                )
 
     def start_acquisition(self):
         """Overwrite to emit acquisitionStarted signal"""

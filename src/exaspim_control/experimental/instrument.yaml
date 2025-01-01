@@ -32,6 +32,7 @@ instrument:
           source: line0
         bit_packing_mode: msb
         binning: 1
+        um_px: 0.748
     488 nm:
       type: laser
       # driver: voxel.devices.laser.simulated

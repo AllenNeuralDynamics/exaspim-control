@@ -19,6 +19,20 @@ acquisition:
         format: [ instrument_type, subject_id ]
   operations:
     vp-151mx:
+      # acquire:
+      #   type: writer
+      #   driver: voxel.writers.zarr
+      #   module: ZarrWriter
+      #   init:
+      #     path: D:\\
+      #   properties:
+      #     chunk_size_x_px: 128
+      #     chunk_size_y_px: 128
+      #     chunk_size_z_px: 32
+      #     compression: zstd
+      #     multiscale: False
+      #     version: v3
+      #     data_type: uint16
       imaris:
         type: writer
         driver: voxel.writers.imaris
@@ -37,17 +51,17 @@ acquisition:
       #   properties:
       #     compression: none
       #     data_type: uint16
-      # robocopy:
-      #   type: file_transfer
-      #   driver: voxel.file_transfers.robocopy
-      #   module: RobocopyFileTransfer
-      #   init:
-      #     external_path: Z:\\scratch\\adam.glaser
-      #     local_path: D:\\
-      #   properties:
-      #     verify_transfer: True
-      #     max_retry: 3
-      #     timeout_s: 60
+      robocopy:
+        type: file_transfer
+        driver: voxel.file_transfers.robocopy
+        module: RobocopyFileTransfer
+        init:
+          external_path: Z:\\scratch\\adam.glaser
+          local_path: D:\\
+        properties:
+          verify_transfer: True
+          max_retry: 3
+          timeout_s: 60
       max_projection:
         type: process
         driver: voxel.processes.max_projection.cpu.numpy
@@ -58,14 +72,14 @@ acquisition:
           data_type: uint16
           x_projection_count_px: 3548
           y_projection_count_px: 2660
-          z_projection_count_px: 2048
-      # background_collection:
-      #   type: routine
-      #   driver: voxel.routines.background_collection
-      #   module: BackgroundCollection
-      #   init:
-      #     path: E:\\
-      #   properties:
-      #     data_type: uint16
-      #     frame_count_px: 10
+          z_projection_count_px: 512
+      background_collection:
+        type: routine
+        driver: exaspim_control.routines.background_collection
+        module: BackgroundCollection
+        init:
+          path: D:\\
+        properties:
+          data_type: uint16
+          frame_count_px: 20
   tiles: []

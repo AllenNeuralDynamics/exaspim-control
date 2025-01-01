@@ -61,6 +61,7 @@ class MetadataLaunch:
         self.acquisition_view.acquisitionEnded.connect(self.finalize_acquisition)
 
     def finalize_acquisition(self):
+        self.log.info("Finalizing acquisition")
         # create and save acquisition.json
         if getattr(self.acquisition, "file_transfers", {}) != {}:  # save to external paths
             for device_name, transfer_dict in getattr(self.acquisition, "file_transfers", {}).items():
