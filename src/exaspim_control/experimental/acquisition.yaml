@@ -4,7 +4,7 @@ acquisition:
     module: AINDMetadataClass
     init:
       metadata_dictionary:
-        instrument_type: exaspim
+        instrument_type: exaSPIM
         subject_id: '123456'
         experimenter_full_name: [adam glaser]
         chamber_immersion:

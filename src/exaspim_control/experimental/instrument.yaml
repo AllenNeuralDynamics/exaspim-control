@@ -2,15 +2,15 @@ instrument:
   id: exaspim-01
   master_device: pcie-6738
   channels:
-    CH561:
+    "561":
       lasers: [561 nm]
       cameras: [vp-151mx]
       focusing_stages: [left focusing stage, right focusing stage, camera focusing stage]
-    CH639:
+    "639":
       lasers: [639 nm]
       cameras: [vp-151mx]
       focusing_stages: [left focusing stage, right focusing stage, camera focusing stage]
-    CH488:
+    "488":
       lasers: [488 nm]
       cameras: [vp-151mx]
       focusing_stages: [left focusing stage, right focusing stage, camera focusing stage]
@@ -79,7 +79,7 @@ instrument:
           properties:
             mode: step shoot
             speed_mm_s: 1.0
-            backlash_mm: 0.0
+            # backlash_mm: 0.0
             acceleration_ms: 200.0
         x stage:
           type: tiling_stage
@@ -91,7 +91,7 @@ instrument:
           properties:
             mode: off
             speed_mm_s: 1.0
-            backlash_mm: 0.004
+            # backlash_mm: 0.004
             acceleration_ms: 200.0
         y stage:
           type: tiling_stage
@@ -103,7 +103,7 @@ instrument:
           properties:
             mode: off
             speed_mm_s: 1.0
-            backlash_mm: 0.004
+            # backlash_mm: 0.004
             acceleration_ms: 200.0
         theta stage:
           type: focusing_stage
@@ -115,7 +115,7 @@ instrument:
           properties:
             mode: off
             speed_mm_s: 1.0
-            backlash_mm: 0.004
+            # backlash_mm: 0.004
             acceleration_ms: 200.0
         left focusing stage:
           type: focusing_stage
@@ -226,29 +226,29 @@ instrument:
                 parameters:
                   start_time_ms:
                     channels:
-                      CH488: 0.0
-                      CH561: 0.0
-                      CH639: 0.0
+                      "488": 0.0
+                      "561": 0.0
+                      "639": 0.0
                   end_time_ms:
                     channels:
-                      CH488: 544.0
-                      CH561: 544.0
-                      CH639: 544.0
+                      "488": 544.0
+                      "561": 544.0
+                      "639": 544.0
                   amplitude_volts:
                     channels:
-                      CH488: 2.795
-                      CH561: 2.795
-                      CH639: 2.795
+                      "488": 2.795
+                      "561": 2.795
+                      "639": 2.795
                   offset_volts:
                     channels:
-                      CH488: 5.21
-                      CH561: 5.39
-                      CH639: 5.62
+                      "488": 5.21
+                      "561": 5.39
+                      "639": 5.62
                   cutoff_frequency_hz:
                     channels:
-                      CH488: 1000
-                      CH561: 1000
-                      CH639: 1000
+                      "488": 1000
+                      "561": 1000
+                      "639": 1000
               right tunable lens:
                 port: ao3
                 waveform: sawtooth
@@ -257,29 +257,29 @@ instrument:
                 parameters:
                   start_time_ms:
                     channels:
-                      CH488: 0.0
-                      CH561: 0.0
-                      CH639: 0.0
+                      "488": 0.0
+                      "561": 0.0
+                      "639": 0.0
                   end_time_ms:
                     channels:
-                      CH488: 544.0
-                      CH561: 544.0
-                      CH639: 544.0
+                      "488": 544.0
+                      "561": 544.0
+                      "639": 544.0
                   amplitude_volts:
                     channels:
-                      CH488: -0.078
-                      CH561: -0.078
-                      CH639: -0.078
+                      "488": -0.078
+                      "561": -0.078
+                      "639": -0.078
                   offset_volts:
                     channels:
-                      CH488: 2.448
-                      CH561: 2.448
-                      CH639: 2.448
+                      "488": 2.448
+                      "561": 2.448
+                      "639": 2.448
                   cutoff_frequency_hz:
                     channels:
-                      CH488: 1000
-                      CH561: 1000
-                      CH639: 1000
+                      "488": 1000
+                      "561": 1000
+                      "639": 1000
               stage:
                 port: ao5
                 waveform: square wave
@@ -288,24 +288,24 @@ instrument:
                 parameters:
                   start_time_ms:
                     channels:
-                      CH488: 544.0
-                      CH561: 544.0
-                      CH639: 544.0
+                      "488": 544.0
+                      "561": 544.0
+                      "639": 544.0
                   end_time_ms:
                     channels:
-                      CH488: 554.0
-                      CH561: 554.0
-                      CH639: 554.0
+                      "488": 554.0
+                      "561": 554.0
+                      "639": 554.0
                   max_volts:
                     channels:
-                      CH488: 5.0
-                      CH561: 5.0
-                      CH639: 5.0
+                      "488": 5.0
+                      "561": 5.0
+                      "639": 5.0
                   min_volts:
                     channels:
-                      CH488: 0.0
-                      CH561: 0.0
-                      CH639: 0.0
+                      "488": 0.0
+                      "561": 0.0
+                      "639": 0.0
               camera:
                 port: ao21
                 waveform: square wave
@@ -314,24 +314,24 @@ instrument:
                 parameters:
                   start_time_ms:
                     channels:
-                      CH488: 25.0
-                      CH561: 25.0
-                      CH639: 25.0
+                      "488": 25.0
+                      "561": 25.0
+                      "639": 25.0
                   end_time_ms:
                     channels:
-                      CH488: 35.0
-                      CH561: 35.0
-                      CH639: 35.0
+                      "488": 35.0
+                      "561": 35.0
+                      "639": 35.0
                   max_volts:
                     channels:
-                      CH488: 5.0
-                      CH561: 5.0
-                      CH639: 5.0
+                      "488": 5.0
+                      "561": 5.0
+                      "639": 5.0
                   min_volts:
                     channels:
-                      CH488: 0.0
-                      CH561: 0.0
-                      CH639: 0.0
+                      "488": 0.0
+                      "561": 0.0
+                      "639": 0.0
               488 nm:
                 port: ao17
                 waveform: square wave
@@ -340,24 +340,24 @@ instrument:
                 parameters:
                   start_time_ms:
                     channels:
-                      CH488: 15.0
-                      CH561: 15.0
-                      CH639: 15.0
+                      "488": 15.0
+                      "561": 15.0
+                      "639": 15.0
                   end_time_ms:
                     channels:
-                      CH488: 549.0
-                      CH561: 549.0
-                      CH639: 549.0
+                      "488": 549.0
+                      "561": 549.0
+                      "639": 549.0
                   max_volts:
                     channels:
-                      CH488: 5.0
-                      CH561: 0.0
-                      CH639: 0.0
+                      "488": 5.0
+                      "561": 0.0
+                      "639": 0.0
                   min_volts:
                     channels:
-                      CH488: 0.0
-                      CH561: 0.0
-                      CH639: 0.0
+                      "488": 0.0
+                      "561": 0.0
+                      "639": 0.0
               561 nm:
                 port: ao13
                 waveform: square wave
@@ -366,24 +366,24 @@ instrument:
                 parameters:
                   start_time_ms:
                     channels:
-                      CH488: 15.0
-                      CH561: 15.0
-                      CH639: 15.0
+                      "488": 15.0
+                      "561": 15.0
+                      "639": 15.0
                   end_time_ms:
                     channels:
-                      CH488: 549.0
-                      CH561: 549.0
-                      CH639: 549.0
+                      "488": 549.0
+                      "561": 549.0
+                      "639": 549.0
                   max_volts:
                     channels:
-                      CH488: 0.0
-                      CH561: 10.0
-                      CH639: 0.0
+                      "488": 0.0
+                      "561": 10.0
+                      "639": 0.0
                   min_volts:
                     channels:
-                      CH488: 0.0
-                      CH561: 0.0
-                      CH639: 0.0
+                      "488": 0.0
+                      "561": 0.0
+                      "639": 0.0
               639 nm:
                 port: ao9
                 waveform: square wave
@@ -392,24 +392,24 @@ instrument:
                 parameters:
                   start_time_ms:
                     channels:
-                      CH488: 15.0
-                      CH561: 15.0
-                      CH639: 15.0
+                      "488": 15.0
+                      "561": 15.0
+                      "639": 15.0
                   end_time_ms:
                     channels:
-                      CH488: 549.0
-                      CH561: 549.0
-                      CH639: 549.0
+                      "488": 549.0
+                      "561": 549.0
+                      "639": 549.0
                   max_volts:
                     channels:
-                      CH488: 0.0
-                      CH561: 0.0
-                      CH639: 5.0
+                      "488": 0.0
+                      "561": 0.0
+                      "639": 5.0
                   min_volts:
                     channels:
-                      CH488: 0.0
-                      CH561: 0.0
-                      CH639: 0.0
+                      "488": 0.0
+                      "561": 0.0
+                      "639": 0.0
               left piezo x:
                 port: ao7
                 waveform: square wave
@@ -418,24 +418,24 @@ instrument:
                 parameters:
                   start_time_ms:
                     channels:
-                      CH488: 0.0
-                      CH561: 0.0
-                      CH639: 0.0
+                      "488": 0.0
+                      "561": 0.0
+                      "639": 0.0
                   end_time_ms:
                     channels:
-                      CH488: 594.0
-                      CH561: 594.0
-                      CH639: 594.0
+                      "488": 594.0
+                      "561": 594.0
+                      "639": 594.0
                   max_volts:
                     channels:
-                      CH488: 0.0
-                      CH561: 0.0
-                      CH639: 0.0
+                      "488": 0.0
+                      "561": 0.0
+                      "639": 0.0
                   min_volts:
                     channels:
-                      CH488: 0.0
-                      CH561: 0.0
-                      CH639: 0.0
+                      "488": 0.0
+                      "561": 0.0
+                      "639": 0.0
               left piezo y:
                 port: ao11
                 waveform: square wave
@@ -444,24 +444,24 @@ instrument:
                 parameters:
                   start_time_ms:
                     channels:
-                      CH488: 0.0
-                      CH561: 0.0
-                      CH639: 0.0
+                      "488": 0.0
+                      "561": 0.0
+                      "639": 0.0
                   end_time_ms:
                     channels:
-                      CH488: 594.0
-                      CH561: 594.0
-                      CH639: 594.0
+                      "488": 594.0
+                      "561": 594.0
+                      "639": 594.0
                   max_volts:
                     channels:
-                      CH488: 0.0
-                      CH561: 0.0
-                      CH639: 0.0
+                      "488": 0.0
+                      "561": 0.0
+                      "639": 0.0
                   min_volts:
                     channels:
-                      CH488: 0.0
-                      CH561: 0.0
-                      CH639: 0.0
+                      "488": 0.0
+                      "561": 0.0
+                      "639": 0.0
               left piezo z:
                 port: ao14
                 waveform: square wave
@@ -470,24 +470,24 @@ instrument:
                 parameters:
                   start_time_ms:
                     channels:
-                      CH488: 0.0
-                      CH561: 0.0
-                      CH639: 0.0
+                      "488": 0.0
+                      "561": 0.0
+                      "639": 0.0
                   end_time_ms:
                     channels:
-                      CH488: 594.0
-                      CH561: 594.0
-                      CH639: 594.0
+                      "488": 594.0
+                      "561": 594.0
+                      "639": 594.0
                   max_volts:
                     channels:
-                      CH488: 0.0
-                      CH561: 0.0
-                      CH639: 0.0
+                      "488": 0.0
+                      "561": 0.0
+                      "639": 0.0
                   min_volts:
                     channels:
-                      CH488: 0.0
-                      CH561: 0.0
-                      CH639: 0.0
+                      "488": 0.0
+                      "561": 0.0
+                      "639": 0.0
             timing:
               period_time_ms: 544.0
               rest_time_ms: 150.0

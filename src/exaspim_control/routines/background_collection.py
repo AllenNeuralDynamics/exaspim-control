@@ -83,9 +83,7 @@ class BackgroundCollection:
         camera.stop()
         # reset the trigger
         trigger["mode"] = "on"
-        self.log.info(trigger)
         camera.trigger = trigger
-        self.log.info(camera.trigger)
         # average and save the image
         background_image = np.mean(background_stack, axis=0)
         tifffile.imwrite(
