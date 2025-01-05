@@ -1,19 +1,18 @@
 instrument:
   id: exaspim-01
-  master_device: pcie-6738
   channels:
     "561":
       lasers: [561 nm]
       cameras: [vp-151mx]
-      focusing_stages: [left focusing stage, right focusing stage, camera focusing stage]
+      focusing_stages: [left, right, camera]
     "639":
       lasers: [639 nm]
       cameras: [vp-151mx]
-      focusing_stages: [left focusing stage, right focusing stage, camera focusing stage]
+      focusing_stages: [left, right, camera]
     "488":
       lasers: [488 nm]
       cameras: [vp-151mx]
-      focusing_stages: [left focusing stage, right focusing stage, camera focusing stage]
+      focusing_stages: [left, right, camera]
   devices:
     vp-151mx:
       type: camera
@@ -35,8 +34,6 @@ instrument:
         um_px: 0.748
     488 nm:
       type: laser
-      # driver: voxel.devices.laser.simulated
-      # module: SimulatedLaser
       driver: voxel.devices.laser.coherent.genesis_mx
       module: GenesisMXLaser
       color: blue
@@ -69,7 +66,7 @@ instrument:
       init:
         com_port: COM5
       subdevices:
-        z stage:
+        z:
           type: scanning_stage
           driver: voxel.devices.stage.asi
           module: Stage
@@ -81,7 +78,7 @@ instrument:
             speed_mm_s: 1.0
             # backlash_mm: 0.0
             acceleration_ms: 200.0
-        x stage:
+        x:
           type: tiling_stage
           driver: voxel.devices.stage.asi
           module: Stage
@@ -93,7 +90,7 @@ instrument:
             speed_mm_s: 1.0
             # backlash_mm: 0.004
             acceleration_ms: 200.0
-        y stage:
+        y:
           type: tiling_stage
           driver: voxel.devices.stage.asi
           module: Stage
@@ -105,7 +102,7 @@ instrument:
             speed_mm_s: 1.0
             # backlash_mm: 0.004
             acceleration_ms: 200.0
-        theta stage:
+        theta:
           type: focusing_stage
           driver: voxel.devices.stage.asi
           module: Stage
@@ -117,21 +114,21 @@ instrument:
             speed_mm_s: 1.0
             # backlash_mm: 0.004
             acceleration_ms: 200.0
-        left focusing stage:
+        left:
           type: focusing_stage
           driver: voxel.devices.stage.asi
           module: Stage
           init:
             hardware_axis: a
             instrument_axis: a
-        right focusing stage:
+        right:
           type: focusing_stage
           driver: voxel.devices.stage.asi
           module: Stage
           init:
             hardware_axis: b
             instrument_axis: b
-        camera focusing stage:
+        camera:
           type: focusing_stage
           driver: voxel.devices.stage.asi
           module: Stage

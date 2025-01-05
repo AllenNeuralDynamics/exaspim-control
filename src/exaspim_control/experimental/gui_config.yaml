@@ -39,15 +39,15 @@ instrument_view:
         updating_properties:
           - power_mw
           - temperature_c
-      z stage:
-        type:   scanning_stage
+      z:
+        type: scanning_stage
         driver: exaspim_control.widgets.stage_widget
         module: StageWidget
         init:
           advanced_user: False
         updating_properties:
           - position_mm
-      y stage:
+      y:
         type: tiling_stage
         driver: exaspim_control.widgets.stage_widget
         module: StageWidget
@@ -55,40 +55,40 @@ instrument_view:
           advanced_user: False
         updating_properties:
           - position_mm
-      x stage:
-        type:   tiling_stage
+      x:
+        type: tiling_stage
         driver: exaspim_control.widgets.stage_widget
         module: StageWidget
         init:
           advanced_user: False
         updating_properties:
           - position_mm
-      theta stage:
-        type:   focusing_stage
+      theta:
+        type: focusing_stage
         driver: exaspim_control.widgets.stage_widget
         module: StageWidget
         init:
           advanced_user: False
         updating_properties:
           - position_mm
-      left focusing stage:
-        type:   focusing_stage
+      left:
+        type: focusing_stage
         driver: exaspim_control.widgets.stage_widget
         module: StageWidget
         init:
           advanced_user: False
         updating_properties:
           - position_mm
-      right focusing stage:
-        type:   focusing_stage
+      right:
+        type: focusing_stage
         driver: exaspim_control.widgets.stage_widget
         module: StageWidget
         init:
           advanced_user: False
         updating_properties:
           - position_mm
-      camera focusing stage:
-        type:   focusing_stage
+      camera:
+        type: focusing_stage
         driver: exaspim_control.widgets.stage_widget
         module: StageWidget
         init:
@@ -96,7 +96,7 @@ instrument_view:
         updating_properties:
           - position_mm
       flip mount:
-        type:   flip_mount
+        type: flip_mount
         driver: exaspim_control.widgets.flip_mount_widget
         module: FlipMountWidget
       left tunable lens:
@@ -141,4 +141,21 @@ acquisition_view:
           cameras: [ binning ]
           lasers: [ power_setpoint_mw ]
           focusing_stages: [ position_mm ]
+          prechecks:
+            delegate: combo
+            type: str
+            items: [ 'on', 'off']
+            initial_value: 'on'
+          repeats:
+            delegate: spin
+            type: int
+            minimum: 1
+            maximum: 100
+            initial_value: 1
+          start_delay:
+            delegate: spin
+            type: float
+            minimum: 0
+            maximum: 1000
+            initial_value: 0
   operation_widgets: {}

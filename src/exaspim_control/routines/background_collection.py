@@ -74,11 +74,12 @@ class BackgroundCollection:
         camera.prepare()
         camera.start()
         background_stack = np.zeros(
-            (self._frame_count_px, camera.height_px // camera.binning, camera.width_px // camera.binning),
+            (self._frame_count_px, camera.image_height_px, camera.image_width_px),
             dtype=self._data_type,
         )
         for frame in range(self._frame_count_px):
             background_stack[frame] = camera.grab_frame()
+            camera.acquisition_state()
         # close writer and camera
         camera.stop()
         # reset the trigger

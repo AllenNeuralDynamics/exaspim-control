@@ -18,9 +18,28 @@ class CameraWidget(BaseDeviceWidget):
 
         super().__init__(type(camera), self.camera_properties)
 
-        if not advanced_user:  # hide widgets
-            for widget in self.property_widgets.values():
-                widget.setVisible(False)
+        # hide all property widgets by default
+        for widget in self.property_widgets.values():
+            widget.setVisible(False)
+        # show only select widgets
+        self.property_widgets["pixel_type"].setVisible(True)
+        self.property_widgets["exposure_time_ms"].setVisible(True)
+        self.property_widgets["frame_time_ms"].setVisible(True)
+        self.property_widgets["line_interval_us"].setVisible(True)
+        self.property_widgets["width_px"].setVisible(True)
+        self.property_widgets["height_px"].setVisible(True)
+        self.property_widgets["width_offset_px"].setVisible(True)
+        self.property_widgets["height_offset_px"].setVisible(True)
+        self.property_widgets["image_width_px"].setVisible(True)
+        self.property_widgets["image_height_px"].setVisible(True)
+        self.property_widgets["height_offset_px"].setVisible(True)
+        self.property_widgets["sensor_width_px"].setVisible(True)
+        self.property_widgets["sensor_height_px"].setVisible(True)
+        self.property_widgets["binning"].setVisible(True)
+        self.property_widgets["readout_mode"].setVisible(True)
+        self.property_widgets["trigger"].setVisible(True)
+        self.property_widgets["sensor_temperature_c"].setVisible(True)
+        self.property_widgets["mainboard_temperature_c"].setVisible(True)
 
         # create and format livestream button and snapshot button
         self.live_button = self.create_live_button()
@@ -45,7 +64,6 @@ class CameraWidget(BaseDeviceWidget):
             direct = Qt.FindDirectChildrenOnly
 
             # reformat timing widgets
-
             timing_widgets = create_widget(
                 "VH",
                 *self.property_widgets.get("exposure_time_ms", _).findChildren(QWidget, options=direct),
@@ -63,11 +81,12 @@ class CameraWidget(BaseDeviceWidget):
                 "HV",
                 *self.property_widgets.get("width_px", _).findChildren(QWidget, options=direct),
                 *self.property_widgets.get("width_offset_px", _).findChildren(QWidget, options=direct),
+                *self.property_widgets.get("image_width_px", _).findChildren(QWidget, options=direct),
                 *self.property_widgets.get("sensor_width_px", _).findChildren(QWidget, options=direct),
             )
 
             # check if properties have setters and if not, disable widgets
-            for i, prop in enumerate(["width_px", "width_offset_px", "sensor_width_px"]):
+            for i, prop in enumerate(["width_px", "width_offset_px", "sensor_width_px", "image_width_px"]):
                 attr = getattr(type(camera), prop, False)
                 if getattr(attr, "fset", None) is None:
                     width_widget.children()[i + 1].setEnabled(False)
@@ -77,11 +96,12 @@ class CameraWidget(BaseDeviceWidget):
                 "HV",
                 *self.property_widgets.get("height_px", _).findChildren(QWidget, options=direct),
                 *self.property_widgets.get("height_offset_px", _).findChildren(QWidget, options=direct),
+                *self.property_widgets.get("image_height_px", _).findChildren(QWidget, options=direct),
                 *self.property_widgets.get("sensor_height_px", _).findChildren(QWidget, options=direct),
             )
 
             # check if properties have setters and if not, disable widgets
-            for i, prop in enumerate(["height_px", "height_offset_px", "sensor_height_px"]):
+            for i, prop in enumerate(["height_px", "height_offset_px", "sensor_height_px", "image_height_px"]):
                 attr = getattr(type(camera), prop, False)
                 if getattr(attr, "fset", None) is None:
                     height_widget.children()[i + 1].setEnabled(False)
@@ -102,14 +122,15 @@ class CameraWidget(BaseDeviceWidget):
             pixel_widgets = create_widget(
                 "HV",
                 *self.property_widgets.get("binning", _).findChildren(QWidget, options=direct),
-                *self.property_widgets.get("bit_packing_mode", _).findChildren(QWidget, options=direct),
+                *self.property_widgets.get("sampling_um_px", _).findChildren(QWidget, options=direct),
                 *self.property_widgets.get("readout_mode", _).findChildren(QWidget, options=direct),
             )
 
             # check if properties have setters and if not, disable widgets. Have to do it inside pixel widget
-            for i, prop in enumerate(["binning", "bit_packing_mode", "readout_mode"]):
+            for i, prop in enumerate(["binning", "sampling_um_px", "readout_mode"]):
                 attr = getattr(type(camera), prop)
                 if getattr(attr, "fset", None) is None:
+                    print(attr)
                     pixel_widgets.children()[i + 1].setEnabled(False)
 
             # reformat trigger widget

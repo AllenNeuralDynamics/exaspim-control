@@ -1,3 +1,4 @@
+import math
 import os
 import platform
 import shutil
@@ -43,35 +44,14 @@ class ExASPIMAcquisition(Acquisition):
         # store acquisition name
         self.acquisition_name = self.metadata.acquisition_name
 
-        # verify acquisition
-        self._verify_acquisition()
-
         # initialize stop engine event
         self.stop_engine = Event()
 
-    def _setup_class(self, device: object, settings: dict) -> None:
-        """
-        Overwrite to allow metadata class to pass in acquisition_name to devices that require it.
-
-        :param device: Device object
-        :type device: object
-        :param settings: Settings dictionary
-        :type settings: dict
-        """
-        super()._setup_class(device, settings)
-
-        # set acquisition_name attribute if it exists for object
-        if hasattr(device, "acquisition_name") and self.metadata is not None:
-            setattr(device, "acquisition_name", self.metadata.acquisition_name)
-
     def run(self) -> None:
-        """
-        Run the acquisition process.
+        """_summary_
 
-        :raises ValueError: If tile frame count is less than chunk size
-        :raises ValueError: If there is not enough local disk space
+        :raises ValueError: _description_
         """
-
         # verify acquisition
         self._verify_acquisition()
 
@@ -97,121 +77,174 @@ class ExASPIMAcquisition(Acquisition):
 
         for tile in self.config["acquisition"]["tiles"]:
 
-            tile_num = tile["tile_number"]
-            tile_channel = tile["channel"]
-            tile_prefix = tile["prefix"]
-            base_filename = f"{tile_prefix}_{tile_num:06}_ch_{tile_channel}"
+            # number of times to repeat tile -> pulled from GUI only make sure in gui.yaml file
+            for repeat in range(tile["repeats"]):
 
-            # check length of scan
-            chunk_count_px = writer.chunk_count_px
-            tile_count_px = tile["steps"]
-            if tile_count_px < chunk_count_px:
-                raise ValueError(
-                    f"tile frame count {tile_count_px} \
-                    is less than chunk size = {chunk_count_px} px"
-                )
+                # wait for start delay -> pulled from GUI only make sure in gui.yaml file
+                start_delay = tile["start_delay"]
+                self.log.info(f"waiting for start delay = {start_delay} [s]")
+                time.sleep(tile["start_delay"])
 
-            # move all tiling stages to correct positions
-            for tiling_stage_id, tiling_stage in self.instrument.tiling_stages.items():
-                # grab stage axis letter
-                instrument_axis = tiling_stage.instrument_axis
+                tile_num = tile["tile_number"]
+                tile_channel = tile["channel"]
+                tile_prefix = tile["prefix"]
+                if repeat > 0:
+                    base_filename = f"{tile_prefix}_{tile_num:06}_ch_{tile_channel}_repeat_{repeat}"
+                else:
+                    base_filename = f"{tile_prefix}_{tile_num:06}_ch_{tile_channel}"
+
+                self.log.info(f"starting tile {base_filename}")
+
+                # check length of scan
+                if tile["steps"] % 2048 != 0:  # must be divisible by 2048 for direct use of IMS pyramid volumes
+                    tile_count_px = 2048 * math.ceil(tile["steps"] / 2048)
+                    tile["steps"] = tile_count_px
+                    self.log.info(f"adjusting tile frame count to be divisible by 2048 -> {tile_count_px} [px]")
+
+                # move all tiling stages to correct positions
+                for tiling_stage_id, tiling_stage in self.instrument.tiling_stages.items():
+                    # grab stage axis letter
+                    instrument_axis = tiling_stage.instrument_axis
+                    tile_position = tile["position_mm"][instrument_axis]
+                    self.log.info(f"moving stage {tiling_stage_id} to {instrument_axis} = {tile_position} mm")
+                    tiling_stage.move_absolute_mm(tile_position, wait=False)
+                    # wait on tiling stage
+                    while tiling_stage.is_axis_moving():
+                        self.log.info(
+                            f"waiting for stage {tiling_stage_id}: {instrument_axis} ="
+                            f"{tiling_stage.position_mm} -> {tile_position} mm"
+                        )
+                        time.sleep(1.0)
+
+                # prepare the scanning stage for step and shoot behavior
+                self.log.info("setting up scanning stage")
+                instrument_axis = scanning_stage.instrument_axis
                 tile_position = tile["position_mm"][instrument_axis]
-                self.log.info(f"moving stage {tiling_stage_id} to {instrument_axis} = {tile_position} mm")
-                tiling_stage.move_absolute_mm(tile_position, wait=False)
-                # wait on tiling stage
-                while tiling_stage.is_axis_moving():
+                backlash_removal_position = tile_position - 0.01
+                self.log.info(f"moving scanning stage to {instrument_axis} = {backlash_removal_position} mm")
+                scanning_stage.move_absolute_mm(tile_position - 0.01, wait=False)
+                self.log.info(f"moving stage to {instrument_axis} = {tile_position} mm")
+                scanning_stage.move_absolute_mm(tile_position, wait=False)
+                self.log.info("backlash on scanning stage removed")
+                step_size_um = tile["step_size"]
+                self.log.info(f"setting step shoot scan step size to {step_size_um} um")
+                scanning_stage.setup_step_shoot_scan(step_size_um)
+                # wait on scanning stage
+                while scanning_stage.is_axis_moving():
                     self.log.info(
-                        f"waiting for stage {tiling_stage_id}: {instrument_axis} ="
-                        f"{tiling_stage.position_mm} -> {tile_position} mm"
+                        f"waiting for scanning stage: {instrument_axis} = "
+                        f"{scanning_stage.position_mm} -> {tile_position} mm"
                     )
-                    time.sleep(1.0)
 
-            # prepare the scanning stage for step and shoot behavior
-            self.log.info("setting up scanning stage")
-            instrument_axis = scanning_stage.instrument_axis
-            tile_position = tile["position_mm"][instrument_axis]
-            backlash_removal_position = tile_position - 0.01
-            self.log.info(f"moving scanning stage to {instrument_axis} = {backlash_removal_position} mm")
-            scanning_stage.move_absolute_mm(tile_position - 0.01, wait=False)
-            self.log.info(f"moving stage to {instrument_axis} = {tile_position} mm")
-            scanning_stage.move_absolute_mm(tile_position, wait=False)
-            self.log.info("backlash on scanning stage removed")
-            step_size_um = tile["step_size"]
-            self.log.info(f"setting step shoot scan step size to {step_size_um} um")
-            scanning_stage.setup_step_shoot_scan(step_size_um)
-            # wait on scanning stage
-            while scanning_stage.is_axis_moving():
-                self.log.info(
-                    f"waiting for scanning stage: {instrument_axis} = "
-                    f"{scanning_stage.position_mm} -> {tile_position} mm"
-                )
+                # setup channel i.e. laser and filter wheels
+                self.log.info(f"setting up channel: {tile_channel}")
+                channel = self.instrument.channels[tile_channel]
+                for device_type, devices in channel.items():
+                    for device_name in devices:
+                        device = getattr(self.instrument, device_type)[device_name]
+                        if device_type in ["lasers", "filters"]:
+                            device.enable()
+                        for setting, value in tile.get(device_name, {}).items():
+                            setattr(device, setting, value)
+                            self.log.info(f"setting {setting} for {device_type} {device_name} to {value}")
 
-            # setup channel i.e. laser and filter wheels
-            self.log.info(f"setting up channel: {tile_channel}")
-            channel = self.instrument.channels[tile_channel]
-            for device_type, devices in channel.items():
-                for device_name in devices:
-                    device = getattr(self.instrument, device_type)[device_name]
-                    if device_type in ["lasers", "filters"]:
-                        device.enable()
-                    for setting, value in tile.get(device_name, {}).items():
-                        setattr(device, setting, value)
-                        self.log.info(f"setting {setting} for {device_type} {device_name} to {value}")
+                # setup daq
+                if daq.tasks.get("ao_task", None) is not None:
+                    daq.add_task("ao")
+                    daq.generate_waveforms("ao", tile_channel)
+                    daq.write_ao_waveforms()
+                if daq.tasks.get("do_task", None) is not None:
+                    daq.add_task("do")
+                    daq.generate_waveforms("do", tile_channel)
+                    daq.write_do_waveforms()
+                if daq.tasks.get("co_task", None) is not None:
+                    pulse_count = writer.chunk_count_px  # number of pulses matched to number of frames in one chunk
+                    daq.add_task("co", pulse_count)
 
-            # setup daq
-            if daq.tasks.get("ao_task", None) is not None:
-                daq.add_task("ao")
-                daq.generate_waveforms("ao", tile_channel)
-                daq.write_ao_waveforms()
-            if daq.tasks.get("do_task", None) is not None:
-                daq.add_task("do")
-                daq.generate_waveforms("do", tile_channel)
-                daq.write_do_waveforms()
-            if daq.tasks.get("co_task", None) is not None:
-                pulse_count = writer.chunk_count_px  # number of pulses matched to number of frames in one chunk
-                daq.add_task("co", pulse_count)
+                # log daq values
+                for name, port_values in daq.tasks["ao_task"]["ports"].items():
+                    parameters = port_values["parameters"]
+                    port = port_values["port"]
+                    for parameter, channel_values in parameters.items():
+                        daq_value = channel_values["channels"][tile_channel]
+                        self.log.info(f"{name} on {port}: {parameter} = {daq_value}")
 
-            # log daq values
-            for name, port_values in daq.tasks["ao_task"]["ports"].items():
-                parameters = port_values["parameters"]
-                port = port_values["port"]
-                for parameter, channel_values in parameters.items():
-                    daq_value = channel_values["channels"][tile_channel]
-                    self.log.info(f"{name} on {port}: {parameter} = {daq_value}")
+                # run any pre-routines for all devices
+                for device_name, routine_dictionary in getattr(self, "routines", {}).items():
+                    device_type = self.instrument.config["instrument"]["devices"][device_name]["type"]
+                    self.log.info(f"running routines for {device_type} {device_name}")
+                    for routine_name, routine in routine_dictionary.items():
+                        device_object = getattr(self.instrument, inflection.pluralize(device_type))[device_name]
+                        routine.filename = base_filename + "_" + routine_name
+                        routine.start(device=device_object)
 
-            # run any pre-routines for all devices
-            for device_name, routine_dictionary in getattr(self, "routines", {}).items():
-                device_type = self.instrument.config["instrument"]["devices"][device_name]["type"]
-                self.log.info(f"running routines for {device_type} {device_name}")
-                for routine_name, routine in routine_dictionary.items():
-                    device_object = getattr(self.instrument, inflection.pluralize(device_type))[device_name]
-                    routine.filename = base_filename + "_" + routine_name
-                    routine.start(device=device_object)
+                # setup writers
+                self.log.info("setting up writer")
+                writer.row_count_px = camera.image_height_px
+                writer.column_count_px = camera.image_width_px
+                writer.frame_count_px = tile["steps"]
+                writer.x_position_mm = tile["position_mm"]["x"]
+                writer.y_position_mm = tile["position_mm"]["y"]
+                writer.z_position_mm = tile["position_mm"]["z"]
+                writer.x_voxel_size_um = camera.sampling_um_px
+                writer.y_voxel_size_um = camera.sampling_um_px
+                writer.z_voxel_size_um = tile["step_size"]
+                writer.filename = base_filename
+                writer.channel = tile["channel"]
 
-            # setup camera, data writing engines, and processes
-            self.log.info("arming camera and writer")
-            self.engine(tile, base_filename, camera, daq, writer, processes)
+                if tile["prechecks"] == "on":
+                    # check write speed
+                    if file_transfer:
+                        self.check_write_speed(
+                            daq=daq, writer=writer, file_transfer=file_transfer, compression_ratio=compression_ratio
+                        )
+                    else:
+                        self.check_write_speed(daq=daq, writer=writer, compression_ratio=compression_ratio)
+                    # check local memory
+                    self.check_system_memory(writer)
+                    # check gpu memory
+                    self.check_gpu_memory(writer)
 
-            # stop the daq
-            self.log.info("stopping daq")
-            daq.stop()
+                # estimate the compresion ratio
+                compression_ratio = self.check_compression_ratio(camera, writer)
 
-            # disable scanning stage stepping
-            scanning_stage.mode = "off"  # turn off step and shoot mode
+                # check local disk space and run if enough disk space
+                # check external disk space
+                while not self.check_external_disk_space(writer, file_transfer, compression_ratio):
+                    # recheck external disk space every minute, if not enough space, do not run
+                    time.sleep(60)
+                # check local disk space and run if enough disk space
+                if self.check_local_disk_space(writer, compression_ratio):
+                    self.acquisition_engine(tile, base_filename, camera, daq, writer, processes, scanning_stage)
+                # if not enough local disk space, but file transfers are running
+                # wait for them to finish, because this will free up disk space
+                elif len(self.file_transfer_threads) != 0:
+                    # check if any transfer threads are still running, if so wait on them
+                    for tile_num, threads_dict in self.file_transfer_threads.items():
+                        for tile_channel, transfer_thread in threads_dict.items():
+                            if transfer_thread.is_alive():
+                                transfer_thread.wait_until_finished()
+                # otherwise this is the first tile and there is simply not enough disk space
+                # for the first tile
+                else:
+                    raise ValueError("not enough local disk space")
 
-            # create and start transfer threads from previous tile
-            if tile_num not in file_transfer_threads:
-                file_transfer_threads[tile_num] = dict()
-            file_transfer_threads[tile_num][tile_channel] = file_transfer
-            file_transfer_threads[tile_num][tile_channel].filename = base_filename
-            self.log.info(f"starting file transfer for {base_filename}")
-            file_transfer_threads[tile_num][tile_channel].start()
+                # create and start transfer threads from previous tile
+                if tile_num not in file_transfer_threads:
+                    file_transfer_threads[tile_num] = dict()
+                if tile_channel not in file_transfer_threads[tile_num]:
+                    file_transfer_threads[tile_num][tile_channel] = dict()
+                file_transfer_threads[tile_num][tile_channel][repeat] = file_transfer
+                file_transfer_threads[tile_num][tile_channel][repeat].filename = base_filename
+                self.log.info(f"starting file transfer for {base_filename}")
+                file_transfer_threads[tile_num][tile_channel][repeat].start()
 
         # wait for last tiles file transfer
         for tile_num, threads_dict in file_transfer_threads.items():
-            for tile_channel, thread in threads_dict.items():
-                if thread.is_alive():
-                    thread.wait_until_finished()
+            for tile_channel, repeat_dict in threads_dict.items():
+                for repeat, thread in repeat_dict.items():
+                    if thread.is_alive():
+                        thread.wait_until_finished()
 
         if getattr(self, "file_transfers", {}) != {}:  # save to external paths
             # save acquisition config
@@ -243,26 +276,10 @@ class ExASPIMAcquisition(Acquisition):
                     self.instrument.update_current_state_config()
                     self.instrument.save_config(Path(writer.path, writer.acquisition_name) / "instrument_config.yaml")
 
-    def engine(
-        self, tile: dict, base_filename: str, camera: object, daq: object, writer: object, processes: dict
-    ) -> None:
-        """
-        Setup and run the acquisition engine.
-
-        :param tile: Tile configuration
-        :type tile: dict
-        :param base_filename: Base filename for the acquisition
-        :type base_filename: str
-        :param camera: Camera object
-        :type camera: object
-        :param writer: Writer object
-        :type writer: object
-        :param processes: Processes dictionary
-        :type processes: dict
-        :raises ValueError: If there is not enough local disk space
-        """
+    def acquisition_engine(self, tile, base_filename, camera, daq, writer, processes, scanning_stage):
 
         # initatlized shared double buffer and processes
+        self.log.info("setting up buffers")
         process_buffers = dict()
         chunk_lock = Lock()
         img_buffer = SharedDoubleBuffer(
@@ -270,20 +287,8 @@ class ExASPIMAcquisition(Acquisition):
             dtype=writer.data_type,
         )
 
-        # setup writers
-        writer.row_count_px = camera.image_height_px
-        writer.column_count_px = camera.image_width_px
-        writer.frame_count_px = tile["steps"]
-        writer.x_position_mm = tile["position_mm"]["x"]
-        writer.y_position_mm = tile["position_mm"]["y"]
-        writer.z_position_mm = tile["position_mm"]["z"]
-        writer.x_voxel_size_um = camera.sampling_um_px
-        writer.y_voxel_size_um = camera.sampling_um_px
-        writer.z_voxel_size_um = tile["step_size"]
-        writer.filename = base_filename
-        writer.channel = tile["channel"]
-
         # setup processes
+        self.log.info("setting up processes")
         for process_name, process in processes.items():
             process.row_count_px = camera.image_height_px
             process.column_count_px = camera.image_width_px
@@ -302,105 +307,103 @@ class ExASPIMAcquisition(Acquisition):
             )
             process.prepare(buffer.name)
 
-        # check local disk space and run if enough disk space
-        if self.check_local_tile_disk_space(tile):
+        # set up writer and camera
+        camera.prepare()
+        writer.prepare()
+        writer.start()
+        time.sleep(1)
 
-            # set up writer and camera
-            camera.prepare()
-            writer.prepare()
-            writer.start()
-            time.sleep(1)
+        # start camera
+        camera.start()
 
-            # start camera
-            camera.start()
+        # start processes
+        for process in processes.values():
+            process.start()
 
-            # start processes
-            for process in processes.values():
-                process.start()
+        frame_index = 0
+        last_frame_index = tile["steps"] - 1
 
-            frame_index = 0
-            last_frame_index = tile["steps"] - 1
+        # Images arrive serialized in repeating channel order.
+        for stack_index in range(tile["steps"]):
+            if self.stop_engine.is_set():
+                break
+            chunk_index = stack_index % writer.chunk_count_px
+            # Start a batch of pulses to generate more frames and movements.
+            if chunk_index == 0:
+                # log metrics from devices
+                laser_name = self.instrument.channels[tile["channel"]]["lasers"][0]
+                laser = self.instrument.lasers[laser_name]
+                self.log.info(f"laser {laser.id} power = {laser.power_mw:.2f} [mW]")
+                self.log.info(f"laser {laser.id} temperature = {laser.temperature_c:.2f} [mW]")
+                self.log.info(f"camera {camera.id} sensor temperature = {camera.sensor_temperature_c:.2f} [C]")
+                self.log.info(f"camera {camera.id} mainboard temperature = {camera.mainboard_temperature_c:.2f} [C]")
+                self.log.info("starting daq")
+                # Start the dqq tasks.
+                for task in [daq.ao_task, daq.do_task, daq.co_task]:  # must start co task last in list
+                    if task is not None:
+                        task.start()
 
-            # Images arrive serialized in repeating channel order.
-            for stack_index in range(tile["steps"]):
-                if self.stop_engine.is_set():
-                    break
-                chunk_index = stack_index % writer.chunk_count_px
-                # Start a batch of pulses to generate more frames and movements.
-                if chunk_index == 0:
-                    self.log.info("starting daq")
-                    for task in [daq.ao_task, daq.do_task, daq.co_task]:
-                        if task is not None:
-                            task.start()
+            # Grab camera frame and add to shared double buffer.
+            current_frame = camera.grab_frame()
+            img_buffer.add_image(current_frame)
 
-                # Grab camera frame and add to shared double buffer.
-                current_frame = camera.grab_frame()
-                img_buffer.add_image(current_frame)
+            # Log the current state of the camera.
+            camera.acquisition_state()
 
-                # Log the current state of the camera.
-                camera.signal_acquisition_state()
-
-                # Log the current state of the writer.
-                while not writer._log_queue.empty():
-                    self.log.info(f"writer: {writer._log_queue.get_nowait()}")
-
-                # Dispatch either a full chunk of frames or the last chunk,
-                # which may not be a multiple of the chunk size.
-                if chunk_index + 1 == writer.chunk_count_px or stack_index == last_frame_index:
-                    daq.stop()
-                    # Toggle double buffer to continue writing images.
-                    while not writer.done_reading.is_set() and not self.stop_engine.is_set():
-                        time.sleep(0.001)
-                    with chunk_lock:
-                        img_buffer.toggle_buffers()
-                        writer.shm_name = img_buffer.read_buf_mem_name
-                        writer.done_reading.clear()
-
-                # check on processes
-                for process in processes.values():
-                    while process.new_image.is_set():
-                        time.sleep(0.1)
-                    process.buffer_image[:, :] = current_frame
-                    process.new_image.set()
-
-                frame_index += 1
-
-            # stop the camera
-            camera.stop()
-
-            # wait for the writer to finish
-            writer.wait_to_finish()
-
-            # log any statements in the writer log queue
+            # Log the current state of the writer.
             while not writer._log_queue.empty():
-                self.log.info(writer._log_queue.get_nowait())
+                self.log.info(f"writer: {writer._log_queue.get_nowait()}")
 
-            # wait for the processes to finish
+            # Dispatch either a full chunk of frames or the last chunk,
+            # which may not be a multiple of the chunk size.
+            if chunk_index + 1 == writer.chunk_count_px or stack_index == last_frame_index:
+                daq.stop()
+                # Toggle double buffer to continue writing images.
+                while not writer.done_reading.is_set() and not self.stop_engine.is_set():
+                    time.sleep(0.001)
+                with chunk_lock:
+                    img_buffer.toggle_buffers()
+                    writer.shm_name = img_buffer.read_buf_mem_name
+                    writer.done_reading.clear()
+
+            # check on processes
             for process in processes.values():
-                process.wait_to_finish()
+                while process.new_image.is_set():
+                    time.sleep(0.1)
+                process.buffer_image[:, :] = current_frame
+                process.new_image.set()
 
-            # clean up the image buffer
-            self.log.info("deallocating shared double buffer.")
-            img_buffer.close_and_unlink()
-            del img_buffer
-            for buffer in process_buffers.values():
-                buffer.close()
-                buffer.unlink()
-                del buffer
+            frame_index += 1
 
-        # if not enough local disk space, but file transfers are running
-        # wait for them to finish, because this will free up disk space
-        elif len(self.file_transfer_threads) != 0:
-            # check if any transfer threads are still running, if so wait on them
-            for tile_num, threads_dict in self.file_transfer_threads.items():
-                for tile_channel, transfer_thread in threads_dict.items():
-                    if transfer_thread.is_alive():
-                        transfer_thread.wait_until_finished()
+        # stop the camera
+        camera.stop()
 
-        # otherwise this is the first tile and there is simply not enough disk space
-        # for the first tile
-        else:
-            raise ValueError("not enough local disk space")
+        # wait for the writer to finish
+        writer.wait_to_finish()
+
+        # stop the daq
+        self.log.info("stopping daq")
+        daq.stop()
+
+        # disable scanning stage stepping
+        scanning_stage.mode = "off"  # turn off step and shoot mode
+
+        # log any statements in the writer log queue
+        while not writer._log_queue.empty():
+            self.log.info(writer._log_queue.get_nowait())
+
+        # wait for the processes to finish
+        for process in processes.values():
+            process.wait_to_finish()
+
+        # clean up the image buffer
+        self.log.info("deallocating shared double buffer.")
+        img_buffer.close_and_unlink()
+        del img_buffer
+        for buffer in process_buffers.values():
+            buffer.close()
+            buffer.unlink()
+            del buffer
 
     def stop_acquisition(self) -> None:
         """
@@ -409,18 +412,295 @@ class ExASPIMAcquisition(Acquisition):
         self.stop_engine.set()
         raise RuntimeError
 
-    @property
-    def acquisition_rate_hz(self, daq: object) -> float:
-        """
-        Get the acquisition rate in Hz.
+    def check_local_disk_space(self, writer: object, compression_ratio: float = 1) -> bool:
+        """_summary_
 
-        :param daq: DAQ object
-        :type daq: object
-        :return: Acquisition rate in Hz
+        :param writer: _description_
+        :type writer: object
+        :return: _description_
+        :rtype: bool
+        """
+        # if windows
+        if platform.system() == "Windows":
+            drive = os.path.splitdrive(writer.path)[0]
+        # if unix
+        else:
+            # not completed, needs to be fixed
+            drive = "/"
+        self.log.info("checking local storage directory space for next tile")
+        required_size_gb = writer.get_stack_size_mb() / compression_ratio / 1024
+        self.log.info(f"required disk space = {required_size_gb:.1f} [GB] on drive {drive}")
+        free_size_gb = shutil.disk_usage(drive).free / 1024**3
+        self.log.info(f"available disk space = {free_size_gb:.1f} [GB] on drive {drive}")
+        if required_size_gb >= free_size_gb:
+            self.log.warning(f"only {free_size_gb:.1f} available on drive: {drive}")
+            return False
+        return True
+
+    def check_external_disk_space(self, writer: object, file_transfer: object, compression_ratio: float = 1) -> bool:
+        """_summary_
+
+        :param writer: _description_
+        :type writer: object
+        :param file_transfer: _description_
+        :type file_transfer: object
+        :return: _description_
+        :rtype: bool
+        """
+        # if windows
+        if platform.system() == "Windows":
+            drive = os.path.splitdrive(file_transfer.external_path)[0]
+        # if unix
+        else:
+            # not completed, needs to be fixed
+            drive = "/"
+        self.log.info("checking external storage directory space for next tile")
+        required_size_gb = writer.get_stack_size_mb() / compression_ratio / 1024
+        self.log.info(f"required disk space = {required_size_gb:.1f} [GB] on drive {drive}")
+        free_size_gb = shutil.disk_usage(drive).free / 1024**3
+        self.log.info(f"available disk space = {free_size_gb:.1f} [GB] on drive {drive}")
+        if required_size_gb >= free_size_gb:
+            self.log.warning(f"only {free_size_gb:.1f} available on drive: {drive}")
+            return False
+        return True
+
+    def check_system_memory(self, writer: object) -> None:
+        """_summary_
+
+        :param writer: _description_
+        :type writer: object
+        :raises MemoryError: _description_
+        """
+        self.log.info("checking available system memory")
+        # factor of 2 for concurrent chunks being written/read
+        required_memory_gb = 2 * writer.chunk_count_px * writer.get_frame_size_mb() / 1024
+        self.log.info(f"required RAM = {required_memory_gb:.1f} [GB]")
+        free_memory_gb = virtual_memory()[1] / 1024**3
+        self.log.info(f"available RAM = {free_memory_gb:.1f} [GB]")
+        if free_memory_gb < required_memory_gb:
+            raise MemoryError("system does not have enough memory to run")
+
+    def check_write_speed(
+        self,
+        writer: object,
+        daq: object,
+        file_transfer: object = None,
+        compression_ratio: float = 1,
+        size: str = "16Gb",
+        bs: str = "1M",
+        direct: int = 1,
+        numjobs: int = 1,
+        iodepth: int = 1,
+        runtime: int = 0,
+    ) -> None:
+        """_summary_
+
+        :param writer: _description_
+        :type writer: object
+        :param camera: _description_
+        :type camera: object
+        :param file_transfer: _description_, defaults to None
+        :type file_transfer: object, optional
+        :param size: _description_, defaults to "16Gb"
+        :type size: str, optional
+        :param bs: _description_, defaults to "1M"
+        :type bs: str, optional
+        :param direct: _description_, defaults to 1
+        :type direct: int, optional
+        :param numjobs: _description_, defaults to 1
+        :type numjobs: int, optional
+        :param iodepth: _description_, defaults to 1
+        :type iodepth: int, optional
+        :param runtime: _description_, defaults to 0
+        :type runtime: int, optional
+        :raises ValueError: _description_
+        :raises ValueError: _description_
+        """
+        self.log.info("checking write speed to local and external directories")
+        # windows ioengine
+        if platform.system() == "Windows":
+            ioengine = "windowsaio"
+            local_drive = os.path.splitdrive(writer.path)[0]
+            if file_transfer:
+                external_drive = os.path.splitdrive(file_transfer.external_path)[0]
+        # unix ioengine
+        else:
+            ioengine = "posixaio"
+            local_drive = "/"
+            if file_transfer:
+                # not completed, needs to be fixed
+                external_drive = "/"
+
+        # get the required write speed
+        acquisition_rate_hz = 1.0 / daq.co_frequency_hz
+        camera_speed_mb_s = writer.get_frame_size_mb() / acquisition_rate_hz
+        required_write_speed_mb_s = camera_speed_mb_s / compression_ratio
+        self.log.info(f"required write speed = {required_write_speed_mb_s:.1f} [MB/sec] to directory {local_drive}")
+        test_filename = Path(f"{writer.path}/{writer.acquisition_name}/iotest")
+        f = open(test_filename, "a")  # Cceate empty file to check reading/writing speed
+        f.close()
+        try:
+            output = subprocess.check_output(
+                rf"fio --name=test --filename={test_filename} --size={size} --rw=write --bs={bs} "
+                rf"--direct={direct} --numjobs={numjobs} --ioengine={ioengine} --iodepth={iodepth} "
+                rf"--runtime={runtime} --startdelay=0 --thread --group_reporting",
+                shell=True,
+            )
+            out = str(output)
+            # converting MiB to MB = (1024**2/2**20)
+            available_write_speed_mb_s = round(
+                float(out[out.find("BW=") + len("BW=") : out.find("MiB/s")]) / (1024**2 / 2**20)
+            )
+            self.log.info(
+                f"available write speed = {available_write_speed_mb_s:.1f} [MB/sec] to directory {local_drive}"
+            )
+            if available_write_speed_mb_s < required_write_speed_mb_s:
+                raise ValueError(f"write speed too slow on drive {local_drive}")
+        except subprocess.CalledProcessError:
+            self.log.warning("fio not installed on computer. Cannot verify read/write speed")
+        finally:
+            # Delete test file
+            os.remove(test_filename)
+        if file_transfer:
+            self.log.info(
+                f"required write speed = {required_write_speed_mb_s:.1f} [MB/sec] to directory {external_drive}"
+            )
+            test_filename = Path(f"{file_transfer.external_path}/{file_transfer.acquisition_name}/iotest")
+            f = open(test_filename, "a")  # Cceate empty file to check reading/writing speed
+            f.close()
+            try:
+                output = subprocess.check_output(
+                    rf"fio --name=test --filename={test_filename} --size={size} --rw=write --bs={bs} "
+                    rf"--direct={direct} --numjobs={numjobs} --ioengine={ioengine} --iodepth={iodepth} "
+                    rf"--runtime={runtime} --startdelay=0 --thread --group_reporting",
+                    shell=True,
+                )
+                out = str(output)
+                # converting MiB to MB = (1024**2/2**20)
+                available_write_speed_mb_s = round(
+                    float(out[out.find("BW=") + len("BW=") : out.find("MiB/s")]) / (1024**2 / 2**20)
+                )
+                self.log.info(
+                    f"available write speed = {available_write_speed_mb_s:.1f} [MB/sec] to directory {external_drive}"
+                )
+                if available_write_speed_mb_s < required_write_speed_mb_s:
+                    raise ValueError(f"write speed too slow on drive {external_drive}")
+            except subprocess.CalledProcessError:
+                self.log.warning("fio not installed on computer. Cannot verify read/write speed")
+            finally:
+                # Delete test file
+                os.remove(test_filename)
+
+    def check_gpu_memory(self, writer: object) -> None:
+        """_summary_
+
+        :raises ValueError: _description_
+        """
+        # check GPU resources for downscaling
+        required_memory_gb = writer.get_frame_size_mb() / 1024
+        total_gpu_memory_gb = get_device().get_info("MAX_MEM_ALLOC_SIZE") / 1024**3
+        self.log.info(f"required GPU RAM = {required_memory_gb:.1f} [GB]")
+        self.log.info(f"available GPU RAM = {total_gpu_memory_gb:.1f} [GB]")
+        if required_memory_gb >= total_gpu_memory_gb:
+            raise ValueError(
+                f"{required_memory_gb} [GB] GPU RAM requested but only {total_gpu_memory_gb} [GB] available"
+            )
+
+    def check_compression_ratio(self, camera: object, writer: object) -> float:
+        """_summary_
+
+        :param camera: _description_
+        :type camera: object
+        :param writer: _description_
+        :type writer: object
+        :return: _description_
         :rtype: float
         """
-        acquisition_rate_hz = 1.0 / daq.co_task.timing.task_time_s
-        return acquisition_rate_hz
+        self.log.info("estimating acquisition compression ratio")
+        if writer.compression != "none":
+            # store initial trigger mode, frame count, filename
+            trigger = camera.trigger
+            frame_count_px = writer.frame_count_px
+            filename = writer.filename
+
+            # turn trigger off
+            trigger["mode"] = "off"
+            camera.trigger = trigger
+            # prepare the writer
+            writer.frame_count_px = writer.chunk_count_px
+            writer.filename = "compression_ratio_test"
+
+            chunk_size = writer.chunk_count_px
+            chunk_lock = threading.Lock()
+            img_buffer = SharedDoubleBuffer(
+                (chunk_size, camera.image_height_px, camera.image_width_px), dtype=writer.data_type
+            )
+
+            # set up and start writer and camera
+            writer.prepare()
+            camera.prepare()
+            writer.start()
+            camera.start()
+
+            for frame_index in range(writer.chunk_count_px):
+                # grab camera frame
+                current_frame = camera.grab_frame()
+                img_buffer.add_image(current_frame)
+                # Log the current state of the camera.
+                camera.acquisition_state()
+            # stop the camera
+            camera.stop()
+
+            while not writer.done_reading.is_set():
+                time.sleep(0.001)
+
+            with chunk_lock:
+                img_buffer.toggle_buffers()
+                if writer.path is not None:
+                    writer.shm_name = img_buffer.read_buf_mem_name
+                    writer.done_reading.clear()
+
+            # close writer
+            writer.wait_to_finish()
+
+            # clean up the image buffer
+            img_buffer.close_and_unlink()
+            del img_buffer
+
+            # check the compressed file size
+            filepath = str(Path(writer.path / writer.acquisition_name / writer.filename).absolute())
+            compressed_file_size_mb = os.stat(filepath).st_size / (1024**2)
+            # calculate the raw file size
+            raw_file_size_mb = writer.get_stack_size_mb()
+            # calculate the compression ratio
+            compression_ratio = raw_file_size_mb / compressed_file_size_mb
+            # delete the files
+            writer.delete_files()
+            # reset the trigger, frame count, and filename
+            trigger["mode"] = "on"
+            camera.trigger = trigger
+            writer.frame_count_px = frame_count_px
+            writer.filename = filename
+        else:
+            compression_ratio = 1.0
+        self.log.info(f"compression ratio is ~ {compression_ratio:.1f}")
+
+        return compression_ratio
+
+    def _setup_class(self, device: object, settings: dict) -> None:
+        """
+        Overwrite to allow metadata class to pass in acquisition_name to devices that require it.
+
+        :param device: Device object
+        :type device: object
+        :param settings: Settings dictionary
+        :type settings: dict
+        """
+        super()._setup_class(device, settings)
+
+        # set acquisition_name attribute if it exists for object
+        if hasattr(device, "acquisition_name") and self.metadata is not None:
+            setattr(device, "acquisition_name", self.metadata.acquisition_name)
 
     def _grab_first(self, object_dict: dict) -> object:
         """
@@ -458,18 +738,21 @@ class ExASPIMAcquisition(Acquisition):
                 if not os.path.isdir(local_path):
                     os.makedirs(local_path)
         # check if external directories exist and create if not
-        if hasattr(self, "transfers"):
-            for transfer_dictionary in self.transfers.values():
-                for transfer in transfer_dictionary.values():
-                    external_path = Path(transfer.external_path, self.acquisition_name)
+        if self.file_transfers:
+            for file_transfer_dictionary in self.file_transfers.values():
+                for file_transfer in file_transfer_dictionary.values():
+                    external_path = Path(file_transfer.external_path, self.acquisition_name)
                     if not os.path.isdir(external_path):
                         os.makedirs(external_path)
 
     def _verify_acquisition(self) -> None:
-        """
-        Verifies the acquisition configuration.
+        """_summary_
 
-        :raises ValueError: If any configuration issues are found.
+        :raises ValueError: _description_
+        :raises ValueError: _description_
+        :raises ValueError: _description_
+        :raises ValueError: _description_
+        :raises ValueError: _description_
         """
         self.log.info("verifying acquisition configuration")
 
@@ -503,396 +786,3 @@ class ExASPIMAcquisition(Acquisition):
             tile_channel = tile["channel"]
             if tile_channel not in self.instrument.channels:
                 raise ValueError(f"channel {tile_channel} is not in {self.instrument.channels}")
-
-    def _frame_size_mb(self, camera_id: str, writer_id: str):
-        row_count_px = self.instrument.cameras[camera_id].height_px
-        column_count_px = self.instrument.cameras[camera_id].width_px
-        data_type = self.writers[camera_id][writer_id].data_type
-        frame_size_mb = row_count_px * column_count_px * numpy.dtype(data_type).itemsize / 1024**2
-        return frame_size_mb
-
-    def _pyramid_factor(self, levels: int) -> float:
-        """
-        Calculates the pyramid factor for given levels.
-
-        :param levels: The number of pyramid levels.
-        :type levels: int
-        :return: The pyramid factor.
-        :rtype: float
-        """
-        pyramid_factor = 0
-        for level in range(levels):
-            pyramid_factor += (1 / (2**level)) ** 3
-        return pyramid_factor
-
-    def _check_compression_ratio(self, camera_id: str, writer_id: str) -> float:
-        """
-        Checks the compression ratio for a given camera and writer.
-
-        :param camera_id: The ID of the camera.
-        :type camera_id: str
-        :param writer_id: The ID of the writer.
-        :type writer_id: str
-        :return: The compression ratio.
-        :rtype: float
-        """
-        self.log.info("estimating acquisition compression ratio")
-        # get the correct camera and writer
-        camera = self.instrument.cameras[camera_id]
-        writer = self.writers[camera_id][writer_id]
-        if writer.compression != "none":
-            # store initial trigger mode
-            initial_trigger = camera.trigger
-            # turn trigger off
-            new_trigger = initial_trigger
-            new_trigger["mode"] = "off"
-            camera.trigger = new_trigger
-
-            # prepare the writer
-            writer.row_count_px = camera.height_px
-            writer.column_count_px = camera.width_px
-            writer.frame_count_px = writer.chunk_count_px
-            writer.filename = "compression_ratio_test"
-
-            chunk_size = writer.chunk_count_px
-            chunk_lock = threading.Lock()
-            img_buffer = SharedDoubleBuffer((chunk_size, camera.height_px, camera.width_px), dtype=writer.data_type)
-
-            # set up and start writer and camera
-            writer.prepare()
-            camera.prepare()
-            writer.start()
-            camera.start()
-
-            frame_index = 0
-            for frame_index in range(writer.chunk_count_px):
-                # grab camera frame
-
-                current_frame = camera.grab_frame()
-                # put into image buffer
-                img_buffer.write_buf[frame_index] = current_frame
-                frame_index += 1
-
-            while not writer.done_reading.is_set():
-                time.sleep(0.001)
-
-            with chunk_lock:
-                img_buffer.toggle_buffers()
-                if writer.path is not None:
-                    writer.shm_name = img_buffer.read_buf_mem_name
-                    writer.done_reading.clear()
-
-                    # close writer and camera
-            writer.wait_to_finish()
-            camera.stop()
-
-            # reset the trigger
-            camera.trigger = initial_trigger
-
-            # clean up the image buffer
-            img_buffer.close_and_unlink()
-            del img_buffer
-
-            # check the compressed file size
-            filepath = str((writer.path / Path(f"{writer.filename}")).absolute())
-            compressed_file_size_mb = os.stat(filepath).st_size / (1024**2)
-            # calculate the raw file size
-            frame_size_mb = self._frame_size_mb(camera_id, writer_id)
-            # get pyramid factor
-            pyramid_factor = self._pyramid_factor(levels=3)
-            raw_file_size_mb = frame_size_mb * writer.frame_count_px * pyramid_factor
-            # calculate the compression ratio
-            compression_ratio = raw_file_size_mb / compressed_file_size_mb
-            # delete the files
-            writer.delete_files()
-        else:
-            compression_ratio = 1.0
-        self.log.info(f"compression ratio for camera: {camera_id} writer: {writer_id} ~ {compression_ratio:.1f}")
-        return compression_ratio
-
-    def check_local_acquisition_disk_space(self) -> None:
-        """
-        Checks the available disk space for local acquisition.
-
-        :raises ValueError: If there is not enough disk space.
-        """
-        self.log.info("checking total local storage directory space")
-        drives = dict()
-        for camera_id, camera in self.instrument.cameras.items():
-            data_size_gb = 0
-            for writer_id, writer in self.writers[camera_id].items():
-                # if windows
-                if platform.system() == "Windows":
-                    local_drive = os.path.splitdrive(writer.path)[0]
-                # if unix
-                else:
-                    # not completed, needs to be fixed
-                    local_drive = "/"
-                for tile in self.config["acquisition"]["tiles"]:
-                    frame_size_mb = self._frame_size_mb(camera_id, writer_id)
-                    frame_count_px = tile["steps"]
-                    data_size_gb += frame_count_px * frame_size_mb / 1024
-                drives.setdefault(local_drive, []).append(data_size_gb)
-        for drive in drives:
-            required_size_gb = sum(drives[drive])
-            self.log.info(f"required disk space = {required_size_gb:.1f} [GB] on drive {drive}")
-            free_size_gb = shutil.disk_usage(drive).free / 1024**3
-            if data_size_gb >= free_size_gb:
-                self.log.error(f"only {free_size_gb:.1f} available on drive: {drive}")
-                raise ValueError(f"only {free_size_gb:.1f} available on drive: {drive}")
-            else:
-                self.log.info(f"available disk space = {free_size_gb:.1f} [GB] on drive {drive}")
-
-    def check_external_acquisition_disk_space(self) -> None:
-        """
-        Check the total external storage directory space.
-
-        :raises ValueError: If no transfers are configured.
-        :raises ValueError: If there is not enough available disk space.
-        """
-        self.log.info("checking total external storage directory space")
-        if self.transfers:
-            drives = dict()
-            for camera_id, camera in self.instrument.cameras.items():
-                for transfer_id, transfer in self.transfers[camera_id].items():
-                    for writer_id, writer in self.writers[camera_id].items():
-                        data_size_gb = 0
-                        # if windows
-                        if platform.system() == "Windows":
-                            external_drive = os.path.splitdrive(transfer.external_path)[0]
-                        # if unix
-                        else:
-                            # not completed, needs to be fixed
-                            external_drive = "/"
-                        for tile in self.config["acquisition"]["tiles"]:
-                            frame_size_mb = self._frame_size_mb(camera_id, writer_id)
-                            frame_count_px = tile["steps"]
-                            data_size_gb += frame_count_px * frame_size_mb / 1024
-                        drives.setdefault(external_drive, []).append(data_size_gb)
-            for drive in drives:
-                required_size_gb = sum(drives[drive])
-                self.log.info(f"required disk space = {required_size_gb:.1f} [GB] on drive {drive}")
-                free_size_gb = shutil.disk_usage(drive).free / 1024**3
-                if data_size_gb >= free_size_gb:
-                    self.log.error(f"only {free_size_gb:.1f} available on drive: {drive}")
-                    raise ValueError(f"only {free_size_gb:.1f} available on drive: {drive}")
-                else:
-                    self.log.info(f"available disk space = {free_size_gb:.1f} [GB] on drive {drive}")
-        else:
-            raise ValueError("no transfers configured. check yaml files.")
-
-    def check_local_tile_disk_space(self, tile: dict) -> bool:
-        """
-        Check the local storage directory space for the next tile.
-
-        :param tile: Tile configuration.
-        :type tile: dict
-        :return: True if there is enough disk space, False otherwise.
-        :rtype: bool
-        """
-        self.log.info("checking local storage directory space for next tile")
-        drives = dict()
-        data_size_gb = 0
-        for camera_id, camera in self.instrument.cameras.items():
-            for writer_id, writer in self.writers[camera_id].items():
-                # if windows
-                if platform.system() == "Windows":
-                    local_drive = os.path.splitdrive(writer.path)[0]
-                # if unix
-                else:
-                    # not completed, needs to be fixed
-                    local_drive = "/"
-                frame_size_mb = self._frame_size_mb(camera_id, writer_id)
-                frame_count_px = tile["steps"]
-                data_size_gb += frame_count_px * frame_size_mb / 1024
-                drives.setdefault(local_drive, []).append(data_size_gb)
-        for drive in drives:
-            required_size_gb = sum(drives[drive])
-            self.log.info(f"required disk space = {required_size_gb:.1f} [GB] on drive {drive}")
-            free_size_gb = shutil.disk_usage(drive).free / 1024**3
-            if data_size_gb >= free_size_gb:
-                self.log.error(f"only {free_size_gb:.1f} available on drive: {drive}")
-                return False
-            return True
-
-    def check_external_tile_disk_space(self, tile: dict) -> None:
-        """
-        Check the external storage directory space for the next tile.
-
-        :param tile: Tile configuration.
-        :type tile: dict
-        :raises ValueError: If no transfers are configured.
-        :raises ValueError: If there is not enough available disk space.
-        """
-        self.log.info("checking external storage directory space for next tile")
-        if self.transfers:
-            drives = dict()
-            for camera_id, camera in self.instrument.cameras.items():
-                data_size_gb = 0
-                # if windows
-                if platform.system() == "Windows":
-                    external_drive = os.path.splitdrive(self.transfers[camera_id].external_path)[0]
-                # if unix
-                else:
-                    # not completed, needs to be fixed
-                    external_drive = "/"
-                frame_size_mb = self._frame_size_mb(camera_id)
-                frame_count_px = tile["steps"]
-                data_size_gb += frame_count_px * frame_size_mb / 1024
-                drives.setdefault(external_drive, []).append(data_size_gb)
-            for drive in drives:
-                required_size_gb = sum(drives[drive])
-                self.log.info(f"required disk space = {required_size_gb:.1f} [GB] on drive {drive}")
-                free_size_gb = shutil.disk_usage(drive).free / 1024**3
-                if data_size_gb >= free_size_gb:
-                    self.log.error(f"only {free_size_gb:.1f} available on drive: {drive}")
-                    raise ValueError(f"only {free_size_gb:.1f} available on drive: {drive}")
-                else:
-                    self.log.info(f"available disk space = {free_size_gb:.1f} [GB] on drive {drive}")
-        else:
-            raise ValueError("no transfers configured. check yaml files.")
-
-    def check_write_speed(
-        self, size: str = "16Gb", bs: str = "1M", direct: int = 1, numjobs: int = 1, iodepth: int = 1, runtime: int = 0
-    ) -> None:
-        """
-        Check the write speed to local and external directories.
-
-        :param size: Size of the test file, defaults to "16Gb"
-        :type size: str, optional
-        :param bs: Block size, defaults to "1M"
-        :type bs: str, optional
-        :param direct: Direct I/O flag, defaults to 1
-        :type direct: int, optional
-        :param numjobs: Number of jobs, defaults to 1
-        :type numjobs: int, optional
-        :param iodepth: I/O depth, defaults to 1
-        :type iodepth: int, optional
-        :param runtime: Runtime duration, defaults to 0
-        :type runtime: int, optional
-        :raises ValueError: If the write speed is too slow.
-        """
-        self.log.info("checking write speed to local and external directories")
-        # windows ioengine
-        if platform.system() == "Windows":
-            ioengine = "windowsaio"
-        # unix ioengine
-        else:
-            ioengine = "posixaio"
-
-        drives = dict()
-        camera_speed_mb_s = dict()
-
-        # loop over cameras and see where they are acquiring data
-        for camera_id, camera in self.instrument.cameras.items():
-            for writer_id, writer in self.writers[camera_id].items():
-                # check the compression ratio for this camera
-                compression_ratio = self._check_compression_ratio(camera_id, writer_id)
-                # grab the frame size and acquisition rate
-                frame_size_mb = self._frame_size_mb(camera_id, writer_id)
-                acquisition_rate_hz = self._acquisition_rate_hz
-                local_path = writer.path
-                # strip drive letters from paths so that we can combine
-                # cameras acquiring to the same drives
-                if platform.system() == "Windows":
-                    local_drive_letter = os.path.splitdrive(local_path)[0]
-                # if unix
-                else:
-                    local_drive_letter = "/"
-                # add into drives dictionary append to list if same drive letter
-                drives.setdefault(local_drive_letter, []).append(local_path)
-                camera_speed_mb_s.setdefault(local_drive_letter, []).append(
-                    acquisition_rate_hz * frame_size_mb / compression_ratio
-                )
-                if self.transfers:
-                    for transfer_id, transfer in self.transfers[camera_id].items():
-                        external_path = transfer.external_path
-                        # strip drive letters from paths so that we can combine
-                        # cameras acquiring to the same drives
-                        if platform.system() == "Windows":
-                            external_drive_letter = os.path.splitdrive(local_path)[0]
-                        # if unix
-                        else:
-                            external_drive_letter = "/"
-                        # add into drives dictionary append to list if same drive letter
-                        drives.setdefault(external_drive_letter, []).append(external_path)
-                        camera_speed_mb_s.setdefault(external_drive_letter, []).append(
-                            acquisition_rate_hz * frame_size_mb
-                        )
-
-        for drive in drives:
-            # if more than one stream on this drive, just test the first directory location
-            local_path = drives[drive][0]
-            test_filename = Path(f"{local_path}/iotest")
-            f = open(test_filename, "a")  # Create empty file to check reading/writing speed
-            f.close()
-            try:
-                output = subprocess.check_output(
-                    rf"fio --name=test --filename={test_filename} --size={size} --rw=write --bs={bs} "
-                    rf"--direct={direct} --numjobs={numjobs} --ioengine={ioengine} --iodepth={iodepth} "
-                    rf"--runtime={runtime} --startdelay=0 --thread --group_reporting",
-                    shell=True,
-                )
-                out = str(output)
-                # Converting MiB to MB = (10**6/2**20)
-                write_speed_mb_s = round(float(out[out.find("BW=") + len("BW=") : out.find("MiB/s")]) / (10**6 / 2**20))
-
-                total_speed_mb_s = sum(camera_speed_mb_s[drive])
-                # check if drive write speed exceeds the sum of all cameras streaming to this drive
-                if write_speed_mb_s < total_speed_mb_s:
-                    self.log.warning(f"write speed too slow on drive {drive}")
-                    raise ValueError(f"write speed too slow on drive {drive}")
-
-                self.log.info(f"available write speed = {write_speed_mb_s:.1f} [MB/sec] to directory {drive}")
-                self.log.info(f"required write speed = {total_speed_mb_s:.1f} [MB/sec] to directory {drive}")
-
-            except subprocess.CalledProcessError:
-                self.log.warning("fio not installed on computer. Cannot verify read/write speed")
-            finally:
-                # Delete test file
-                os.remove(test_filename)
-
-    def check_system_memory(self) -> None:
-        """
-        Check the available system memory.
-
-        :raises MemoryError: If there is not enough available system memory.
-        """
-        self.log.info("checking available system memory")
-        # Calculate double buffer size for all channels.
-        memory_gb = 0
-        for camera_id, camera in self.instrument.cameras.items():
-            for writer_id, writer in self.writers[camera_id].items():
-                chunk_count_px = writer.chunk_count_px
-                # factor of 2 for concurrent chunks being written/read
-                frame_size_mb = self._frame_size_mb(camera_id, writer_id)
-                memory_gb += 2 * chunk_count_px * frame_size_mb / 1024
-
-        free_memory_gb = virtual_memory()[1] / 1024**3
-
-        self.log.info(f"required RAM = {memory_gb:.1f} [GB]")
-        self.log.info(f"available RAM = {free_memory_gb:.1f} [GB]")
-
-        if free_memory_gb < memory_gb:
-            raise MemoryError("system does not have enough memory to run")
-
-    def check_gpu_memory(self) -> None:
-        """
-        Check the available GPU memory.
-
-        :raises ValueError: If there is not enough available GPU memory.
-        """
-        # check GPU resources for downscaling
-        memory_gb = 0
-        for camera_id, camera in self.instrument.cameras.items():
-            for writer_id, writer in self.writers[camera_id].items():
-                chunk_count_px = writer.chunk_count_px
-            # factor of 2 for concurrent chunks being written/read
-            frame_size_mb = self._frame_size_mb(camera_id, writer_id)
-            memory_gb += 2 * chunk_count_px * frame_size_mb / 1024
-        # should we use something other than gputools to check?
-        total_gpu_memory_gb = get_device().get_info("MAX_MEM_ALLOC_SIZE") / 1024**3
-        self.log.info(f"required GPU RAM = {memory_gb:.1f} [GB]")
-        self.log.info(f"available GPU RAM = {total_gpu_memory_gb:.1f} [GB]")
-        if memory_gb >= total_gpu_memory_gb:
-            raise ValueError(f"{memory_gb} [GB] GPU RAM requested but only {total_gpu_memory_gb} [GB] available")
