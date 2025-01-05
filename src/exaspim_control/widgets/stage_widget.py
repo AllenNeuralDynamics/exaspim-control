@@ -1,19 +1,24 @@
-from view.widgets.base_device_widget import BaseDeviceWidget, scan_for_properties
-from qtpy.QtWidgets import QLabel
-from qtpy.QtGui import QDoubleValidator, QIntValidator
-from view.widgets.miscellaneous_widgets.q_scrollable_line_edit import QScrollableLineEdit
 import importlib
+
+from qtpy.QtGui import QDoubleValidator, QIntValidator
+from qtpy.QtWidgets import QLabel
+
+from view.widgets.base_device_widget import BaseDeviceWidget, scan_for_properties
+from view.widgets.miscellaneous_widgets.q_scrollable_line_edit import QScrollableLineEdit
 
 
 class StageWidget(BaseDeviceWidget):
+    """Widget for handling stage properties and controls."""
 
-    def __init__(self, stage, advanced_user: bool = True):
+    def __init__(self, stage: object, advanced_user: bool = True):
         """
-        Modify BaseDeviceWidget to be specifically for Stage. Main need is advanced user.
-        :param stage: stage object
-        :param advanced_user: boolean specifying complexity of widget. If False, only position is shown
-        """
+        Initialize the StageWidget object.
 
+        :param stage: Stage object
+        :type stage: object
+        :param advanced_user: Whether the user is advanced, defaults to True
+        :type advanced_user: bool, optional
+        """
         self.stage_properties = scan_for_properties(stage) if advanced_user else {"position_mm": stage.position_mm}
 
         self.stage_module = importlib.import_module(stage.__module__)
@@ -41,11 +46,17 @@ class StageWidget(BaseDeviceWidget):
         """
         self.property_widgets["position_mm"].setStyleSheet(style)
 
-    def create_text_box(self, name, value):
-        """Convenience function to build editable text boxes and add initial value and validator
-        :param name: name to emit when text is edited is changed
-        :param value: initial value to add to box"""
+    def create_text_box(self, name: str, value: object) -> QScrollableLineEdit:
+        """
+        Create a text box for the given property.
 
+        :param name: Property name
+        :type name: str
+        :param value: Property value
+        :type value: object
+        :return: Text box widget
+        :rtype: QScrollableLineEdit
+        """
         value_type = type(value)
         textbox = QScrollableLineEdit(str(value))
         textbox.editingFinished.connect(lambda: self.textbox_edited(name))

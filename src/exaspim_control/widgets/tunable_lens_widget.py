@@ -1,15 +1,18 @@
-from view.widgets.base_device_widget import BaseDeviceWidget, create_widget, scan_for_properties
 from qtpy.QtWidgets import QSizePolicy
+
+from view.widgets.base_device_widget import BaseDeviceWidget, create_widget, scan_for_properties
 
 
 class TunableLensWidget(BaseDeviceWidget):
+    """Widget for handling tunable lens properties and controls."""
 
-    def __init__(self, tunable_lens):
+    def __init__(self, tunable_lens: object):
         """
-        Modify BaseDeviceWidget to be specifically for a tunable lens.
-        :param tunable_lens: tunable lens object
-        """
+        Initialize the TunableLensWidget object.
 
+        :param tunable_lens: Tunable lens object
+        :type tunable_lens: object
+        """
         self.tunable_lens_properties = scan_for_properties(tunable_lens)
         super().__init__(type(tunable_lens), self.tunable_lens_properties)
 

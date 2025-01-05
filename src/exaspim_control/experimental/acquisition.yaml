@@ -19,20 +19,6 @@ acquisition:
         format: [ instrument_type, subject_id ]
   operations:
     vp-151mx:
-      # acquire:
-      #   type: writer
-      #   driver: voxel.writers.zarr
-      #   module: ZarrWriter
-      #   init:
-      #     path: D:\\
-      #   properties:
-      #     chunk_size_x_px: 128
-      #     chunk_size_y_px: 128
-      #     chunk_size_z_px: 32
-      #     compression: zstd
-      #     multiscale: False
-      #     version: v3
-      #     data_type: uint16
       imaris:
         type: writer
         driver: voxel.writers.imaris
@@ -42,15 +28,6 @@ acquisition:
         properties:
           compression: lz4shuffle
           data_type: uint16
-      # tiff:
-      #   type: writer
-      #   driver: voxel.writers.tiff
-      #   module: TiffWriter
-      #   init:
-      #     path: D:\\
-      #   properties:
-      #     compression: none
-      #     data_type: uint16
       robocopy:
         type: file_transfer
         driver: voxel.file_transfers.robocopy
@@ -72,7 +49,7 @@ acquisition:
           data_type: uint16
           x_projection_count_px: 3548
           y_projection_count_px: 2660
-          z_projection_count_px: 512
+          z_projection_count_px: 2048
       background_collection:
         type: routine
         driver: exaspim_control.routines.background_collection

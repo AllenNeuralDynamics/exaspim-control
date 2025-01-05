@@ -48,9 +48,10 @@ class ExASPIMAcquisition(Acquisition):
         self.stop_engine = Event()
 
     def run(self) -> None:
-        """_summary_
+        """
+        Run the acquisition process.
 
-        :raises ValueError: _description_
+        :raises ValueError: If there is not enough local disk space.
         """
         # verify acquisition
         self._verify_acquisition()
@@ -192,6 +193,9 @@ class ExASPIMAcquisition(Acquisition):
                 writer.filename = base_filename
                 writer.channel = tile["channel"]
 
+                # estimate the compresion ratio
+                compression_ratio = self.check_compression_ratio(camera, writer)
+
                 if tile["prechecks"] == "on":
                     # check write speed
                     if file_transfer:
@@ -204,9 +208,6 @@ class ExASPIMAcquisition(Acquisition):
                     self.check_system_memory(writer)
                     # check gpu memory
                     self.check_gpu_memory(writer)
-
-                # estimate the compresion ratio
-                compression_ratio = self.check_compression_ratio(camera, writer)
 
                 # check local disk space and run if enough disk space
                 # check external disk space
@@ -276,8 +277,27 @@ class ExASPIMAcquisition(Acquisition):
                     self.instrument.update_current_state_config()
                     self.instrument.save_config(Path(writer.path, writer.acquisition_name) / "instrument_config.yaml")
 
-    def acquisition_engine(self, tile, base_filename, camera, daq, writer, processes, scanning_stage):
+    def acquisition_engine(
+        self, tile: dict, base_filename: str, camera, daq, writer, processes: dict, scanning_stage
+    ) -> None:
+        """
+        Run the acquisition engine.
 
+        :param tile: Tile configuration
+        :type tile: dict
+        :param base_filename: Base filename for the acquisition
+        :type base_filename: str
+        :param camera: Camera object
+        :type camera: Camera
+        :param daq: Data acquisition object
+        :type daq: DAQ
+        :param writer: Writer object
+        :type writer: Writer
+        :param processes: Dictionary of processes
+        :type processes: dict
+        :param scanning_stage: Scanning stage object
+        :type scanning_stage: ScanningStage
+        """
         # initatlized shared double buffer and processes
         self.log.info("setting up buffers")
         process_buffers = dict()
@@ -413,11 +433,14 @@ class ExASPIMAcquisition(Acquisition):
         raise RuntimeError
 
     def check_local_disk_space(self, writer: object, compression_ratio: float = 1) -> bool:
-        """_summary_
+        """
+        Check if there is enough local disk space for the next tile.
 
-        :param writer: _description_
+        :param writer: Writer object
         :type writer: object
-        :return: _description_
+        :param compression_ratio: Compression ratio, defaults to 1
+        :type compression_ratio: float, optional
+        :return: True if there is enough disk space, False otherwise
         :rtype: bool
         """
         # if windows
@@ -438,13 +461,16 @@ class ExASPIMAcquisition(Acquisition):
         return True
 
     def check_external_disk_space(self, writer: object, file_transfer: object, compression_ratio: float = 1) -> bool:
-        """_summary_
+        """
+        Check if there is enough external disk space for the next tile.
 
-        :param writer: _description_
+        :param writer: Writer object
         :type writer: object
-        :param file_transfer: _description_
+        :param file_transfer: File transfer object
         :type file_transfer: object
-        :return: _description_
+        :param compression_ratio: Compression ratio, defaults to 1
+        :type compression_ratio: float, optional
+        :return: True if there is enough disk space, False otherwise
         :rtype: bool
         """
         # if windows
@@ -465,11 +491,12 @@ class ExASPIMAcquisition(Acquisition):
         return True
 
     def check_system_memory(self, writer: object) -> None:
-        """_summary_
+        """
+        Check if there is enough system memory for the acquisition.
 
-        :param writer: _description_
+        :param writer: Writer object
         :type writer: object
-        :raises MemoryError: _description_
+        :raises MemoryError: If there is not enough system memory
         """
         self.log.info("checking available system memory")
         # factor of 2 for concurrent chunks being written/read
@@ -493,28 +520,31 @@ class ExASPIMAcquisition(Acquisition):
         iodepth: int = 1,
         runtime: int = 0,
     ) -> None:
-        """_summary_
+        """
+        Check the write speed to local and external directories.
 
-        :param writer: _description_
+        :param writer: Writer object
         :type writer: object
-        :param camera: _description_
-        :type camera: object
-        :param file_transfer: _description_, defaults to None
+        :param daq: Data acquisition object
+        :type daq: object
+        :param file_transfer: File transfer object, defaults to None
         :type file_transfer: object, optional
-        :param size: _description_, defaults to "16Gb"
+        :param compression_ratio: Compression ratio, defaults to 1
+        :type compression_ratio: float, optional
+        :param size: Size of the test file, defaults to "16Gb"
         :type size: str, optional
-        :param bs: _description_, defaults to "1M"
+        :param bs: Block size, defaults to "1M"
         :type bs: str, optional
-        :param direct: _description_, defaults to 1
+        :param direct: Direct I/O, defaults to 1
         :type direct: int, optional
-        :param numjobs: _description_, defaults to 1
+        :param numjobs: Number of jobs, defaults to 1
         :type numjobs: int, optional
-        :param iodepth: _description_, defaults to 1
+        :param iodepth: I/O depth, defaults to 1
         :type iodepth: int, optional
-        :param runtime: _description_, defaults to 0
+        :param runtime: Runtime, defaults to 0
         :type runtime: int, optional
-        :raises ValueError: _description_
-        :raises ValueError: _description_
+        :raises ValueError: If the write speed is too slow
+        :raises ValueError: If the write speed is too slow
         """
         self.log.info("checking write speed to local and external directories")
         # windows ioengine
@@ -537,7 +567,7 @@ class ExASPIMAcquisition(Acquisition):
         required_write_speed_mb_s = camera_speed_mb_s / compression_ratio
         self.log.info(f"required write speed = {required_write_speed_mb_s:.1f} [MB/sec] to directory {local_drive}")
         test_filename = Path(f"{writer.path}/{writer.acquisition_name}/iotest")
-        f = open(test_filename, "a")  # Cceate empty file to check reading/writing speed
+        f = open(test_filename, "a")  # Create empty file to check reading/writing speed
         f.close()
         try:
             output = subprocess.check_output(
@@ -549,7 +579,7 @@ class ExASPIMAcquisition(Acquisition):
             out = str(output)
             # converting MiB to MB = (1024**2/2**20)
             available_write_speed_mb_s = round(
-                float(out[out.find("BW=") + len("BW=") : out.find("MiB/s")]) / (1024**2 / 2**20)
+                float(out[out.find("BW=") + len("BW="): out.find("MiB/s")]) / (1024**2 / 2**20)
             )
             self.log.info(
                 f"available write speed = {available_write_speed_mb_s:.1f} [MB/sec] to directory {local_drive}"
@@ -566,7 +596,7 @@ class ExASPIMAcquisition(Acquisition):
                 f"required write speed = {required_write_speed_mb_s:.1f} [MB/sec] to directory {external_drive}"
             )
             test_filename = Path(f"{file_transfer.external_path}/{file_transfer.acquisition_name}/iotest")
-            f = open(test_filename, "a")  # Cceate empty file to check reading/writing speed
+            f = open(test_filename, "a")  # Create empty file to check reading/writing speed
             f.close()
             try:
                 output = subprocess.check_output(
@@ -578,7 +608,7 @@ class ExASPIMAcquisition(Acquisition):
                 out = str(output)
                 # converting MiB to MB = (1024**2/2**20)
                 available_write_speed_mb_s = round(
-                    float(out[out.find("BW=") + len("BW=") : out.find("MiB/s")]) / (1024**2 / 2**20)
+                    float(out[out.find("BW=") + len("BW="): out.find("MiB/s")]) / (1024**2 / 2**20)
                 )
                 self.log.info(
                     f"available write speed = {available_write_speed_mb_s:.1f} [MB/sec] to directory {external_drive}"
@@ -592,9 +622,12 @@ class ExASPIMAcquisition(Acquisition):
                 os.remove(test_filename)
 
     def check_gpu_memory(self, writer: object) -> None:
-        """_summary_
+        """
+        Check if there is enough GPU memory for the acquisition.
 
-        :raises ValueError: _description_
+        :param writer: Writer object
+        :type writer: object
+        :raises ValueError: If there is not enough GPU memory
         """
         # check GPU resources for downscaling
         required_memory_gb = writer.get_frame_size_mb() / 1024
@@ -607,13 +640,14 @@ class ExASPIMAcquisition(Acquisition):
             )
 
     def check_compression_ratio(self, camera: object, writer: object) -> float:
-        """_summary_
+        """
+        Estimate the compression ratio for the acquisition.
 
-        :param camera: _description_
+        :param camera: Camera object
         :type camera: object
-        :param writer: _description_
+        :param writer: Writer object
         :type writer: object
-        :return: _description_
+        :return: Estimated compression ratio
         :rtype: float
         """
         self.log.info("estimating acquisition compression ratio")
@@ -746,13 +780,14 @@ class ExASPIMAcquisition(Acquisition):
                         os.makedirs(external_path)
 
     def _verify_acquisition(self) -> None:
-        """_summary_
+        """
+        Verify the acquisition configuration.
 
-        :raises ValueError: _description_
-        :raises ValueError: _description_
-        :raises ValueError: _description_
-        :raises ValueError: _description_
-        :raises ValueError: _description_
+        :raises ValueError: If there is no writer for a camera
+        :raises ValueError: If multiple operations write to the same folder
+        :raises ValueError: If multiple operations transfer to the same folder
+        :raises ValueError: If not all stage axes are defined for tile positions
+        :raises ValueError: If the channel is not in the instrument channels
         """
         self.log.info("verifying acquisition configuration")
 
@@ -777,7 +812,6 @@ class ExASPIMAcquisition(Acquisition):
                     f"More than one operation for device {device_name} is transferring to the same folder."
                     f" This will cause data to be overwritten."
                 )
-
         # check tile parameters
         for tile in self.config["acquisition"]["tiles"]:
             position_axes = list(tile["position_mm"].keys())
