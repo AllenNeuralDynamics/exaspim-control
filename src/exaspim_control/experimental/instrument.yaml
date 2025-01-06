@@ -16,7 +16,7 @@ instrument:
   devices:
     vp-151mx:
       type: camera
-      driver: voxel.devices.camera.vieworks_egrabber
+      driver: voxel.devices.camera.vieworks.egrabber
       module: VieworksCamera
       init:
         id: MP151BBX006
@@ -68,8 +68,8 @@ instrument:
       subdevices:
         z:
           type: scanning_stage
-          driver: voxel.devices.stage.asi
-          module: ASIStage
+          driver: voxel.devices.stage.asi.tiger
+          module: TigerStage
           init:
             hardware_axis: z
             instrument_axis: z
@@ -80,8 +80,8 @@ instrument:
             acceleration_ms: 200.0
         x:
           type: tiling_stage
-          driver: voxel.devices.stage.asi
-          module: ASIStage
+          driver: voxel.devices.stage.asi.tiger
+          module: TigerStage
           init:
             hardware_axis: x
             instrument_axis: x
@@ -92,8 +92,8 @@ instrument:
             acceleration_ms: 200.0
         y:
           type: tiling_stage
-          driver: voxel.devices.stage.asi
-          module: ASIStage
+          driver: voxel.devices.stage.asi.tiger
+          module: TigerStage
           init:
             hardware_axis: v
             instrument_axis: y
@@ -104,8 +104,8 @@ instrument:
             acceleration_ms: 200.0
         theta:
           type: focusing_stage
-          driver: voxel.devices.stage.asi
-          module: ASIStage
+          driver: voxel.devices.stage.asi.tiger
+          module: TigerStage
           init:
             hardware_axis: t
             instrument_axis: t
@@ -116,22 +116,22 @@ instrument:
             acceleration_ms: 200.0
         left:
           type: focusing_stage
-          driver: voxel.devices.stage.asi
-          module: ASIStage
+          driver: voxel.devices.stage.asi.tiger
+          module: TigerStage
           init:
             hardware_axis: a
             instrument_axis: a
         right:
           type: focusing_stage
-          driver: voxel.devices.stage.asi
-          module: ASIStage
+          driver: voxel.devices.stage.asi.tiger
+          module: TigerStage
           init:
             hardware_axis: b
             instrument_axis: b
         camera:
           type: focusing_stage
-          driver: voxel.devices.stage.asi
-          module: ASIStage
+          driver: voxel.devices.stage.asi.tiger
+          module: TigerStage
           init:
             hardware_axis: m
             instrument_axis: m
@@ -163,15 +163,15 @@ instrument:
         #        m: m
     # power meter:
     #   type: power_meter
-    #   driver: voxel.devices.power_meter.thorlabs_pm100
-    #   module: ThorlabsPowerMeter
+    #   driver: voxel.devices.power_meter.thorlabs.pm100
+    #   module: PM100Meter
     #   init:
     #     id: pm100d
     #     conn: P0044066
     # flip mount:
     #   type: flip_mount
-    #   driver: voxel.devices.flip_mount.thorlabs_mff101
-    #   module: ThorlabsFlipMount
+    #   driver: voxel.devices.flip_mount.thorlabs.mff101
+    #   module: MFF1101FlipMount
     #   init:
     #     id: powell lens
     #     conn: '37008111'
@@ -182,14 +182,14 @@ instrument:
     #     flip_time_ms: 2800
     # aotf:
     #   type: aotf
-    #   driver: voxel.devices.aotf.aaopto
-    #   module: AOTF
+    #   driver: voxel.devices.aotf.aaopto.aotfnc
+    #   module: AAOptoAOTF
     #   init:
     #     port: COM20
     # left tunable lens:
     #   type: tunable_lens
-    #   driver: voxel.devices.tunable_lens.optotune_icc4c
-    #   module: TunableLens
+    #   driver: voxel.devices.tunable_lens.optotune.icc4c
+    #   module: ICC4CTunableLens
     #   init:
     #     port: COM19
     #     channel: 0
@@ -197,8 +197,8 @@ instrument:
     #     mode: external
     # right tunable lens:
     #   type: tunable_lens
-    #   driver: voxel.devices.aotf.optotune_icc4c
-    #   module: TunableLens
+    #   driver: voxel.devices.aotf.optotune.icc4c
+    #   module: ICC4CTunableLens
     #   init:
     #     port: COM19
     #     channel: 1

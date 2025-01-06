@@ -141,10 +141,15 @@ acquisition_view:
           cameras: [ binning ]
           lasers: [ power_setpoint_mw ]
           focusing_stages: [ position_mm ]
+          round_z_mm:
+            delegate: combo
+            type: str
+            items: ['64', '128', '256', '512', '1024', '2048']
+            initial_value: '2048'
           prechecks:
             delegate: combo
             type: str
-            items: [ 'on', 'off']
+            items: ['on', 'off']
             initial_value: 'on'
           repeats:
             delegate: spin
