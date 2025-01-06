@@ -97,10 +97,13 @@ class ExASPIMAcquisition(Acquisition):
                 self.log.info(f"starting tile {base_filename}")
 
                 # check length of scan
-                if tile["steps"] % 2048 != 0:  # must be divisible by 2048 for direct use of IMS pyramid volumes
-                    tile_count_px = 2048 * math.ceil(tile["steps"] / 2048)
+                round_z_mm = int(tile["round_z_mm"])
+                if (
+                    tile["steps"] % round_z_mm != 0
+                ):  # must be divisible by round_z_mm for direct use of IMS pyramid volumes
+                    tile_count_px = round_z_mm * math.ceil(tile["steps"] / round_z_mm)
                     tile["steps"] = tile_count_px
-                    self.log.info(f"adjusting tile frame count to be divisible by 2048 -> {tile_count_px} [px]")
+                    self.log.info(f"adjusting tile frame count to be divisible by {round_z_mm} -> {tile_count_px} [px]")
 
                 # move all tiling stages to correct positions
                 for tiling_stage_id, tiling_stage in self.instrument.tiling_stages.items():
@@ -566,7 +569,8 @@ class ExASPIMAcquisition(Acquisition):
         camera_speed_mb_s = writer.get_frame_size_mb() / acquisition_rate_hz
         required_write_speed_mb_s = camera_speed_mb_s / compression_ratio
         self.log.info(f"required write speed = {required_write_speed_mb_s:.1f} [MB/sec] to directory {local_drive}")
-        test_filename = Path(f"{writer.path}/{writer.acquisition_name}/iotest")
+        test_filename = str(Path(f"{file_transfer.external_path}/{file_transfer.acquisition_name}/iotest").absolute())
+        print(test_filename)
         f = open(test_filename, "a")  # Create empty file to check reading/writing speed
         f.close()
         try:
@@ -579,7 +583,7 @@ class ExASPIMAcquisition(Acquisition):
             out = str(output)
             # converting MiB to MB = (1024**2/2**20)
             available_write_speed_mb_s = round(
-                float(out[out.find("BW=") + len("BW="): out.find("MiB/s")]) / (1024**2 / 2**20)
+                float(out[out.find("BW=") + len("BW=") : out.find("MiB/s")]) / (1024**2 / 2**20)
             )
             self.log.info(
                 f"available write speed = {available_write_speed_mb_s:.1f} [MB/sec] to directory {local_drive}"
@@ -595,7 +599,10 @@ class ExASPIMAcquisition(Acquisition):
             self.log.info(
                 f"required write speed = {required_write_speed_mb_s:.1f} [MB/sec] to directory {external_drive}"
             )
-            test_filename = Path(f"{file_transfer.external_path}/{file_transfer.acquisition_name}/iotest")
+            test_filename = str(
+                Path(f"{file_transfer.external_path}/{file_transfer.acquisition_name}/iotest").absolute()
+            )
+            print(test_filename)
             f = open(test_filename, "a")  # Create empty file to check reading/writing speed
             f.close()
             try:
@@ -608,7 +615,7 @@ class ExASPIMAcquisition(Acquisition):
                 out = str(output)
                 # converting MiB to MB = (1024**2/2**20)
                 available_write_speed_mb_s = round(
-                    float(out[out.find("BW=") + len("BW="): out.find("MiB/s")]) / (1024**2 / 2**20)
+                    float(out[out.find("BW=") + len("BW=") : out.find("MiB/s")]) / (1024**2 / 2**20)
                 )
                 self.log.info(
                     f"available write speed = {available_write_speed_mb_s:.1f} [MB/sec] to directory {external_drive}"
