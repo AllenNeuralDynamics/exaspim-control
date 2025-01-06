@@ -40,6 +40,7 @@ This control software can optionally check I/O bandwidth to a local and external
 
 >[!IMPORTANT]
 > The ExA-SPIM system operates at data rates up to 1.8 GB/sec. Datasets can also be multiple terabytes. Therefore it is recommended to have a large M.2 or U.2/3 NVME drive for data storage.
+
 >[!IMPORTANT]
 > Each raw camera is 288 megapixels (14192x10640 px). Live streaming therefore requires on-the-fly generation of multiple resolutions for each raw camera frame at high speed. This repository computes this pyramid using a GPU. Therefore it is recommended to have a decent GPU with at least 16 GB of RAM (i.e. NVIDIA A4000 or above).# New Document
 
