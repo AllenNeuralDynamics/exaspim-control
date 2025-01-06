@@ -17,7 +17,7 @@ instrument:
     vp-151mx:
       type: camera
       driver: voxel.devices.camera.vieworks_egrabber
-      module: Camera
+      module: VieworksCamera
       init:
         id: MP151BBX006
       properties:
@@ -69,7 +69,7 @@ instrument:
         z:
           type: scanning_stage
           driver: voxel.devices.stage.asi
-          module: Stage
+          module: ASIStage
           init:
             hardware_axis: z
             instrument_axis: z
@@ -81,7 +81,7 @@ instrument:
         x:
           type: tiling_stage
           driver: voxel.devices.stage.asi
-          module: Stage
+          module: ASIStage
           init:
             hardware_axis: x
             instrument_axis: x
@@ -93,7 +93,7 @@ instrument:
         y:
           type: tiling_stage
           driver: voxel.devices.stage.asi
-          module: Stage
+          module: ASIStage
           init:
             hardware_axis: v
             instrument_axis: y
@@ -105,7 +105,7 @@ instrument:
         theta:
           type: focusing_stage
           driver: voxel.devices.stage.asi
-          module: Stage
+          module: ASIStage
           init:
             hardware_axis: t
             instrument_axis: t
@@ -117,21 +117,21 @@ instrument:
         left:
           type: focusing_stage
           driver: voxel.devices.stage.asi
-          module: Stage
+          module: ASIStage
           init:
             hardware_axis: a
             instrument_axis: a
         right:
           type: focusing_stage
           driver: voxel.devices.stage.asi
-          module: Stage
+          module: ASIStage
           init:
             hardware_axis: b
             instrument_axis: b
         camera:
           type: focusing_stage
           driver: voxel.devices.stage.asi
-          module: Stage
+          module: ASIStage
           init:
             hardware_axis: m
             instrument_axis: m
@@ -207,7 +207,7 @@ instrument:
     pcie-6738:
       type: daq
       driver: voxel.devices.daq.ni
-      module: DAQ
+      module: NIDAQ
       init:
         dev: Dev2
       properties:
