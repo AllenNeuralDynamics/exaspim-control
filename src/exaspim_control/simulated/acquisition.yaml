@@ -19,15 +19,6 @@ acquisition:
         format: [instrument_type, subject_id]
   operations:
     vp-151mx:
-#      bdv:
-#        type: writer
-#        driver: voxel.writers.bdv
-#        module: Writer
-#        init:
-#          path: ./local_test
-#        properties:
-#          compression: none
-#          data_type: uint16
       imaris:
         type: writer
         driver: voxel.writers.imaris
@@ -60,37 +51,4 @@ acquisition:
         properties:
           data_type: uint16
           projection_count_px: 32
-#      mean_projection:
-#        type: process
-#        driver: voxel.processes.cpu.mean_projection
-#        module: MeanProjection
-#        init:
-#          path: ./local_test
-#        properties:
-#          data_type: uint16
-#          projection_count_px: 32
-      background_collection:
-        type: routine
-        driver: voxel.routines.background_collection
-        module: BackgroundCollection
-        init:
-          path: C:\local_test
-        properties:
-          data_type: uint16
-          frame_count_px: 10
   tiles: []
-#    - channel: 'CH488'
-#      position_mm:
-#        x: -0.0053
-#        y: 0.001
-#        z: 0.0
-#      tile_number: 0
-#      488 nm:
-#        power_setpoint_mw: 0.0
-#      vp-151mx:
-#        binning: 1.0
-#      n stage axis:
-#        position_mm: -2.35
-#      steps: 66
-#      step_size: 0.0152
-#      prefix: ''

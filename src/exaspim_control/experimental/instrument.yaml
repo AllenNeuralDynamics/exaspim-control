@@ -1,26 +1,25 @@
 instrument:
   id: exaspim-01
-  master_device: pcie-6738
   channels:
-    CH561:
+    "561":
       lasers: [561 nm]
       cameras: [vp-151mx]
-      focusing_stages: [n stage axis]
-    CH639:
+      focusing_stages: [left, right, camera]
+    "639":
       lasers: [639 nm]
       cameras: [vp-151mx]
-      focusing_stages: [n stage axis]
-    CH488:
+      focusing_stages: [left, right, camera]
+    "488":
       lasers: [488 nm]
       cameras: [vp-151mx]
-      focusing_stages: [n stage axis]
+      focusing_stages: [left, right, camera]
   devices:
     vp-151mx:
       type: camera
       driver: voxel.devices.camera.vieworks_egrabber
-      module: Camera
+      module: VieworksCamera
       init:
-        id: MP151BBX050
+        id: MP151BBX006
       properties:
         exposure_time_ms: 10.0
         pixel_type: mono16
@@ -32,278 +31,463 @@ instrument:
           source: line0
         bit_packing_mode: msb
         binning: 1
+        um_px: 0.748
     488 nm:
       type: laser
-      driver: voxel.devices.lasers.simulated
-      module: SimulatedLaser
+      driver: voxel.devices.laser.coherent.genesis_mx
+      module: GenesisMXLaser
       color: blue
       init:
-        id: COM1
+        id: A700467EP203
         wavelength: 488
+        maximum_power_mw: 1000
     561 nm:
       type: laser
-      driver: voxel.devices.lasers.simulated
-      module: SimulatedLaser
-      color: green
+      driver: voxel.devices.laser.coherent.genesis_mx
+      module: GenesisMXLaser
+      color: blue
       init:
-        id: COM1
+        id: J687424BP914
         wavelength: 561
+        maximum_power_mw: 1000
     639 nm:
       type: laser
-      driver: voxel.devices.lasers.simulated
-      module: SimulatedLaser
-      color: red
+      driver: voxel.devices.laser.coherent.genesis_mx
+      module: GenesisMXLaser
+      color: blue
       init:
-        id: COM1
+        id: R708588EQ173
         wavelength: 639
+        maximum_power_mw: 1000
     tiger controller:
-      type: stage # is this correct? stage?
+      type: stage
       driver: tigerasi.tiger_controller
       module: TigerController
       init:
-        com_port: COM3 # change to port? or this is init in tiger asi?
+        com_port: COM5
       subdevices:
-        z stage axis:
+        z:
           type: scanning_stage
           driver: voxel.devices.stage.asi
-          module: Stage
+          module: ASIStage
           init:
-            hardware_axis: x
+            hardware_axis: z
             instrument_axis: z
           properties:
             mode: step shoot
             speed_mm_s: 1.0
-            backlash_mm: 0.0
+            # backlash_mm: 0.0
             acceleration_ms: 200.0
-        x stage axis:
+        x:
           type: tiling_stage
           driver: voxel.devices.stage.asi
-          module: Stage
+          module: ASIStage
           init:
-            hardware_axis: y
+            hardware_axis: x
             instrument_axis: x
           properties:
             mode: off
             speed_mm_s: 1.0
-            backlash_mm: 0.004
+            # backlash_mm: 0.004
             acceleration_ms: 200.0
-        y stage axis:
+        y:
           type: tiling_stage
           driver: voxel.devices.stage.asi
-          module: Stage
+          module: ASIStage
           init:
-            hardware_axis: z
+            hardware_axis: v
             instrument_axis: y
           properties:
             mode: off
             speed_mm_s: 1.0
-            backlash_mm: 0.004
+            # backlash_mm: 0.004
             acceleration_ms: 200.0
-        n stage axis:
+        theta:
           type: focusing_stage
           driver: voxel.devices.stage.asi
-          module: Stage
+          module: ASIStage
           init:
-            hardware_axis: n
-            instrument_axis: n
-        joystick:
-           type: joystick
-           driver: voxel.devices.joystick.asi
-           module: Joystick
-           init:
-             joystick_mapping:
-               joystick_x:
-                 instrument_axis: x
-                 polarity: default
-               joystick_y:
-                 instrument_axis: y
-                 polarity: default
-               wheel_z:
-                 instrument_axis: z
-                 polarity: default
-               wheel_f:
-                 instrument_axis: n
-                 polarity: default
-             axis_mapping:
-               x: y
-               y: z
-               z: x
-               n: n
+            hardware_axis: t
+            instrument_axis: t
+          properties:
+            mode: off
+            speed_mm_s: 1.0
+            # backlash_mm: 0.004
+            acceleration_ms: 200.0
+        left:
+          type: focusing_stage
+          driver: voxel.devices.stage.asi
+          module: ASIStage
+          init:
+            hardware_axis: a
+            instrument_axis: a
+        right:
+          type: focusing_stage
+          driver: voxel.devices.stage.asi
+          module: ASIStage
+          init:
+            hardware_axis: b
+            instrument_axis: b
+        camera:
+          type: focusing_stage
+          driver: voxel.devices.stage.asi
+          module: ASIStage
+          init:
+            hardware_axis: m
+            instrument_axis: m
+        # joystick:
+        #    type: joystick
+        #    driver: voxel.devices.joystick.asi
+        #    module: Joystick
+        #    init:
+        #      joystick_mapping:
+        #        joystick_x:
+        #          instrument_axis: x
+        #          polarity: default
+        #        joystick_y:
+        #          instrument_axis: z
+        #          polarity: default
+        #        wheel_z:
+        #          instrument_axis: a
+        #          polarity: default
+        #        wheel_f:
+        #          instrument_axis: b
+        #          polarity: default
+        #      axis_mapping:
+        #        x: x
+        #        y: v
+        #        z: z
+        #        t: t
+        #        a: a
+        #        b: b
+        #        m: m
+    # power meter:
+    #   type: power_meter
+    #   driver: voxel.devices.power_meter.thorlabs_pm100
+    #   module: ThorlabsPowerMeter
+    #   init:
+    #     id: pm100d
+    #     conn: P0044066
+    # flip mount:
+    #   type: flip_mount
+    #   driver: voxel.devices.flip_mount.thorlabs_mff101
+    #   module: ThorlabsFlipMount
+    #   init:
+    #     id: powell lens
+    #     conn: '37008111'
+    #     positions:
+    #       alignment mode: 0
+    #       imaging mode: 1
+    #   properties:
+    #     flip_time_ms: 2800
+    # aotf:
+    #   type: aotf
+    #   driver: voxel.devices.aotf.aaopto
+    #   module: AOTF
+    #   init:
+    #     port: COM20
+    # left tunable lens:
+    #   type: tunable_lens
+    #   driver: voxel.devices.tunable_lens.optotune_icc4c
+    #   module: TunableLens
+    #   init:
+    #     port: COM19
+    #     channel: 0
+    #   properties:
+    #     mode: external
+    # right tunable lens:
+    #   type: tunable_lens
+    #   driver: voxel.devices.aotf.optotune_icc4c
+    #   module: TunableLens
+    #   init:
+    #     port: COM19
+    #     channel: 1
+    #   properties:
+    #     mode: external
     pcie-6738:
       type: daq
       driver: voxel.devices.daq.ni
-      module: DAQ
+      module: NIDAQ
       init:
-        dev: Dev1
+        dev: Dev2
       properties:
         tasks:
           ao_task:
             name: ao task
             ports:
-              tunable lens:
-                port: ao24
+              left tunable lens:
+                port: ao1
+                waveform: sawtooth
+                device_max_volts: 10.0
+                device_min_volts: 0.0
+                parameters:
+                  start_time_ms:
+                    channels:
+                      "488": 0.0
+                      "561": 0.0
+                      "639": 0.0
+                  end_time_ms:
+                    channels:
+                      "488": 544.0
+                      "561": 544.0
+                      "639": 544.0
+                  amplitude_volts:
+                    channels:
+                      "488": 2.795
+                      "561": 2.795
+                      "639": 2.795
+                  offset_volts:
+                    channels:
+                      "488": 5.21
+                      "561": 5.39
+                      "639": 5.62
+                  cutoff_frequency_hz:
+                    channels:
+                      "488": 1000
+                      "561": 1000
+                      "639": 1000
+              right tunable lens:
+                port: ao3
                 waveform: sawtooth
                 device_max_volts: 5.0
                 device_min_volts: 0.0
                 parameters:
                   start_time_ms:
                     channels:
-                      CH488: 0.0
-                      CH561: 0.0
-                      CH639: 0.0
+                      "488": 0.0
+                      "561": 0.0
+                      "639": 0.0
                   end_time_ms:
                     channels:
-                      CH488: 544.0
-                      CH561: 544.0
-                      CH639: 544.0
+                      "488": 544.0
+                      "561": 544.0
+                      "639": 544.0
                   amplitude_volts:
                     channels:
-                      CH488: -0.078
-                      CH561: -0.078
-                      CH639: -0.078
+                      "488": -0.078
+                      "561": -0.078
+                      "639": -0.078
                   offset_volts:
                     channels:
-                      CH488: 2.448
-                      CH561: 2.448
-                      CH639: 2.448
+                      "488": 2.448
+                      "561": 2.448
+                      "639": 2.448
                   cutoff_frequency_hz:
                     channels:
-                      CH488: 1000
-                      CH561: 1000
-                      CH639: 1000
+                      "488": 1000
+                      "561": 1000
+                      "639": 1000
               stage:
-                port: ao0
-                waveform: square wave
-                device_max_volts: 5.0
-                device_min_volts: 0.0
-                parameters:
-                  start_time_ms:
-                    channels:
-                      CH488: 544.0
-                      CH561: 544.0
-                      CH639: 544.0
-                  end_time_ms:
-                    channels:
-                      CH488: 554.0
-                      CH561: 554.0
-                      CH639: 554.0
-                  max_volts:
-                    channels:
-                      CH488: 5.0
-                      CH561: 5.0
-                      CH639: 5.0
-                  min_volts:
-                    channels:
-                      CH488: 0.0
-                      CH561: 0.0
-                      CH639: 0.0
-              camera:
-                port: ao8
-                waveform: square wave
-                device_max_volts: 5.0
-                device_min_volts: 0.0
-                parameters:
-                  start_time_ms:
-                    channels:
-                      CH488: 25.0
-                      CH561: 25.0
-                      CH639: 25.0
-                  end_time_ms:
-                    channels:
-                      CH488: 35.0
-                      CH561: 35.0
-                      CH639: 35.0
-                  max_volts:
-                    channels:
-                      CH488: 5.0
-                      CH561: 5.0
-                      CH639: 5.0
-                  min_volts:
-                    channels:
-                      CH488: 0.0
-                      CH561: 0.0
-                      CH639: 0.0
-              488 nm:
                 port: ao5
                 waveform: square wave
+                device_max_volts: 5.0
+                device_min_volts: 0.0
+                parameters:
+                  start_time_ms:
+                    channels:
+                      "488": 544.0
+                      "561": 544.0
+                      "639": 544.0
+                  end_time_ms:
+                    channels:
+                      "488": 554.0
+                      "561": 554.0
+                      "639": 554.0
+                  max_volts:
+                    channels:
+                      "488": 5.0
+                      "561": 5.0
+                      "639": 5.0
+                  min_volts:
+                    channels:
+                      "488": 0.0
+                      "561": 0.0
+                      "639": 0.0
+              camera:
+                port: ao21
+                waveform: square wave
+                device_max_volts: 5.0
+                device_min_volts: 0.0
+                parameters:
+                  start_time_ms:
+                    channels:
+                      "488": 25.0
+                      "561": 25.0
+                      "639": 25.0
+                  end_time_ms:
+                    channels:
+                      "488": 35.0
+                      "561": 35.0
+                      "639": 35.0
+                  max_volts:
+                    channels:
+                      "488": 5.0
+                      "561": 5.0
+                      "639": 5.0
+                  min_volts:
+                    channels:
+                      "488": 0.0
+                      "561": 0.0
+                      "639": 0.0
+              488 nm:
+                port: ao17
+                waveform: square wave
                 device_max_volts: 10.0
                 device_min_volts: 0.0
                 parameters:
                   start_time_ms:
                     channels:
-                      CH488: 15.0
-                      CH561: 15.0
-                      CH639: 15.0
+                      "488": 15.0
+                      "561": 15.0
+                      "639": 15.0
                   end_time_ms:
                     channels:
-                      CH488: 549.0
-                      CH561: 549.0
-                      CH639: 549.0
+                      "488": 549.0
+                      "561": 549.0
+                      "639": 549.0
                   max_volts:
                     channels:
-                      CH488: 5.0
-                      CH561: 0.0
-                      CH639: 0.0
+                      "488": 5.0
+                      "561": 0.0
+                      "639": 0.0
                   min_volts:
                     channels:
-                      CH488: 0.0
-                      CH561: 0.0
-                      CH639: 0.0
+                      "488": 0.0
+                      "561": 0.0
+                      "639": 0.0
               561 nm:
-                port: ao4
+                port: ao13
                 waveform: square wave
                 device_max_volts: 10.0
                 device_min_volts: 0.0
                 parameters:
                   start_time_ms:
                     channels:
-                      CH488: 15.0
-                      CH561: 15.0
-                      CH639: 15.0
+                      "488": 15.0
+                      "561": 15.0
+                      "639": 15.0
                   end_time_ms:
                     channels:
-                      CH488: 549.0
-                      CH561: 549.0
-                      CH639: 549.0
+                      "488": 549.0
+                      "561": 549.0
+                      "639": 549.0
                   max_volts:
                     channels:
-                      CH488: 0.0
-                      CH561: 10.0
-                      CH639: 0.0
+                      "488": 0.0
+                      "561": 10.0
+                      "639": 0.0
                   min_volts:
                     channels:
-                      CH488: 0.0
-                      CH561: 0.0
-                      CH639: 0.0
+                      "488": 0.0
+                      "561": 0.0
+                      "639": 0.0
               639 nm:
-                port: ao6
+                port: ao9
                 waveform: square wave
                 device_max_volts: 10.0
                 device_min_volts: 0.0
                 parameters:
                   start_time_ms:
                     channels:
-                      CH488: 15.0
-                      CH561: 15.0
-                      CH639: 15.0
+                      "488": 15.0
+                      "561": 15.0
+                      "639": 15.0
                   end_time_ms:
                     channels:
-                      CH488: 549.0
-                      CH561: 549.0
-                      CH639: 549.0
+                      "488": 549.0
+                      "561": 549.0
+                      "639": 549.0
                   max_volts:
                     channels:
-                      CH488: 0.0
-                      CH561: 0.0
-                      CH639: 5.0
+                      "488": 0.0
+                      "561": 0.0
+                      "639": 5.0
                   min_volts:
                     channels:
-                      CH488: 0.0
-                      CH561: 0.0
-                      CH639: 0.0
+                      "488": 0.0
+                      "561": 0.0
+                      "639": 0.0
+              left piezo x:
+                port: ao7
+                waveform: square wave
+                device_max_volts: 10.0
+                device_min_volts: 0.0
+                parameters:
+                  start_time_ms:
+                    channels:
+                      "488": 0.0
+                      "561": 0.0
+                      "639": 0.0
+                  end_time_ms:
+                    channels:
+                      "488": 594.0
+                      "561": 594.0
+                      "639": 594.0
+                  max_volts:
+                    channels:
+                      "488": 0.0
+                      "561": 0.0
+                      "639": 0.0
+                  min_volts:
+                    channels:
+                      "488": 0.0
+                      "561": 0.0
+                      "639": 0.0
+              left piezo y:
+                port: ao11
+                waveform: square wave
+                device_max_volts: 10.0
+                device_min_volts: 0.0
+                parameters:
+                  start_time_ms:
+                    channels:
+                      "488": 0.0
+                      "561": 0.0
+                      "639": 0.0
+                  end_time_ms:
+                    channels:
+                      "488": 594.0
+                      "561": 594.0
+                      "639": 594.0
+                  max_volts:
+                    channels:
+                      "488": 0.0
+                      "561": 0.0
+                      "639": 0.0
+                  min_volts:
+                    channels:
+                      "488": 0.0
+                      "561": 0.0
+                      "639": 0.0
+              left piezo z:
+                port: ao14
+                waveform: square wave
+                device_max_volts: 10.0
+                device_min_volts: 0.0
+                parameters:
+                  start_time_ms:
+                    channels:
+                      "488": 0.0
+                      "561": 0.0
+                      "639": 0.0
+                  end_time_ms:
+                    channels:
+                      "488": 594.0
+                      "561": 594.0
+                      "639": 594.0
+                  max_volts:
+                    channels:
+                      "488": 0.0
+                      "561": 0.0
+                      "639": 0.0
+                  min_volts:
+                    channels:
+                      "488": 0.0
+                      "561": 0.0
+                      "639": 0.0
             timing:
               period_time_ms: 544.0
-              rest_time_ms: 50.0
+              rest_time_ms: 150.0
               retriggerable: 'on'
               sample_mode: finite
               sampling_frequency_hz: 10000
@@ -315,6 +499,6 @@ instrument:
               - ctr0
             name: co task
             timing:
-              frequency_hz: 1.66
+              frequency_hz: 1.4
               output_port: PFI0
               trigger_mode: 'off'
