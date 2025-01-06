@@ -1,3 +1,7 @@
+<h1>
+    ExA-SPIM control
+</h1>
+
 - [Overview](#overview)
 - [Getting Started](#getting-started)
   - [Prerequisites](#prerequisites)
