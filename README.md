@@ -86,15 +86,13 @@ This control software can optionally check I/O bandwidth to a local and external
 
 Example configuration files for a real experimental system are provided:
 
-> [instrument.yaml](./experimental/instrument.yaml)
->
-> [acquisition.yaml](./experimental/acquisition.yaml)
->
-> [gui_config.yaml](./experimental/gui_config.yaml)
+- [instrument.yaml](./experimental/instrument.yaml)
+- [acquisition.yaml](./experimental/acquisition.yaml)
+- [gui_config.yaml](./experimental/gui_config.yaml)
 
 And the code can be launched by running [```main.py```](./experimental/main.py)
 
-Files for a [simulated microscope]And the code can be launched by running [```main.py```](./simulated/) are also available.
+Files for a [simulated microscope](./simulated/) are also available.
 
 ## Support and Contribution
 
