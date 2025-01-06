@@ -129,7 +129,6 @@ class CameraWidget(BaseDeviceWidget):
             for i, prop in enumerate(["binning", "sampling_um_px", "readout_mode"]):
                 attr = getattr(type(camera), prop)
                 if getattr(attr, "fset", None) is None:
-                    print(attr)
                     pixel_widgets.children()[i + 1].setEnabled(False)
 
             # reformat trigger widget
