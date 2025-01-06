@@ -29,7 +29,7 @@ This repository provides acquisition software for the expansion-assisted selecti
   - [view](https://github.com/AllenNeuralDynamics/view):
     - Core GUI codebase
 
-> This control software can optionally check I/O bandwidth to a local and externally networked drive location. This requires [fio](https://github.com/axboe/fio) to be installed. For Windows, please install the correct [binary files](https://github.com/axboe/fio/releases).
+This control software can optionally check I/O bandwidth to a local and externally networked drive location. This requires [fio](https://github.com/axboe/fio) to be installed. For Windows, please install the correct [binary files](https://github.com/axboe/fio/releases).
 
 ### Recommended Hardware
 
@@ -86,15 +86,15 @@ This repository provides acquisition software for the expansion-assisted selecti
 
 Example configuration files for a real experimental system are provided:
 
-> [instrument.yaml](./exaspim-control/experimental/instrument.yaml)
+> [instrument.yaml](./experimental/instrument.yaml)
 >
-> [acquisition.yaml](./exaspim-control/experimental/acquisition.yaml)
+> [acquisition.yaml](./experimental/acquisition.yaml)
 >
-> [gui_config.yaml](./exaspim-control/experimental/gui_config.yaml)
+> [gui_config.yaml](./experimental/gui_config.yaml)
 
-And the code can be launched by running [```main.py```](./exaspim-control/experimental/main.py)
+And the code can be launched by running [```main.py```](./experimental/main.py)
 
-Files for a [simulated microscope]And the code can be launched by running [```main.py```](./exaspim-control/simulated/) are also available.
+Files for a [simulated microscope]And the code can be launched by running [```main.py```](./simulated/) are also available.
 
 ## Support and Contribution
 
