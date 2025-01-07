@@ -1,155 +1,111 @@
 instrument_view:
-  livestream_tasks:
-    PCIe-6738:
-      tasks:
-        ao_task:
-          name: ao task
-          ports:
-            stage:
-              device_max_volts: 5.0
-              device_min_volts: 0.0
-              parameters:
-                end_time_ms:
-                  channels:
-                    CH488: 350.0
-                    CH561: 350.0
-                    CH639: 350.0
-                max_volts:
-                  channels:
-                    CH488: 5.0
-                    CH561: 5.0
-                    CH639: 5.0
-                min_volts:
-                  channels:
-                    CH488: 0.0
-                    CH561: 0.0
-                    CH639: 0.0
-                start_time_ms:
-                  channels:
-                    CH488: 60.0
-                    CH561: 60.0
-                    CH639: 60.0
-              port: ao1
-              waveform: square wave
-            tunable lens:
-              device_max_volts: 5.0
-              device_min_volts: 0.0
-              parameters:
-                amplitude_volts:
-                  channels:
-                    CH488: 1.5
-                    CH561: 1.0
-                    CH639: 1.0
-                cutoff_frequency_hz:
-                  channels:
-                    CH488: 200
-                    CH561: 200
-                    CH639: 200
-                end_time_ms:
-                  channels:
-                    CH488: 400.0
-                    CH561: 400.0
-                    CH639: 400.0
-                offset_volts:
-                  channels:
-                    CH488: 2.5
-                    CH561: 2.5
-                    CH639: 2.5
-                start_time_ms:
-                  channels:
-                    CH488: 10.0
-                    CH561: 10.0
-                    CH639: 10.0
-              port: ao0
-              waveform: sawtooth
-          timing:
-            period_time_ms: 500
-            rest_time_ms: 50
-            retriggerable: 'on'
-            sample_mode: finite
-            sampling_frequency_hz: 10000
-            trigger_mode: 'on'
-            trigger_polarity: rising
-            trigger_port: PFI0
-        co_task:
-          counters:
-            - ctr0
-          name: co task
-          timing:
-            frequency_hz: 2.0
-            output_port: PFI0
-            trigger_mode: 'off'
   device_widgets:
       vp-151mx:
         type: camera
-        driver: view.widgets.device_widgets.camera_widget
+        driver: exaspim_control.widgets.camera_widget
         module: CameraWidget
         init:
-          advanced_user: False
+          advanced_user: True
+        updating_properties:
+          - sensor_temperature_c
+          - mainboard_temperature_c
       488 nm:
         type: laser
-        driver: view.widgets.device_widgets.laser_widget
+        driver: exaspim_control.widgets.laser_widget
         module: LaserWidget
         init:
           color: blue
           advanced_user: False
+        updating_properties:
+          - power_mw
+          - temperature_c
       561 nm:
         type: laser
-        driver: view.widgets.device_widgets.laser_widget
+        driver: exaspim_control.widgets.laser_widget
         module: LaserWidget
         init:
           color: green
           advanced_user: False
+        updating_properties:
+          - power_mw
+          - temperature_c
       639 nm:
         type: laser
-        driver: view.widgets.device_widgets.laser_widget
+        driver: exaspim_control.widgets.laser_widget
         module: LaserWidget
         init:
           color: red
           advanced_user: False
-      z stage:
-        type:   scanning_stage
-        driver: view.widgets.device_widgets.stage_widget
+        updating_properties:
+          - power_mw
+          - temperature_c
+      z:
+        type: scanning_stage
+        driver: exaspim_control.widgets.stage_widget
         module: StageWidget
         init:
           advanced_user: False
-      y stage:
+        updating_properties:
+          - position_mm
+      y:
         type: tiling_stage
-        driver: view.widgets.device_widgets.stage_widget
+        driver: exaspim_control.widgets.stage_widget
         module: StageWidget
         init:
           advanced_user: False
-      x stage:
-        type:   tiling_stage
-        driver: view.widgets.device_widgets.stage_widget
+        updating_properties:
+          - position_mm
+      x:
+        type: tiling_stage
+        driver: exaspim_control.widgets.stage_widget
         module: StageWidget
         init:
           advanced_user: False
-      theta stage:
-        type:   tiling_stage
-        driver: view.widgets.device_widgets.stage_widget
+        updating_properties:
+          - position_mm
+      theta:
+        type: focusing_stage
+        driver: exaspim_control.widgets.stage_widget
         module: StageWidget
         init:
           advanced_user: False
-      left focusing stage:
-        type:   focusing_stage
-        driver: view.widgets.device_widgets.stage_widget
+        updating_properties:
+          - position_mm
+      left:
+        type: focusing_stage
+        driver: exaspim_control.widgets.stage_widget
         module: StageWidget
         init:
           advanced_user: False
-      right focusing stage:
-        type:   focusing_stage
-        driver: view.widgets.device_widgets.stage_widget
+        updating_properties:
+          - position_mm
+      right:
+        type: focusing_stage
+        driver: exaspim_control.widgets.stage_widget
         module: StageWidget
         init:
           advanced_user: False
-      camera focusing stage:
-        type:   focusing_stage
-        driver: view.widgets.device_widgets.stage_widget
+        updating_properties:
+          - position_mm
+      camera:
+        type: focusing_stage
+        driver: exaspim_control.widgets.stage_widget
         module: StageWidget
         init:
-          advanced_user: True
-      PCIe-6738:
+          advanced_user: False
+        updating_properties:
+          - position_mm
+      flip mount:
+        type: flip_mount
+        driver: exaspim_control.widgets.flip_mount_widget
+        module: FlipMountWidget
+      left tunable lens:
+        type: tunable_lens
+        driver: exaspim_control.widgets.tunable_lens_widget
+        module: TunableLensWidget
+        updating_properties:
+          - temperature_c
+      pcie-6738:
         type: daq
         driver: view.widgets.device_widgets.ni_widget
         module: NIWidget
@@ -158,105 +114,24 @@ instrument_view:
             exposed_branches:
               tasks.ao_task.ports.left tunable lens:
                 parameters.amplitude_volts.channels:
-                      CH488: -0.078
-                      CH561: -0.078
-                      CH639: -0.078
+                      "488": 2.795
+                      "561": 2.795
+                      "639": 2.795
                 parameters.offset_volts.channels:
-                      CH488: 2.448
-                      CH561: 2.448
-                      CH639: 2.448
+                      "488": 5.21
+                      "561": 5.39
+                      "639": 5.62
               tasks.ao_task.ports.right tunable lens:
                 parameters.amplitude_volts.channels:
-                      CH488: -0.078
-                      CH561: -0.078
-                      CH639: -0.078
+                      "488": 2.795
+                      "561": 2.795
+                      "639": 2.795
                 parameters.offset_volts.channels:
-                      CH488: 2.448
-                      CH561: 2.448
-                      CH639: 2.448
+                      "488": 5.21
+                      "561": 5.39
+                      "639": 5.62
 acquisition_view:
-  data_acquisition_tasks:
-    PCIe-6738:
-      tasks:
-        ao_task:
-          name: ao task
-          ports:
-            stage:
-              device_max_volts: 5.0
-              device_min_volts: 0.0
-              parameters:
-                end_time_ms:
-                  channels:
-                    CH488: 350.0
-                    CH561: 350.0
-                    CH639: 350.0
-                max_volts:
-                  channels:
-                    CH488: 5.0
-                    CH561: 5.0
-                    CH639: 5.0
-                min_volts:
-                  channels:
-                    CH488: 0.0
-                    CH561: 0.0
-                    CH639: 0.0
-                start_time_ms:
-                  channels:
-                    CH488: 60.0
-                    CH561: 60.0
-                    CH639: 60.0
-              port: ao1
-              waveform: square wave
-            tunable lens:
-              device_max_volts: 5.0
-              device_min_volts: 0.0
-              parameters:
-                amplitude_volts:
-                  channels:
-                    CH488: 1.5
-                    CH561: 1.0
-                    CH639: 1.0
-                cutoff_frequency_hz:
-                  channels:
-                    CH488: 200
-                    CH561: 200
-                    CH639: 200
-                end_time_ms:
-                  channels:
-                    CH488: 400.0
-                    CH561: 400.0
-                    CH639: 400.0
-                offset_volts:
-                  channels:
-                    CH488: 2.5
-                    CH561: 2.5
-                    CH639: 2.5
-                start_time_ms:
-                  channels:
-                    CH488: 10.0
-                    CH561: 10.0
-                    CH639: 10.0
-              port: ao0
-              waveform: sawtooth
-          timing:
-            period_time_ms: 500
-            rest_time_ms: 50
-            retriggerable: 'on'
-            sample_mode: finite
-            sampling_frequency_hz: 10000
-            trigger_mode: 'on'
-            trigger_polarity: rising
-            trigger_port: PFI0
-        co_task:
-          counters:
-            - ctr0
-          name: co task
-          timing:
-            frequency_hz: 2.0
-            output_port: PFI2
-            trigger_mode: 'off'
-
-  fov_dimensions: [ 10.672384, 8.00128, 0 ]
+  fov_dimensions: [8.00128, 10.672384, 0 ]
   coordinate_plane: [ '-x', 'y', 'z' ]
   unit: 'mm'
   acquisition_widgets:
@@ -266,4 +141,26 @@ acquisition_view:
           cameras: [ binning ]
           lasers: [ power_setpoint_mw ]
           focusing_stages: [ position_mm ]
+          round_z_mm:
+            delegate: combo
+            type: str
+            items: ['64', '128', '256', '512', '1024', '2048']
+            initial_value: '2048'
+          prechecks:
+            delegate: combo
+            type: str
+            items: ['on', 'off']
+            initial_value: 'on'
+          repeats:
+            delegate: spin
+            type: int
+            minimum: 1
+            maximum: 100
+            initial_value: 1
+          start_delay:
+            delegate: spin
+            type: float
+            minimum: 0
+            maximum: 1000
+            initial_value: 0
   operation_widgets: {}
