@@ -150,7 +150,7 @@ acquisition_view:
             delegate: combo
             type: str
             items: ['on', 'off']
-            initial_value: 'off'
+            initial_value: 'on'
           repeats:
             delegate: spin
             type: int

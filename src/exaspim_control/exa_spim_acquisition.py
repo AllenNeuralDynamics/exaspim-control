@@ -74,7 +74,10 @@ class ExASPIMAcquisition(Acquisition):
             file_transfer, _ = self._grab_first(self.file_transfers[camera_name])  # only 1 file transfer for exaspim
         else:
             file_transfer = dict()
-        processes = self.processes[camera_name]  # processes could be > so leave as a dictionary
+        if self.processes:
+            processes = self.processes[camera_name]  # processes could be > so leave as a dictionary
+        else:
+            processes = dict()
 
         for tile in self.config["acquisition"]["tiles"]:
 
@@ -196,10 +199,9 @@ class ExASPIMAcquisition(Acquisition):
                 writer.filename = base_filename
                 writer.channel = tile["channel"]
 
-                # estimate the compresion ratio
-                compression_ratio = self.check_compression_ratio(camera, writer)
-
                 if tile["prechecks"] == "on":
+                    # estimate the compresion ratio
+                    compression_ratio = self.check_compression_ratio(camera, writer)
                     # check write speed
                     if file_transfer:
                         self.check_write_speed(
@@ -211,12 +213,15 @@ class ExASPIMAcquisition(Acquisition):
                     self.check_system_memory(writer)
                     # check gpu memory
                     self.check_gpu_memory(writer)
+                else:
+                    compression_ratio = 1.0
 
                 # check local disk space and run if enough disk space
                 # check external disk space
-                while not self.check_external_disk_space(writer, file_transfer, compression_ratio):
-                    # recheck external disk space every minute, if not enough space, do not run
-                    time.sleep(60)
+                if file_transfer:
+                    while not self.check_external_disk_space(writer, file_transfer, compression_ratio):
+                        # recheck external disk space every minute, if not enough space, do not run
+                        time.sleep(60)
                 # check local disk space and run if enough disk space
                 if self.check_local_disk_space(writer, compression_ratio):
                     self.acquisition_engine(tile, base_filename, camera, daq, writer, processes, scanning_stage)
@@ -234,21 +239,23 @@ class ExASPIMAcquisition(Acquisition):
                     raise ValueError("not enough local disk space")
 
                 # create and start transfer threads from previous tile
-                if tile_num not in file_transfer_threads:
-                    file_transfer_threads[tile_num] = dict()
-                if tile_channel not in file_transfer_threads[tile_num]:
-                    file_transfer_threads[tile_num][tile_channel] = dict()
-                file_transfer_threads[tile_num][tile_channel][repeat] = file_transfer
-                file_transfer_threads[tile_num][tile_channel][repeat].filename = base_filename
-                self.log.info(f"starting file transfer for {base_filename}")
-                file_transfer_threads[tile_num][tile_channel][repeat].start()
+                if file_transfer:
+                    if tile_num not in file_transfer_threads:
+                        file_transfer_threads[tile_num] = dict()
+                    if tile_channel not in file_transfer_threads[tile_num]:
+                        file_transfer_threads[tile_num][tile_channel] = dict()
+                    file_transfer_threads[tile_num][tile_channel][repeat] = file_transfer
+                    file_transfer_threads[tile_num][tile_channel][repeat].filename = base_filename
+                    self.log.info(f"starting file transfer for {base_filename}")
+                    file_transfer_threads[tile_num][tile_channel][repeat].start()
 
         # wait for last tiles file transfer
-        for tile_num, threads_dict in file_transfer_threads.items():
-            for tile_channel, repeat_dict in threads_dict.items():
-                for repeat, thread in repeat_dict.items():
-                    if thread.is_alive():
-                        thread.wait_until_finished()
+        if file_transfer:
+            for tile_num, threads_dict in file_transfer_threads.items():
+                for tile_channel, repeat_dict in threads_dict.items():
+                    for repeat, thread in repeat_dict.items():
+                        if thread.is_alive():
+                            thread.wait_until_finished()
 
         if getattr(self, "file_transfers", {}) != {}:  # save to external paths
             # save acquisition config
@@ -356,6 +363,8 @@ class ExASPIMAcquisition(Acquisition):
                 # log metrics from devices
                 laser_name = self.instrument.channels[tile["channel"]]["lasers"][0]
                 laser = self.instrument.lasers[laser_name]
+                memory_info = virtual_memory()
+                self.log.info(f"RAM in use = {memory_info.used / (1024 ** 3):.2f} GB")
                 self.log.info(f"laser {laser.id} power = {laser.power_mw:.2f} [mW]")
                 self.log.info(f"laser {laser.id} temperature = {laser.temperature_c:.2f} [mW]")
                 self.log.info(f"camera {camera.id} sensor temperature = {camera.sensor_temperature_c:.2f} [C]")
@@ -504,9 +513,9 @@ class ExASPIMAcquisition(Acquisition):
         self.log.info("checking available system memory")
         # factor of 2 for concurrent chunks being written/read
         required_memory_gb = 2 * writer.chunk_count_px * writer.get_frame_size_mb() / 1024
-        self.log.info(f"required RAM = {required_memory_gb:.1f} [GB]")
+        self.log.info(f"required RAM = {required_memory_gb:.2f} [GB]")
         free_memory_gb = virtual_memory()[1] / 1024**3
-        self.log.info(f"available RAM = {free_memory_gb:.1f} [GB]")
+        self.log.info(f"available RAM = {free_memory_gb:.2f} [GB]")
         if free_memory_gb < required_memory_gb:
             raise MemoryError("system does not have enough memory to run")
 

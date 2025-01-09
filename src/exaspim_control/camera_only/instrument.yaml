@@ -16,19 +16,20 @@ instrument:
   devices:
     vp-151mx:
       type: camera
-      driver: voxel.devices.camera.simulated
-      module: SimulatedCamera
+      driver: voxel.devices.camera.vieworks.egrabber
+      module: VieworksCamera
       init:
         id: MP151BBX006
       properties:
-        exposure_time_ms: 10.0
+        exposure_time_ms: 200.0
         pixel_type: mono16
-        height_px: 1024
-        width_px: 1024
+        height_px: 10640
+        width_px: 14192
         trigger:
           mode: on
-          polarity: rising
-          source: external
+          polarity: risingedge
+          source: line0
+        bit_packing_mode: msb
         binning: 1
         um_px: 0.748
     488 nm:
