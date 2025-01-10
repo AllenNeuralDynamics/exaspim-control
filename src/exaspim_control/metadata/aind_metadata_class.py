@@ -24,6 +24,4 @@ DATE_FORMATS = {
 
 
 class AINDMetadataClass(MetadataClass):
-    """
-    Metadata class that includes inputs for anatomical directions and mediums.
-    """
+    """Metadata class that includes inputs for anatomical directions and mediums"""

@@ -1,27 +1,21 @@
-import importlib
-
-from qtpy.QtCore import Qt
-from qtpy.QtGui import QDoubleValidator, QIntValidator
-from qtpy.QtWidgets import QSizePolicy
-
 from view.widgets.base_device_widget import BaseDeviceWidget, create_widget, scan_for_properties
+from qtpy.QtCore import Qt
+import importlib
 from view.widgets.miscellaneous_widgets.q_scrollable_float_slider import QScrollableFloatSlider
+from qtpy.QtGui import QIntValidator, QDoubleValidator
+from qtpy.QtWidgets import QSizePolicy
 
 
 class LaserWidget(BaseDeviceWidget):
-    """Widget for handling laser properties and controls."""
 
-    def __init__(self, laser: object, color: str = "blue", advanced_user: bool = True):
+    def __init__(self, laser, color: str = "blue", advanced_user: bool = True):
         """
-        Initialize the LaserWidget object.
+        Modify BaseDeviceWidget to be specifically for laser. Main need is adding slider .
+        :param laser: laser object
+        :param color: color of laser slider
+        :param advanced_user: boolean specifying complexity of widget. If False, only power widget will be visible
+        """
 
-        :param laser: Laser object
-        :type laser: object
-        :param color: Color of the slider, defaults to "blue"
-        :type color: str, optional
-        :param advanced_user: Whether the user is advanced, defaults to True
-        :type advanced_user: bool, optional
-        """
         self.laser_properties = (
             scan_for_properties(laser)
             if advanced_user
@@ -39,8 +33,9 @@ class LaserWidget(BaseDeviceWidget):
 
     def add_power_slider(self) -> None:
         """
-        Add a power slider to the widget.
+        Modify power widget to be slider
         """
+
         setpoint = self.power_setpoint_mw_widget
         power = self.power_mw_widget
         temperature = self.property_widgets["temperature_c"].layout().itemAt(1).widget()
@@ -94,12 +89,11 @@ class LaserWidget(BaseDeviceWidget):
             )
         )
 
-    def power_slider_fixup(self, value: str) -> None:
+    def power_slider_fixup(self, value) -> None:
         """
-        Fix the power slider value.
+        Fix entered values that are larger than max power
+        :param value: value entered that is above maximum of slider
+        """
 
-        :param value: Value to fix
-        :type value: str
-        """
         self.power_setpoint_mw_widget.setText(str(self.max_power_mw))
         self.power_setpoint_mw_widget.editingFinished.emit()

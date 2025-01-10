@@ -1,14 +1,14 @@
-import logging
-import os
-import shutil
+from exaspim_control.exa_spim_view import ExASPIMInstrumentView, ExASPIMAcquisitionView
+from exaspim_control.exa_spim_instrument import ExASPIM
+from exaspim_control.exa_spim_acquisition import ExASPIMAcquisition
 from datetime import datetime
 from pathlib import Path
-
-import numpy as np
 from aind_data_schema.core import acquisition
-from exaspim_control.exa_spim_acquisition import ExASPIMAcquisition
-from exaspim_control.exa_spim_instrument import ExASPIM
-from exaspim_control.exa_spim_view import ExASPIMAcquisitionView, ExASPIMInstrumentView
+import numpy as np
+import shutil
+import os
+import logging
+
 
 X_ANATOMICAL_DIRECTIONS = {
     "Anterior_to_Posterior": "Anterior_to_posterior",
@@ -24,7 +24,7 @@ Z_ANATOMICAL_DIRECTIONS = {"Left to Right": "Left_to_right", "Right to Left": "R
 
 
 class MetadataLaunch:
-    """Class for handling metadata launch for ExASPIM."""
+    """Launch script used to parse and save metadata according to aind-data-schema"""
 
     def __init__(
         self,
@@ -35,18 +35,12 @@ class MetadataLaunch:
         log_filename: str = None,
     ):
         """
-        Initialize the MetadataLaunch object.
-
+        Create instrument, acquisition, and gui. Connect acquisitionEnded to parsing metadata method
         :param instrument: ExASPIM instrument object
-        :type instrument: ExASPIM
-        :param acquisition: ExASPIM acquisition object
-        :type acquisition: ExASPIMAcquisition
-        :param instrument_view: ExASPIM instrument view object
-        :type instrument_view: ExASPIMInstrumentView
-        :param acquisition_view: ExASPIM acquisition view object
-        :type acquisition_view: ExASPIMAcquisitionView
-        :param log_filename: Log filename, defaults to None
-        :type log_filename: str, optional
+        :param acquisition: ExASPIMAcquisition acquisition object
+        :param instrument_view: ExASPIMInstrumentView object
+        :param acquisition_view: ExASPIMAcquisitionView object
+        :param log_filename: log filename
         """
         # logger
         self.log = logging.getLogger(__name__ + "." + self.__class__.__name__)
@@ -66,11 +60,7 @@ class MetadataLaunch:
         self.acquisition_view.acquisitionEnded.connect(lambda: setattr(self, "acquisition_end_time", datetime.now()))
         self.acquisition_view.acquisitionEnded.connect(self.finalize_acquisition)
 
-    def finalize_acquisition(self) -> None:
-        """
-        Finalize the acquisition process.
-        """
-        self.log.info("Finalizing acquisition")
+    def finalize_acquisition(self):
         # create and save acquisition.json
         if getattr(self.acquisition, "file_transfers", {}) != {}:  # save to external paths
             for device_name, transfer_dict in getattr(self.acquisition, "file_transfers", {}).items():
@@ -118,17 +108,11 @@ class MetadataLaunch:
                 if file.endswith(".tiff"):
                     os.rename(str(Path(save_to, file)), str(Path(save_to, "derivatives", file)))
 
-    def parse_metadata(self, external_drive: str, local_drive: str) -> acquisition.Acquisition:
-        """
-        Parse metadata for the acquisition.
+    def parse_metadata(self, external_drive: str, local_drive: str):
+        """Method to parse through tiles to create an acquisition json
+        :param external_drive: where data is transferred to
+        :param local_drive: where data is written"""
 
-        :param external_drive: External storage directory
-        :type external_drive: str
-        :param local_drive: Local storage directory
-        :type local_drive: str
-        :return: Acquisition model
-        :rtype: acquisition.Acquisition
-        """
         acq_dict = {
             "experimenter_full_name": getattr(self.acquisition.metadata, "experimenter_full_name", []),
             "specimen_id": str(getattr(self.acquisition.metadata, "subject_id", "")),
