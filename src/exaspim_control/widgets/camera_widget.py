@@ -80,6 +80,8 @@ class CameraWidget(BaseDeviceWidget):
                 attr = getattr(type(camera), prop, False)
                 if getattr(attr, "fset", None) is None:
                     timing_widgets.children()[i + 1].setEnabled(False)
+                if prop == "line_interval_us":
+                    timing_widgets.children()[i + 1].setEnabled(False)
 
             # reformat sensor width widget
             width_widget = create_widget(

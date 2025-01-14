@@ -6,9 +6,9 @@ instrument_view:
         module: CameraWidget
         init:
           advanced_user: True
-        updating_properties:
-          - sensor_temperature_c
-          - mainboard_temperature_c
+        # updating_properties:
+        #   - sensor_temperature_c
+        #   - mainboard_temperature_c
       488 nm:
         type: laser
         driver: exaspim_control.widgets.laser_widget

@@ -369,8 +369,16 @@ class ExASPIMAcquisition(Acquisition):
                 self.log.info(f"laser {laser.id} temperature = {laser.temperature_c:.2f} [mW]")
                 self.log.info(f"camera {camera.id} sensor temperature = {camera.sensor_temperature_c:.2f} [C]")
                 self.log.info(f"camera {camera.id} mainboard temperature = {camera.mainboard_temperature_c:.2f} [C]")
+
+                # Restart the camera
+                start_time = time.time()
+                camera.stop()
+                camera.prepare()
+                camera.start()
+                self.log.info(f"camera restart time = {time.time() - start_time:.2f} [s]")
+
+                # Start the daq tasks.
                 self.log.info("starting daq")
-                # Start the dqq tasks.
                 for task in [daq.ao_task, daq.do_task, daq.co_task]:  # must start co task last in list
                     if task is not None:
                         task.start()

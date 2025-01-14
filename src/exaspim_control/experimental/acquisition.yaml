@@ -64,13 +64,13 @@ acquisition:
           x_projection_count_px: 3548
           y_projection_count_px: 2660
           z_projection_count_px: 2048
-      background_collection:
-        type: routine
-        driver: exaspim_control.routines.background_collection
-        module: BackgroundCollection
-        init:
-          path: D:\\
-        properties:
-          data_type: uint16
-          frame_count_px: 20
+      # background_collection:
+      #   type: routine
+      #   driver: exaspim_control.routines.background_collection
+      #   module: BackgroundCollection
+      #   init:
+      #     path: D:\\
+      #   properties:
+      #     data_type: uint16
+      #     frame_count_px: 20
   tiles: []
