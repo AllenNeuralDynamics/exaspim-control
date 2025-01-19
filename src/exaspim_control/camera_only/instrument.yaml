@@ -26,7 +26,7 @@ instrument:
         height_px: 10640
         width_px: 14192
         trigger:
-          mode: on
+          mode: off
           polarity: risingedge
           source: line0
         bit_packing_mode: msb

@@ -1,4 +1,10 @@
 instrument_view:
+  properties:
+    camera_rotation_deg: 0.0
+    resolution_levels: 6
+    intensity_min: 30
+    intensity_max: 1000
+    alignment_roi_size: 512
   device_widgets:
       vp-151mx:
         type: camera
@@ -131,7 +137,6 @@ instrument_view:
                       "561": 5.39
                       "639": 5.62
 acquisition_view:
-  fov_dimensions: [8.00128, 10.672384, 0 ]
   coordinate_plane: [ '-x', 'y', 'z' ]
   unit: 'mm'
   acquisition_widgets:
