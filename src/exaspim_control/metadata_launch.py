@@ -129,6 +129,11 @@ class MetadataLaunch:
         :return: Acquisition model
         :rtype: acquisition.Acquisition
         """
+        subject_id = str(getattr(self.acquisition.metadata, "subject_id", ""))
+        temp_string = local_drive.split()
+        new_local_drive = temp_string[0] + subject_id + temp_string[2] + temp_string[3]
+        temp_string = external_drive.split()
+        new_external_drive = temp_string[0] + subject_id + temp_string[2] + temp_string[3]
         acq_dict = {
             "experimenter_full_name": getattr(self.acquisition.metadata, "experimenter_full_name", []),
             "specimen_id": str(getattr(self.acquisition.metadata, "subject_id", "")),
@@ -136,8 +141,8 @@ class MetadataLaunch:
             "instrument_id": getattr(self.acquisition.metadata, "instrument_id", ""),
             "session_start_time": self.acquisition_start_time,
             "session_end_time": self.acquisition_end_time,
-            "local_storage_directory": local_drive,
-            "external_storage_directory": external_drive,
+            "local_storage_directory": new_local_drive,
+            "external_storage_directory": new_external_drive,
             "chamber_immersion": getattr(self.acquisition.metadata, "chamber_immersion", None),
             "axes": [
                 {
@@ -163,13 +168,22 @@ class MetadataLaunch:
             tile_ch = tile["channel"]
             laser = channels[tile_ch]["lasers"][0]
             excitation_wavelength = self.instrument.lasers[laser].wavelength
+            camera = self.instrument.cameras[channels[tile_ch]["cameras"][0]]
+            voxel_size_x_um = camera.sampling_x_um
+            voxel_size_y_um = camera.sampling_y_um
+            voxel_size_z_um = tile["step_size"]
+            tile_position_x_mm = tile["position"]["x"]
+            tile_position_y_mm = tile["position"]["y"]
+            tile_position_z_mm = tile["position"]["z"]
             tiles.append(
                 {
-                    "file_name": f"{tile['prefix']}_{tile['tile_number']:06}_ch_{tile_ch}_camera_"
-                    f"{channels[tile_ch]['cameras'][0]}",
+                    "file_name": f"{tile['prefix']}_{tile['tile_number']:06}_ch_{tile_ch}.ims",
                     "coordinate_transformations": [
-                        {"type": "scale", "scale": ["0.748", "0.748", "1"]},
-                        {"type": "translation", "translation": ["0", "0", "0"]},
+                        {"type": "scale", "scale": [f"{voxel_size_x_um}", f"{voxel_size_y_um}", f"{voxel_size_z_um}"]},
+                        {
+                            "type": "translation",
+                            "translation": [f"{-tile_position_y_mm}", f"{tile_position_x_mm}", f"{tile_position_z_mm}"],
+                        },
                     ],
                     "channel": {
                         "channel_name": tile_ch,
