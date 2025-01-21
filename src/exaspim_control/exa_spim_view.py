@@ -217,8 +217,8 @@ class ExASPIMInstrumentView(InstrumentView):
         (image, camera_name) = args
 
         # calculate centroid of image
-        y_center_um = image.shape[0] // 2 * self.pixel_size_y_um
-        x_center_um = image.shape[1] // 2 * self.pixel_size_x_um
+        y_center_um = image.shape[0] // 2 * self.instrument.cameras[camera_name].sampling_um_px
+        x_center_um = image.shape[1] // 2 * self.instrument.cameras[camera_name].sampling_um_px
 
         if image is not None:
             _ = self.viewer.layers
