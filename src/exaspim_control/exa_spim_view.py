@@ -3,7 +3,6 @@ from datetime import datetime
 from pathlib import Path
 
 import numpy as np
-from napari.utils.theme import get_theme
 from qtpy.QtCore import Qt, Signal
 from qtpy.QtWidgets import (
     QFrame,
@@ -16,6 +15,7 @@ from qtpy.QtWidgets import (
     QSplitter,
     QVBoxLayout,
     QWidget,
+    QComboBox,
 )
 
 from view.acquisition_view import AcquisitionView
@@ -47,6 +47,7 @@ class ExASPIMInstrumentView(InstrumentView):
         self.setup_flip_mount_widgets()
 
         # viewer constants for ExA-SPIM
+        self.viewer.title = "ExA-SPIM control"
         self.intensity_min = self.config["instrument_view"]["properties"]["intensity_min"]
         if self.intensity_min < 0 or self.intensity_min > 65535:
             raise ValueError("intensity min must be between 0 and 65535")
@@ -118,22 +119,74 @@ class ExASPIMInstrumentView(InstrumentView):
             **self.focusing_stage_widgets,
         }.items():
             label = QLabel()
-            frame = QFrame()
             layout = QVBoxLayout()
             layout.addWidget(create_widget("H", label, widget))
-            frame.setLayout(layout)
-            border_color = get_theme(self.viewer.theme, as_dict=False).foreground
-            frame.setStyleSheet(f".QFrame {{ border:1px solid {border_color}; }} ")
-            stage_widgets.append(frame)
+            stage_widgets.append(layout)
 
         stage_axes_widget = create_widget("V", *stage_widgets)
         stage_axes_widget.setContentsMargins(0, 0, 0, 0)
-        stage_axes_widget.layout().setSpacing(0)
+        stage_axes_widget.layout().setSpacing(6)
 
         stage_scroll = QScrollArea()
         stage_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         stage_scroll.setWidget(stage_axes_widget)
         self.viewer.window.add_dock_widget(stage_axes_widget, area="left", name="Stages")
+
+    def setup_laser_widgets(self) -> None:
+        """
+        Setup laser widgets.
+        """
+        laser_widgets = []
+        for name, widget in self.laser_widgets.items():
+            label = QLabel(name)
+            layout = QVBoxLayout()
+            layout.addWidget(create_widget("H", label, widget))
+            laser_widgets.append(layout)
+        laser_widget = create_widget("V", *laser_widgets)
+        laser_widget.layout().setSpacing(6)
+        self.viewer.window.add_dock_widget(laser_widget, area="bottom", name="Lasers")
+
+    def setup_channel_widget(self) -> None:
+        """
+        Create widget to select which laser to livestream with.
+        """
+        widget = QWidget()
+        layout = QVBoxLayout()
+        label = QLabel("Active Channel")
+        laser_combo_box = QComboBox(widget)
+        laser_combo_box.addItems(self.channels.keys())
+        laser_combo_box.currentTextChanged.connect(lambda value: self.change_channel(value))
+        laser_combo_box.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Minimum)
+        laser_combo_box.setCurrentIndex(1)  # initialize to first channel index
+        layout.addWidget(label)
+        layout.addWidget(laser_combo_box)
+        widget.setLayout(layout)
+        widget.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Minimum)
+        self.viewer.window.add_dock_widget(widget, area="bottom", name="Channels")
+
+    def change_channel(self, channel: str) -> None:
+        """
+        Change the livestream channel.
+
+        :param channel: Name of the channel
+        :type channel: str
+        """
+        print(f"changing to channel {channel}")
+        if self.grab_frames_worker.is_running:  # livestreaming is going
+            for old_laser_name in self.channels[self.livestream_channel].get("lasers", []):
+                self.log.info(f"Disabling laser {old_laser_name}")
+                self.instrument.lasers[old_laser_name].disable()
+            for daq_name, daq in self.instrument.daqs.items():
+                self.log.info(f"Writing new waveforms for {daq_name}")
+                self.write_waveforms(daq)
+            for new_laser_name in self.channels[channel].get("lasers", []):
+                self.log.info(f"Enabling laser {new_laser_name}")
+                self.instrument.lasers[new_laser_name].enable()
+        self.livestream_channel = channel
+        # change filter
+        for filter in self.channels[self.livestream_channel].get("filters", []):
+            self.log.info(f"Enabling filter {filter}")
+            self.instrument.filters[filter].enable()
 
     def setup_flip_mount_widgets(self) -> None:
         """
@@ -160,11 +213,12 @@ class ExASPIMInstrumentView(InstrumentView):
         :param snapshot: Whether the image is a snapshot, defaults to False
         :type snapshot: bool, optional
         """
+
         (image, camera_name) = args
 
         # calculate centroid of image
-        y_center_um = image.shape[0] // 2 * self.instrument.cameras[camera_name].sampling_um_px
-        x_center_um = image.shape[1] // 2 * self.instrument.cameras[camera_name].sampling_um_px
+        y_center_um = image.shape[0] // 2 * self.pixel_size_y_um
+        x_center_um = image.shape[1] // 2 * self.pixel_size_x_um
 
         if image is not None:
             _ = self.viewer.layers
@@ -193,21 +247,13 @@ class ExASPIMInstrumentView(InstrumentView):
             if layer_name in self.viewer.layers and not snapshot:
                 layer = self.viewer.layers[layer_name]
                 layer.data = multiscale
-                layer.scale = (
-                    self.instrument.cameras[camera_name].sampling_um_px,
-                    self.instrument.cameras[camera_name].sampling_um_px,
-                )
-                layer.translate = (-x_center_um, y_center_um)
             else:
                 # Add image to a new layer if layer doesn't exist yet or image is snapshot
                 layer = self.viewer.add_image(
                     multiscale,
                     name=layer_name,
                     contrast_limits=(self.intensity_min, self.intensity_max),
-                    scale=(
-                        self.instrument.cameras[camera_name].sampling_um_px,
-                        self.instrument.cameras[camera_name].sampling_um_px,
-                    ),
+                    scale=(self.pixel_size_y_um, self.pixel_size_x_um),
                     translate=(-x_center_um, y_center_um),
                     rotate=self.camera_rotation,
                 )
@@ -218,6 +264,65 @@ class ExASPIMInstrumentView(InstrumentView):
                     layer.events.contrast_limits.connect(
                         lambda event: self.contrastChanged.emit(np.rot90(layer.data[-3], k=2), layer.contrast_limits)
                     )
+    
+        # (image, camera_name) = args
+
+        # # calculate centroid of image
+        # y_center_um = image.shape[0] // 2 * self.instrument.cameras[camera_name].sampling_um_px
+        # x_center_um = image.shape[1] // 2 * self.instrument.cameras[camera_name].sampling_um_px
+
+        # if image is not None:
+        #     _ = self.viewer.layers
+        #     # add crosshairs to image
+        #     if self.crosshairs_button.isChecked():
+        #         image[image.shape[0] // 2 - 1 : image.shape[0] // 2 + 1, :] = 1 << 16 - 1
+        #         image[:, image.shape[1] // 2 - 1 : image.shape[1] // 2 + 1] = 1 << 16 - 1
+        #     multiscale = [image]
+        #     downsampler = GPUToolsRankDownSample2D(binning=2, rank=-2, data_type="uint16")
+        #     for binning in range(1, self.resolution_levels):
+        #         downsampled_frame = downsampler.run(multiscale[-1])
+        #         # add crosshairs to image
+        #         if self.crosshairs_button.isChecked():
+        #             downsampled_frame[downsampled_frame.shape[0] // 2 - 1 : downsampled_frame.shape[0] // 2 + 1, :] = (
+        #                 1 << 16 - 1
+        #             )
+        #             downsampled_frame[:, downsampled_frame.shape[1] // 2 - 1 : downsampled_frame.shape[1] // 2 + 1] = (
+        #                 1 << 16 - 1
+        #             )
+        #         multiscale.append(downsampled_frame)
+        #     layer_name = (
+        #         f"{camera_name} {self.livestream_channel}"
+        #         if not snapshot
+        #         else f"{camera_name} {self.livestream_channel} snapshot"
+        #     )
+        #     if layer_name in self.viewer.layers and not snapshot:
+        #         layer = self.viewer.layers[layer_name]
+        #         layer.data = multiscale
+        #         layer.scale = (
+        #             self.instrument.cameras[camera_name].sampling_um_px,
+        #             self.instrument.cameras[camera_name].sampling_um_px,
+        #         )
+        #         layer.translate = (-x_center_um, y_center_um)
+        #     else:
+        #         # Add image to a new layer if layer doesn't exist yet or image is snapshot
+        #         layer = self.viewer.add_image(
+        #             multiscale,
+        #             name=layer_name,
+        #             contrast_limits=(self.intensity_min, self.intensity_max),
+        #             scale=(
+        #                 self.instrument.cameras[camera_name].sampling_um_px,
+        #                 self.instrument.cameras[camera_name].sampling_um_px,
+        #             ),
+        #             translate=(-x_center_um, y_center_um),
+        #             rotate=self.camera_rotation,
+        #         )
+        #         # TODO CHECK is multiscale already rotated 90? Or is the openGL window mixing up rows/columns?
+        #         layer.mouse_drag_callbacks.append(self.save_image)
+        #         if snapshot:  # emit signal if snapshot
+        #             self.snapshotTaken.emit(np.rot90(multiscale[-3], k=2), layer.contrast_limits)
+        #             layer.events.contrast_limits.connect(
+        #                 lambda event: self.contrastChanged.emit(np.rot90(layer.data[-3], k=2), layer.contrast_limits)
+        #             )
 
     def dissect_image(self, args: tuple) -> None:
         """
@@ -343,9 +448,11 @@ class ExASPIMAcquisitionView(AcquisitionView):
         :param instrument_view: Instrument view object
         :type instrument_view: ExASPIMInstrumentView
         """
-        super().__init__(acquisition=acquisition, instrument_view=instrument_view)
-        # acquisition constants for ExA-SPIM
+        # acquisition view constants for ExA-SPIM
         self.acquisition_binning = 4
+        instrument_view.config["acquisition_view"]["unit"] = "mm"
+        super().__init__(acquisition=acquisition, instrument_view=instrument_view)
+        self.setWindowTitle("ExA-SPIM control")
 
     def create_acquisition_widget(self) -> QSplitter:
         """
@@ -503,3 +610,28 @@ class ExASPIMAcquisitionView(AcquisitionView):
         """
         super().acquisition_ended()
         self.acquisitionEnded.emit()
+
+    def create_start_button(self) -> QPushButton:
+        """
+        Create the start button.
+
+        :return: Start button
+        :rtype: QPushButton
+        """
+        start = QPushButton("Start")
+        start.clicked.connect(self.start_acquisition)
+        start.setStyleSheet("background-color: #55a35d; color: black; border-radius: 10px;")
+        return start
+
+    def create_stop_button(self) -> QPushButton:
+        """
+        Create the stop button.
+
+        :return: Stop button
+        :rtype: QPushButton
+        """
+        stop = QPushButton("Stop")
+        stop.clicked.connect(self.acquisition.stop_acquisition)
+        stop.setStyleSheet("background-color: #a3555b; color: black; border-radius: 10px;")
+        stop.setDisabled(True)
+        return stop

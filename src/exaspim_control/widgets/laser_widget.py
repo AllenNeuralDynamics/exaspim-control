@@ -1,7 +1,7 @@
 import importlib
 
 from qtpy.QtCore import Qt
-from qtpy.QtGui import QDoubleValidator, QIntValidator
+from qtpy.QtGui import QDoubleValidator, QIntValidator, QColor
 from qtpy.QtWidgets import QSizePolicy
 
 from view.widgets.base_device_widget import BaseDeviceWidget, create_widget, scan_for_properties
@@ -68,12 +68,34 @@ class LaserWidget(BaseDeviceWidget):
 
         slider = QScrollableFloatSlider(orientation=Qt.Horizontal)
         slider.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+
+        # active slider color
+        hsv_active_color = list(QColor(self.slider_color).getHsv())
+        active_color = QColor.fromHsv(*tuple(hsv_active_color)).name()
+
+        # inactive slide color
+        hsv_inactive_color = hsv_active_color
+        hsv_inactive_color[2] = hsv_inactive_color[2] // 4
+        inactive_color = QColor.fromHsv(*tuple(hsv_inactive_color)).name()
+
+        # border color
+        hsv_border_color = hsv_active_color
+        hsv_border_color[2] = 100
+        hsv_border_color[1] = 100
+        border_color = QColor.fromHsv(*tuple(hsv_border_color)).name()
+
+        # handle color
+        hsv_handle_color = hsv_active_color
+        hsv_handle_color[2] = 128
+        hsv_handle_color[1] = 64
+        handle_color = QColor.fromHsv(*tuple(hsv_handle_color)).name()
+
         slider.setStyleSheet(
-            "QSlider::groove:horizontal {border: 1px solid #777;height: 10px;border-radius: 4px;}"
-            "QSlider::handle:horizontal {background-color: grey; width: 16px; height: 20px; "
-            "line-height: 20px; margin-top: -5px; margin-bottom: -5px; border-radius: 10px; }"
-            f"QSlider::sub-page:horizontal {{background: {self.slider_color};border: 1px solid #777;"
-            f"height: 10px;border-radius: 4px;}}"
+            f"QSlider::groove:horizontal {{background: {inactive_color}; border: 2px solid {border_color};height: 10px;border-radius: 6px;}}"
+            f"QSlider::handle:horizontal {{background-color: {handle_color}; width: 16px; height: 14px; "
+            f"line-height: 14px; margin-top: -4px; margin-bottom: -4px; border-radius: 0px; }}"
+            f"QSlider::sub-page:horizontal {{background: {active_color};border: 2px solid {border_color};"
+            f"height: 10px;border-radius: 6px;}}"
         )
 
         slider.setMinimum(0)  # Todo: is it always zero?
