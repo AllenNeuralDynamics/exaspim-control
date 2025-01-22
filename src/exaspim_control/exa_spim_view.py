@@ -171,7 +171,6 @@ class ExASPIMInstrumentView(InstrumentView):
         :param channel: Name of the channel
         :type channel: str
         """
-        print(f"changing to channel {channel}")
         if self.grab_frames_worker.is_running:  # livestreaming is going
             for old_laser_name in self.channels[self.livestream_channel].get("lasers", []):
                 self.log.info(f"Disabling laser {old_laser_name}")
