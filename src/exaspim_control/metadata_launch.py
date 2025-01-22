@@ -130,10 +130,10 @@ class MetadataLaunch:
         :rtype: acquisition.Acquisition
         """
         subject_id = str(getattr(self.acquisition.metadata, "subject_id", ""))
-        temp_string = local_drive.split()
-        new_local_drive = temp_string[0] + subject_id + temp_string[2] + temp_string[3]
-        temp_string = external_drive.split()
-        new_external_drive = temp_string[0] + subject_id + temp_string[2] + temp_string[3]
+        temp_string = local_drive.split("_")
+        new_local_drive = f"{temp_string[0]}_{subject_id}_{temp_string[2]}_{temp_string[3]}"
+        temp_string = external_drive.split("_")
+        new_external_drive = f"{temp_string[0]}_{subject_id}_{temp_string[2]}_{temp_string[3]}"
         acq_dict = {
             "experimenter_full_name": getattr(self.acquisition.metadata, "experimenter_full_name", []),
             "specimen_id": str(getattr(self.acquisition.metadata, "subject_id", "")),
@@ -169,12 +169,12 @@ class MetadataLaunch:
             laser = channels[tile_ch]["lasers"][0]
             excitation_wavelength = self.instrument.lasers[laser].wavelength
             camera = self.instrument.cameras[channels[tile_ch]["cameras"][0]]
-            voxel_size_x_um = camera.sampling_x_um
-            voxel_size_y_um = camera.sampling_y_um
+            voxel_size_x_um = camera.sampling_um_px
+            voxel_size_y_um = camera.sampling_um_px
             voxel_size_z_um = tile["step_size"]
-            tile_position_x_mm = tile["position"]["x"]
-            tile_position_y_mm = tile["position"]["y"]
-            tile_position_z_mm = tile["position"]["z"]
+            tile_position_x_mm = tile["position_mm"]["x"]
+            tile_position_y_mm = tile["position_mm"]["y"]
+            tile_position_z_mm = tile["position_mm"]["z"]
             tiles.append(
                 {
                     "file_name": f"{tile['prefix']}_{tile['tile_number']:06}_ch_{tile_ch}.ims",
