@@ -218,6 +218,7 @@ class ExASPIMInstrumentView(InstrumentView):
         # calculate centroid of image
         y_center_um = image.shape[0] // 2 * self.instrument.cameras[camera_name].sampling_um_px
         x_center_um = image.shape[1] // 2 * self.instrument.cameras[camera_name].sampling_um_px
+        pixel_size_um = self.instrument.cameras[camera_name].sampling_um_px
 
         if image is not None:
             _ = self.viewer.layers
@@ -252,7 +253,7 @@ class ExASPIMInstrumentView(InstrumentView):
                     multiscale,
                     name=layer_name,
                     contrast_limits=(self.intensity_min, self.intensity_max),
-                    scale=(self.pixel_size_y_um, self.pixel_size_x_um),
+                    scale=(pixel_size_um, pixel_size_um),
                     translate=(-x_center_um, y_center_um),
                     rotate=self.camera_rotation,
                 )
@@ -263,7 +264,7 @@ class ExASPIMInstrumentView(InstrumentView):
                     layer.events.contrast_limits.connect(
                         lambda event: self.contrastChanged.emit(np.rot90(layer.data[-3], k=2), layer.contrast_limits)
                     )
-    
+
         # (image, camera_name) = args
 
         # # calculate centroid of image
