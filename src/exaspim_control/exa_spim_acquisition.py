@@ -41,9 +41,6 @@ class ExASPIMAcquisition(Acquisition):
         self.metadata = None  # initialize as none since setting up metadata class with call setup_class
         super().__init__(instrument, DIRECTORY / Path(config_filename), yaml_handler, log_level)
 
-        # store acquisition name
-        self.acquisition_name = self.metadata.acquisition_name
-
         # initialize stop engine event
         self.stop_engine = Event()
 
@@ -343,7 +340,8 @@ class ExASPIMAcquisition(Acquisition):
         writer.start()
         time.sleep(1)
 
-        # start camera
+        # start camera and set frame number to 0
+        camera.frame_number = 0
         camera.start()
 
         # start processes
@@ -363,12 +361,19 @@ class ExASPIMAcquisition(Acquisition):
                 # log metrics from devices
                 laser_name = self.instrument.channels[tile["channel"]]["lasers"][0]
                 laser = self.instrument.lasers[laser_name]
+                temperature_sensor, _ = self._grab_first(self.instrument.temperature_sensors)
                 memory_info = virtual_memory()
                 self.log.info(f"RAM in use = {memory_info.used / (1024 ** 3):.2f} GB")
                 self.log.info(f"laser {laser.id} power = {laser.power_mw:.2f} [mW]")
                 self.log.info(f"laser {laser.id} temperature = {laser.temperature_c:.2f} [mW]")
                 self.log.info(f"camera {camera.id} sensor temperature = {camera.sensor_temperature_c:.2f} [C]")
                 self.log.info(f"camera {camera.id} mainboard temperature = {camera.mainboard_temperature_c:.2f} [C]")
+                self.log.info(
+                    f"sensor {temperature_sensor.id} temperature = {temperature_sensor.temperature_c:.2f} [C]"
+                )
+                self.log.info(
+                    f"sensor {temperature_sensor.id} humidity = {temperature_sensor.relative_humidity_percent:.2f} [%]"
+                )
                 self.log.info("starting daq")
                 # Start the dqq tasks.
                 for task in [daq.ao_task, daq.do_task, daq.co_task]:  # must start co task last in list
@@ -407,8 +412,9 @@ class ExASPIMAcquisition(Acquisition):
 
             frame_index += 1
 
-        # stop the camera
+        # stop the camera and set frame number back to 0
         camera.stop()
+        camera.frame_number = 0
 
         # wait for the writer to finish
         writer.wait_to_finish()
@@ -768,6 +774,7 @@ class ExASPIMAcquisition(Acquisition):
         """
         Sets the acquisition name for all operations.
         """
+        self.acquisition_name = self.metadata.acquisition_name
         for device_name, operation_dict in self.config["acquisition"]["operations"].items():
             for op_name, op_specs in operation_dict.items():
                 op_type = inflection.pluralize(op_specs["type"])

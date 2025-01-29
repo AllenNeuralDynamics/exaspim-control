@@ -90,9 +90,9 @@ class MetadataLaunch:
             os.makedirs(Path(save_to, "exaSPIM"))
             os.makedirs(Path(save_to, "derivatives"))
             for file in os.listdir(save_to):
-                if file.endswith(".ims"):
+                if file.endswith(".ims") or file.endswith(".zarr"):
                     os.rename(str(Path(save_to, file)), str(Path(save_to, "exaSPIM", file)))
-                if file.endswith(".tiff"):
+                if file.endswith(".tiff") or file.endswith(".log") or file.endswith(".yaml"):
                     os.rename(str(Path(save_to, file)), str(Path(save_to, "derivatives", file)))
             # delete local directory
             self.log.info(f"deleting {str(Path(transfer.local_path, transfer.acquisition_name))}")
@@ -113,9 +113,9 @@ class MetadataLaunch:
             os.makedirs(Path(save_to, "exaSPIM"))
             os.makedirs(Path(save_to, "derivatives"))
             for file in os.listdir(save_to):
-                if file.endswith(".ims"):
+                if file.endswith(".ims") or file.endswith(".zarr"):
                     os.rename(str(Path(save_to, file)), str(Path(save_to, "exaSPIM", file)))
-                if file.endswith(".tiff"):
+                if file.endswith(".tiff") or file.endswith(".log") or file.endswith(".yaml"):
                     os.rename(str(Path(save_to, file)), str(Path(save_to, "derivatives", file)))
 
     def parse_metadata(self, external_drive: str, local_drive: str) -> acquisition.Acquisition:
@@ -129,6 +129,11 @@ class MetadataLaunch:
         :return: Acquisition model
         :rtype: acquisition.Acquisition
         """
+        subject_id = str(getattr(self.acquisition.metadata, "subject_id", ""))
+        temp_string = local_drive.split("_")
+        new_local_drive = f"{temp_string[0]}_{subject_id}_{temp_string[2]}_{temp_string[3]}"
+        temp_string = external_drive.split("_")
+        new_external_drive = f"{temp_string[0]}_{subject_id}_{temp_string[2]}_{temp_string[3]}"
         acq_dict = {
             "experimenter_full_name": getattr(self.acquisition.metadata, "experimenter_full_name", []),
             "specimen_id": str(getattr(self.acquisition.metadata, "subject_id", "")),
@@ -136,8 +141,8 @@ class MetadataLaunch:
             "instrument_id": getattr(self.acquisition.metadata, "instrument_id", ""),
             "session_start_time": self.acquisition_start_time,
             "session_end_time": self.acquisition_end_time,
-            "local_storage_directory": local_drive,
-            "external_storage_directory": external_drive,
+            "local_storage_directory": new_local_drive,
+            "external_storage_directory": new_external_drive,
             "chamber_immersion": getattr(self.acquisition.metadata, "chamber_immersion", None),
             "axes": [
                 {
@@ -163,13 +168,22 @@ class MetadataLaunch:
             tile_ch = tile["channel"]
             laser = channels[tile_ch]["lasers"][0]
             excitation_wavelength = self.instrument.lasers[laser].wavelength
+            camera = self.instrument.cameras[channels[tile_ch]["cameras"][0]]
+            voxel_size_x_um = camera.sampling_um_px
+            voxel_size_y_um = camera.sampling_um_px
+            voxel_size_z_um = tile["step_size"]
+            tile_position_x_mm = tile["position_mm"]["x"]
+            tile_position_y_mm = tile["position_mm"]["y"]
+            tile_position_z_mm = tile["position_mm"]["z"]
             tiles.append(
                 {
-                    "file_name": f"{tile['prefix']}_{tile['tile_number']:06}_ch_{tile_ch}_camera_"
-                    f"{channels[tile_ch]['cameras'][0]}",
+                    "file_name": f"{tile['prefix']}_{tile['tile_number']:06}_ch_{tile_ch}.ims",
                     "coordinate_transformations": [
-                        {"type": "scale", "scale": ["0.748", "0.748", "1"]},
-                        {"type": "translation", "translation": ["0", "0", "0"]},
+                        {"type": "scale", "scale": [f"{voxel_size_x_um}", f"{voxel_size_y_um}", f"{voxel_size_z_um}"]},
+                        {
+                            "type": "translation",
+                            "translation": [f"{-tile_position_y_mm}", f"{tile_position_x_mm}", f"{tile_position_z_mm}"],
+                        },
                     ],
                     "channel": {
                         "channel_name": tile_ch,

@@ -19,20 +19,15 @@ acquisition:
         format: [ instrument_type, subject_id ]
   operations:
     vp-151mx:
-      aqz:
+      imaris:
         type: writer
-        driver: voxel.writers.zarr
-        module: ZarrWriter
+        driver: voxel.writers.imaris
+        module: ImarisWriter
         init:
           path: D:\\
         properties:
-          compression: lz4
+          compression: lz4shuffle
           data_type: uint16
-          chunk_size_x_px: 128
-          chunk_size_y_px: 128
-          chunk_size_z_px: 32
-          multiscale: False
-          version: v3
       robocopy:
         type: file_transfer
         driver: voxel.file_transfers.robocopy
