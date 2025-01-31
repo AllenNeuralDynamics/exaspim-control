@@ -374,8 +374,14 @@ class ExASPIMAcquisition(Acquisition):
                 self.log.info(
                     f"sensor {temperature_sensor.id} humidity = {temperature_sensor.relative_humidity_percent:.2f} [%]"
                 )
+
+                # start the camera
+                camera.stop()
+                camera.prepare()
+                camera.start()
+
+                # Start the daq tasks.
                 self.log.info("starting daq")
-                # Start the dqq tasks.
                 for task in [daq.ao_task, daq.do_task, daq.co_task]:  # must start co task last in list
                     if task is not None:
                         task.start()

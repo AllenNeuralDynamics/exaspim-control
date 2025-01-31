@@ -17,7 +17,7 @@ classifiers = [
 readme = "README.md"
 license = { file = "LICENSE" }
 keywords = [
-    "ExaSPIM",
+    "ExA-SPIM",
     "SPIM",
     "microscopy",
     "light-sheet",
@@ -28,12 +28,9 @@ keywords = [
 dynamic = ["version"]
 
 dependencies = [
-    "coherent-lasers @ git+https://github.com/AllenNeuralDynamics/coherent-lasers.git",
-    "voxel[imaris]",
-    "nidaqmx >= 0.9.0",
-    "ruamel-yaml >= 0.18.5",
+    "voxel[all] @ git+https://github.com/AllenNeuralDynamics/voxel.git",
+    "view @ git+https://github.com/AllenNeuralDynamics/view.git",
     "aind_data_schema >= 0.26.7",
-    "scikit-image >= 0.20.0",
 ]
 
 [project.optional-dependencies]
