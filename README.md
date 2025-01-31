@@ -72,20 +72,20 @@ This control software can optionally check I/O bandwidth to a local and external
 
      If you plan to use the provided [Memento](./vieworks/memento.py) class for logging statistics from the camera, you will need to also install [Memento](https://www.euresys.com/en/Support/Download-area?Series=105d06c5-6ad9-42ff-b7ce-622585ce607f)
 
-     > [!NOTE]
-     > To download the eGrabber SDK, you will first need to make an account.
+> [!NOTE]
+> To download the eGrabber SDK, you will first need to make an account.
 
      Once the eGrabber SDK is installed, find the wheel file in the program's subfolder and install it into your environment using pip.
 
      For example on windows:
 
      ```bash
-         pip install "C:\Program Files\Euresys\eGrabber\python\egrabber-xx.xx.x.xx-py2.py3-none-any.whl"
+     pip install "C:\Program Files\Euresys\eGrabber\python\egrabber-xx.xx.x.xx-py2.py3-none-any.whl"
      ```
 
-     > [!NOTE]
-     > Replace the path with the actual path to the wheel file on your system.
-     > Replace the version number with the actual version of the wheel file you downloaded.
+> [!NOTE]
+> Replace the path with the actual path to the wheel file on your system.
+> Replace the version number with the actual version of the wheel file you downloaded.
 
      For more info installing the Python wheel file, see the [notes from Euresys](https://documentation.euresys.com/Products/COAXLINK/COAXLINK/en-us/Content/04_eGrabber/programmers-guide/Python.htm).
 
@@ -103,25 +103,25 @@ Device IDs (i.e. serial numbers) are necessary to accurately construct the [inst
 
 3. To find the device number (i.e. Dev#) for the NI-DAQ, we recommend using a program such as [DAQExpress](https://www.ni.com/en/support/downloads/software-products/download.daqexpress.html?srsltid=AfmBOorqILt1ZQBJS6danKWZslqrQ-NUqIQ0kZrmQdNLI_b2HxMcql8C#348849) or programatically determing the device number. Running the example code below should reveal the number of all NI devices connected to the computer.
 
-```python
-  import nidaqmx
+     ```python
+     import nidaqmx
 
-  for device in nidaqmx.system.System.local().devices:
-    print(f"device number = {device.name}")
-```
+     for device in nidaqmx.system.System.local().devices:
+     print(f"device number = {device.name}")
+     ```
 
 4. To find the ID of the Coherent Genesis lasers, open a terminal and activate the virtual environment with the installed exaspim-control repository. Then issue the following commands, which should return the ID of all detected Genesis lasers
 
-```bash
-> cohrhops
-Found 3 devices:
-  J687424BP914:
-  A700467EP203:
-  R708588EQ173:
-  ...
-```
+     ```bash
+     > cohrhops
+     Found 3 devices:
+       J687424BP914:
+       A700467EP203:
+       R708588EQ173:
+       ...
+     ```
 
-The 488 nm laser ID format will be A###########, the 561 nm laser ID format will be J###########, and the 639 nm laser ID format will be R###########. 
+     The 488 nm laser ID format will be A###########, the 561 nm laser ID format will be J###########, and the 639 nm laser ID format will be R###########. 
 
 ### Recommended Hardware
 
