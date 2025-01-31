@@ -60,36 +60,34 @@ This control software can optionally check I/O bandwidth to a local and external
     pip install -e .
     ```
   This should install two repositories that this repository builds upon:
-  - [voxel](https://github.com/AllenNeuralDynamics/voxel):
-    - Core drivers, microscope, and acquisition codebase
-  - [view](https://github.com/AllenNeuralDynamics/view):
-    - Core GUI codebase
+  - [voxel](https://github.com/AllenNeuralDynamics/voxel) - core drivers, microscope, and acquisition codebase
+  - [view](https://github.com/AllenNeuralDynamics/view) - core GUI codebase
 
 
 4. For the Vieworks VP-151MX camera you will need to install the **egrabber** python package. This is available for both Windows and Linux.
 
-However, you will first need to have the [eGrabber for CoaxLink and GigELink](https://www.euresys.com/en/Support/Download-area?Series=105d06c5-6ad9-42ff-b7ce-622585ce607f) installed for your particular system.
+  However, you will first need to have the [eGrabber for CoaxLink and GigELink](https://www.euresys.com/en/Support/Download-area?Series=105d06c5-6ad9-42ff-b7ce-622585ce607f) installed for your particular system.
 
-The official python SDK is not published on PyPI but comes bundled with the eGrabber SDK as a wheel file.
+  The official python SDK is not published on PyPI but comes bundled with the eGrabber SDK as a wheel file.
 
-If you plan to use the provided [Memento](./vieworks/memento.py) class for logging statistics from the camera, you will need to also install [Memento](https://www.euresys.com/en/Support/Download-area?Series=105d06c5-6ad9-42ff-b7ce-622585ce607f)
+  If you plan to use the provided [Memento](./vieworks/memento.py) class for logging statistics from the camera, you will need to also install [Memento](https://www.euresys.com/en/Support/Download-area?Series=105d06c5-6ad9-42ff-b7ce-622585ce607f)
 
-> [!NOTE]
-> To download the eGrabber SDK, you will first need to make an account.
+  > [!NOTE]
+  > To download the eGrabber SDK, you will first need to make an account.
 
-Once the eGrabber SDK is installed, find the wheel file in the program's subfolder and install it into your environment using pip.
+  Once the eGrabber SDK is installed, find the wheel file in the program's subfolder and install it into your environment using pip.
 
-For example on windows:
+  For example on windows:
 
-```bash
-    pip install "C:\Program Files\Euresys\eGrabber\python\egrabber-xx.xx.x.xx-py2.py3-none-any.whl"
-```
+  ```bash
+      pip install "C:\Program Files\Euresys\eGrabber\python\egrabber-xx.xx.x.xx-py2.py3-none-any.whl"
+  ```
 
-> [!NOTE]
-> Replace the path with the actual path to the wheel file on your system.
-> Replace the version number with the actual version of the wheel file you downloaded.
+  > [!NOTE]
+  > Replace the path with the actual path to the wheel file on your system.
+  > Replace the version number with the actual version of the wheel file you downloaded.
 
-For more info installing the Python wheel file, see the [notes from Euresys](https://documentation.euresys.com/Products/COAXLINK/COAXLINK/en-us/Content/04_eGrabber/programmers-guide/Python.htm).
+  For more info installing the Python wheel file, see the [notes from Euresys](https://documentation.euresys.com/Products/COAXLINK/COAXLINK/en-us/Content/04_eGrabber/programmers-guide/Python.htm).
 
 5. NI-DAQmx is required. Visit [ni.com/downloads](ni.com/downloads) to download the latest version of NI-DAQmx. None of the recommended Additional items are required for nidaqmx to function, and they can be removed to minimize installation size. It is recommended you continue to install the NI Certificates package to allow your Operating System to trust NI built binaries, improving your software and hardware installation experience.
 
