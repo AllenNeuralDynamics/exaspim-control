@@ -59,9 +59,9 @@ This control software can optionally check I/O bandwidth to a local and external
     ```bash
     pip install -e .
     ```
-  This should install two repositories that this repository builds upon:
-  - [voxel](https://github.com/AllenNeuralDynamics/voxel) - core drivers, microscope, and acquisition codebase
-  - [view](https://github.com/AllenNeuralDynamics/view) - core GUI codebase
+     This should install two repositories that this repository builds upon:
+     - [voxel](https://github.com/AllenNeuralDynamics/voxel) - core drivers, microscope, and acquisition codebase
+     - [view](https://github.com/AllenNeuralDynamics/view) - core GUI codebase
 
 
 4. For the Vieworks VP-151MX camera you will need to install the **egrabber** python package. This is available for both Windows and Linux.
