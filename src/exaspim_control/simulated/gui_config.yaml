@@ -1,4 +1,10 @@
 instrument_view:
+  properties:
+    camera_rotation_deg: -90.0
+    resolution_levels: 6
+    intensity_min: 30
+    intensity_max: 400
+    alignment_roi_size: 512
   device_widgets:
       vp-151mx:
         type: camera
@@ -14,7 +20,7 @@ instrument_view:
         driver: exaspim_control.widgets.laser_widget
         module: LaserWidget
         init:
-          color: blue
+          color: "#1FB3E0"
           advanced_user: False
         updating_properties:
           - power_mw
@@ -24,7 +30,7 @@ instrument_view:
         driver: exaspim_control.widgets.laser_widget
         module: LaserWidget
         init:
-          color: green
+          color: "#32A852"
           advanced_user: False
         updating_properties:
           - power_mw
@@ -34,7 +40,7 @@ instrument_view:
         driver: exaspim_control.widgets.laser_widget
         module: LaserWidget
         init:
-          color: red
+          color: "#C44157"
           advanced_user: False
         updating_properties:
           - power_mw
@@ -107,33 +113,31 @@ instrument_view:
           - temperature_c
       pcie-6738:
         type: daq
-        driver: view.widgets.device_widgets.ni_widget
+        driver: exaspim_control.widgets.ni_widget
         module: NIWidget
         init:
             advanced_user: False
             exposed_branches:
               tasks.ao_task.ports.left tunable lens:
                 parameters.amplitude_volts.channels:
-                      "488": 2.795
-                      "561": 2.795
-                      "639": 2.795
+                      - "488"
+                      - "561"
+                      - "639"
                 parameters.offset_volts.channels:
-                      "488": 5.21
-                      "561": 5.39
-                      "639": 5.62
+                      - "488"
+                      - "561"
+                      - "639"
               tasks.ao_task.ports.right tunable lens:
                 parameters.amplitude_volts.channels:
-                      "488": 2.795
-                      "561": 2.795
-                      "639": 2.795
+                      - "488"
+                      - "561"
+                      - "639"
                 parameters.offset_volts.channels:
-                      "488": 5.21
-                      "561": 5.39
-                      "639": 5.62
+                      - "488"
+                      - "561"
+                      - "639"
 acquisition_view:
-  fov_dimensions: [8.00128, 10.672384, 0 ]
-  coordinate_plane: [ '-x', 'y', 'z' ]
-  unit: 'mm'
+  coordinate_plane: [ "-x", "y", "z" ]
   acquisition_widgets:
     channel_plan:
       init:
@@ -144,13 +148,13 @@ acquisition_view:
           round_z_mm:
             delegate: combo
             type: str
-            items: ['64', '128', '256', '512', '1024', '2048']
-            initial_value: '2048'
+            items: ["64", "128", "256", "512", "1024", "2048"]
+            initial_value: "2048"
           prechecks:
             delegate: combo
             type: str
-            items: ['on', 'off']
-            initial_value: 'on'
+            items: ["on", "off"]
+            initial_value: "off"
           repeats:
             delegate: spin
             type: int

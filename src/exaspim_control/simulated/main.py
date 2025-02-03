@@ -17,6 +17,7 @@ ACQUISITION_YAML = RESOURCES_DIR / "acquisition.yaml"
 INSTRUMENT_YAML = RESOURCES_DIR / "instrument.yaml"
 GUI_YAML = RESOURCES_DIR / "gui_config.yaml"
 
+
 if __name__ == "__main__":
 
     # Setup logging.

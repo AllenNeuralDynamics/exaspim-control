@@ -26,7 +26,7 @@ instrument:
         height_px: 10640
         width_px: 14192
         trigger:
-          mode: on
+          mode: off
           polarity: risingedge
           source: line0
         bit_packing_mode: msb
@@ -427,10 +427,10 @@ instrument:
             timing:
               period_time_ms: 544.0
               rest_time_ms: 150.0
-              retriggerable: 'on'
+              retriggerable: "on"
               sample_mode: finite
               sampling_frequency_hz: 10000
-              trigger_mode: 'on'
+              trigger_mode: "on"
               trigger_polarity: rising
               trigger_port: PFI0
           co_task:
@@ -440,4 +440,4 @@ instrument:
             timing:
               frequency_hz: 1.4
               output_port: PFI0
-              trigger_mode: 'off'
+              trigger_mode: "off"

@@ -90,9 +90,9 @@ class MetadataLaunch:
             os.makedirs(Path(save_to, "exaSPIM"))
             os.makedirs(Path(save_to, "derivatives"))
             for file in os.listdir(save_to):
-                if file.endswith(".ims"):
+                if file.endswith(".ims") or file.endswith(".zarr"):
                     os.rename(str(Path(save_to, file)), str(Path(save_to, "exaSPIM", file)))
-                if file.endswith(".tiff"):
+                if file.endswith(".tiff") or file.endswith(".log") or file.endswith(".yaml"):
                     os.rename(str(Path(save_to, file)), str(Path(save_to, "derivatives", file)))
             # delete local directory
             self.log.info(f"deleting {str(Path(transfer.local_path, transfer.acquisition_name))}")
@@ -113,9 +113,9 @@ class MetadataLaunch:
             os.makedirs(Path(save_to, "exaSPIM"))
             os.makedirs(Path(save_to, "derivatives"))
             for file in os.listdir(save_to):
-                if file.endswith(".ims"):
+                if file.endswith(".ims") or file.endswith(".zarr"):
                     os.rename(str(Path(save_to, file)), str(Path(save_to, "exaSPIM", file)))
-                if file.endswith(".tiff"):
+                if file.endswith(".tiff") or file.endswith(".log") or file.endswith(".yaml"):
                     os.rename(str(Path(save_to, file)), str(Path(save_to, "derivatives", file)))
 
     def parse_metadata(self, external_drive: str, local_drive: str) -> acquisition.Acquisition:

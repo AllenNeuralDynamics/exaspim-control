@@ -176,6 +176,13 @@ instrument:
         #        a: a
         #        b: b
         #        m: m
+    temperature_sensor:
+      type: temperature_sensor
+      driver: voxel.devices.temperature_sensor.thorlabs.tsp0b1
+      module: TSP01BTemperatureSensor
+      init:
+        id: M01221847
+        channel: TH1
     # power meter:
     #   type: power_meter
     #   driver: voxel.devices.power_meter.thorlabs.pm100
@@ -189,7 +196,7 @@ instrument:
     #   module: MFF1101FlipMount
     #   init:
     #     id: powell lens
-    #     conn: '37008111'
+    #     conn: "37008111"
     #     positions:
     #       alignment mode: 0
     #       imaging mode: 1
@@ -503,10 +510,10 @@ instrument:
             timing:
               period_time_ms: 544.0
               rest_time_ms: 150.0
-              retriggerable: 'on'
+              retriggerable: "on"
               sample_mode: finite
               sampling_frequency_hz: 10000
-              trigger_mode: 'on'
+              trigger_mode: "on"
               trigger_polarity: rising
               trigger_port: PFI0
           co_task:
@@ -516,4 +523,4 @@ instrument:
             timing:
               frequency_hz: 1.4
               output_port: PFI0
-              trigger_mode: 'off'
+              trigger_mode: "off"

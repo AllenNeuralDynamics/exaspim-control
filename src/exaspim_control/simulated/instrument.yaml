@@ -21,12 +21,12 @@ instrument:
       init:
         id: MP151BBX006
       properties:
-        exposure_time_ms: 10.0
+        exposure_time_ms: 200.0
         pixel_type: mono16
-        height_px: 1024
+        height_px: 512
         width_px: 1024
         trigger:
-          mode: on
+          mode: off
           polarity: rising
           source: external
         binning: 1
@@ -426,10 +426,10 @@ instrument:
             timing:
               period_time_ms: 544.0
               rest_time_ms: 150.0
-              retriggerable: 'on'
+              retriggerable: "on"
               sample_mode: finite
               sampling_frequency_hz: 10000
-              trigger_mode: 'on'
+              trigger_mode: "on"
               trigger_polarity: rising
               trigger_port: PFI0
           co_task:
@@ -439,4 +439,4 @@ instrument:
             timing:
               frequency_hz: 1.4
               output_port: PFI0
-              trigger_mode: 'off'
+              trigger_mode: "off"

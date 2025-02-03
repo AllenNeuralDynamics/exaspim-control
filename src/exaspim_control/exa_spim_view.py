@@ -1,9 +1,25 @@
-from qtpy.QtCore import Signal, Qt
-from datetime import datetime
-from pathlib import Path
-from qtpy.QtCore import Signal
+import numpy as np
+from qtpy.QtCore import Qt, Signal
+from qtpy.QtWidgets import (
+    QFrame,
+    QGridLayout,
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QScrollArea,
+    QSizePolicy,
+    QSplitter,
+    QVBoxLayout,
+    QWidget,
+    QComboBox,
+)
+
 from view.acquisition_view import AcquisitionView
 from view.instrument_view import InstrumentView
+from view.widgets.acquisition_widgets.channel_plan_widget import ChannelPlanWidget
+from view.widgets.acquisition_widgets.volume_model import VolumeModel
+from view.widgets.acquisition_widgets.volume_plan_widget import VolumePlanWidget
+from view.widgets.base_device_widget import create_widget, disable_button
 from voxel.processes.downsample.gpu.gputools.rank_downsample_2d import GPUToolsRankDownSample2D
 from napari.utils.theme import get_theme
 from view.widgets.base_device_widget import (
@@ -31,13 +47,22 @@ class ExASPIMInstrumentView(InstrumentView):
         super().__init__(instrument, config_path, log_level)
         self.setup_flip_mount_widgets()
         # viewer constants for ExA-SPIM
-        self.pixel_size_x_um = 0.748
-        self.pixel_size_y_um = 0.748
-        self.intensity_min = 30
-        self.intensity_max = 400
-        self.camera_rotation = -90
-        self.resolution_levels = 6
-        self.alignment_roi_size = 512
+        self.viewer.title = "ExA-SPIM control"
+        self.intensity_min = self.config["instrument_view"]["properties"]["intensity_min"]
+        if self.intensity_min < 0 or self.intensity_min > 65535:
+            raise ValueError("intensity min must be between 0 and 65535")
+        self.intensity_max = self.config["instrument_view"]["properties"]["intensity_max"]
+        if self.intensity_max < self.intensity_min or self.intensity_max > 65535:
+            raise ValueError("intensity max must be between intensity min and 65535")
+        self.camera_rotation = self.config["instrument_view"]["properties"]["camera_rotation_deg"]
+        if self.camera_rotation not in [0, 90, 180, 270, 360, -90, -180, -270]:
+            raise ValueError("camera rotation must be 0, 90, 180, 270, -90, -180, -270")
+        self.resolution_levels = self.config["instrument_view"]["properties"]["resolution_levels"]
+        if self.resolution_levels < 1 or self.resolution_levels > 10:
+            raise ValueError("resolution levels must be between 1 and 10")
+        self.alignment_roi_size = self.config["instrument_view"]["properties"]["alignment_roi_size"]
+        if self.alignment_roi_size < 2 or self.alignment_roi_size > 1024:
+            raise ValueError("alignment roi size must be between 2 and 1024")
         self.viewer.scale_bar.visible = True
         self.viewer.scale_bar.unit = "um"
         self.viewer.scale_bar.position = "bottom_left"
@@ -94,25 +119,78 @@ class ExASPIMInstrumentView(InstrumentView):
             **self.focusing_stage_widgets,
         }.items():
             label = QLabel()
-            frame = QFrame()
             layout = QVBoxLayout()
             layout.addWidget(create_widget("H", label, widget))
-            frame.setLayout(layout)
-            border_color = get_theme(self.viewer.theme, as_dict=False).foreground
-            frame.setStyleSheet(f".QFrame {{ border:1px solid {border_color}; }} ")
-            stage_widgets.append(frame)
+            stage_widgets.append(layout)
 
         stage_axes_widget = create_widget("V", *stage_widgets)
         stage_axes_widget.setContentsMargins(0, 0, 0, 0)
-        stage_axes_widget.layout().setSpacing(0)
+        stage_axes_widget.layout().setSpacing(6)
 
         stage_scroll = QScrollArea()
         stage_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         stage_scroll.setWidget(stage_axes_widget)
         self.viewer.window.add_dock_widget(stage_axes_widget, area="left", name="Stages")
 
-    def setup_flip_mount_widgets(self):
-        """Setup flip mounts in the viewer window"""
+    def setup_laser_widgets(self) -> None:
+        """
+        Setup laser widgets.
+        """
+        laser_widgets = []
+        for name, widget in self.laser_widgets.items():
+            label = QLabel(name)
+            layout = QVBoxLayout()
+            layout.addWidget(create_widget("H", label, widget))
+            laser_widgets.append(layout)
+        laser_widget = create_widget("V", *laser_widgets)
+        laser_widget.layout().setSpacing(6)
+        self.viewer.window.add_dock_widget(laser_widget, area="bottom", name="Lasers")
+
+    def setup_channel_widget(self) -> None:
+        """
+        Create widget to select which laser to livestream with.
+        """
+        widget = QWidget()
+        layout = QVBoxLayout()
+        label = QLabel("Active Channel")
+        laser_combo_box = QComboBox(widget)
+        laser_combo_box.addItems(self.channels.keys())
+        laser_combo_box.currentTextChanged.connect(lambda value: self.change_channel(value))
+        laser_combo_box.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Minimum)
+        laser_combo_box.setCurrentIndex(1)  # initialize to first channel index
+        layout.addWidget(label)
+        layout.addWidget(laser_combo_box)
+        widget.setLayout(layout)
+        widget.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Minimum)
+        self.viewer.window.add_dock_widget(widget, area="bottom", name="Channels")
+
+    def change_channel(self, channel: str) -> None:
+        """
+        Change the livestream channel.
+
+        :param channel: Name of the channel
+        :type channel: str
+        """
+        if self.grab_frames_worker.is_running:  # livestreaming is going
+            for old_laser_name in self.channels[self.livestream_channel].get("lasers", []):
+                self.log.info(f"Disabling laser {old_laser_name}")
+                self.instrument.lasers[old_laser_name].disable()
+            for daq_name, daq in self.instrument.daqs.items():
+                self.log.info(f"Writing new waveforms for {daq_name}")
+                self.write_waveforms(daq)
+            for new_laser_name in self.channels[channel].get("lasers", []):
+                self.log.info(f"Enabling laser {new_laser_name}")
+                self.instrument.lasers[new_laser_name].enable()
+        self.livestream_channel = channel
+        # change filter
+        for filter in self.channels[self.livestream_channel].get("filters", []):
+            self.log.info(f"Enabling filter {filter}")
+            self.instrument.filters[filter].enable()
+
+    def setup_flip_mount_widgets(self) -> None:
+        """
+        Set up flip mount widgets.
+        """
         stacked = self.stack_device_widgets("flip_mount")
         self.viewer.window.add_dock_widget(stacked, area="right", name="Flip Mounts")
 
@@ -122,14 +200,18 @@ class ExASPIMInstrumentView(InstrumentView):
 
     def update_layer(self, args, snapshot: bool = False) -> None:
         """Multiscale image from exaspim and rotate images for volume widget
-        :param args: tuple containing image and camera name
-        :param snapshot: if image taken is a snapshot or not"""
+        :param args: Tuple containing image and camera name
+        :type args: tuple
+        :param snapshot: Whether the image is a snapshot, defaults to False
+        :type snapshot: bool, optional
+        """
 
         (image, camera_name) = args
 
         # calculate centroid of image
-        y_center_um = image.shape[0] // 2 * self.pixel_size_y_um
-        x_center_um = image.shape[1] // 2 * self.pixel_size_x_um
+        y_center_um = image.shape[0] // 2 * self.instrument.cameras[camera_name].sampling_um_px
+        x_center_um = image.shape[1] // 2 * self.instrument.cameras[camera_name].sampling_um_px
+        pixel_size_um = self.instrument.cameras[camera_name].sampling_um_px
 
         if image is not None:
             _ = self.viewer.layers
@@ -164,11 +246,10 @@ class ExASPIMInstrumentView(InstrumentView):
                     multiscale,
                     name=layer_name,
                     contrast_limits=(self.intensity_min, self.intensity_max),
-                    scale=(self.pixel_size_y_um, self.pixel_size_x_um),
+                    scale=(pixel_size_um, pixel_size_um),
                     translate=(-x_center_um, y_center_um),
                     rotate=self.camera_rotation,
                 )
-                # TODO CHECK is multiscale already rotated 90? Or is the openGL window mixing up rows/columns?
                 layer.mouse_drag_callbacks.append(self.save_image)
                 if snapshot:  # emit signal if snapshot
                     self.snapshotTaken.emit(np.rot90(multiscale[-3], k=2), layer.contrast_limits)
@@ -176,7 +257,7 @@ class ExASPIMInstrumentView(InstrumentView):
                         lambda event: self.contrastChanged.emit(np.rot90(layer.data[-3], k=2), layer.contrast_limits)
                     )
 
-    def dissect_image(self, args) -> None:
+    def dissect_image(self, args: tuple) -> None:
         """
         Process images for alignment mode
         """
@@ -266,23 +347,6 @@ class ExASPIMInstrumentView(InstrumentView):
             self.grab_frames_worker.yielded.disconnect(self.dissect_image)
             self.grab_frames_worker.yielded.connect(self.update_layer)
 
-    # layer based crosshairs
-    # def show_crosshairs(self, camera_name):
-    #     """
-    #     Add crosshair to viewer
-    #     """
-    #     if self.crosshairs_button.isChecked():
-    #         vert_line = np.array([[-5000, 0], [5000, 0]])
-    #         horz_line = np.array([[0, -5000], [0, 5000]])
-    #         lines = [vert_line, horz_line]
-    #         color = ["blue", "green"]
-    #         self.viewer.add_shapes(lines, shape_type="line", edge_width=30, edge_color=color, name="Crosshair")
-    #     else:
-    #         try:
-    #             self.viewer.layers.remove("Crosshair")
-    #         except ValueError:
-    #             pass
-
     def dismantle_live(self, camera_name: str) -> None:
         """
         Safely shut down live
@@ -306,10 +370,123 @@ class ExASPIMAcquisitionView(AcquisitionView):
     acquisitionEnded = Signal()
     acquisitionStarted = Signal((datetime))
 
-    def __init__(self, acquisition, instrument_view):
-        super().__init__(acquisition=acquisition, instrument_view=instrument_view)
-        # acquisition constants for ExA-SPIM
+    def __init__(self, acquisition: object, instrument_view: ExASPIMInstrumentView):
+        """
+        Initialize the ExASPIMAcquisitionView object.
+
+        :param acquisition: Acquisition object
+        :type acquisition: object
+        :param instrument_view: Instrument view object
+        :type instrument_view: ExASPIMInstrumentView
+        """
+        # acquisition view constants for ExA-SPIM
         self.acquisition_binning = 4
+        instrument_view.config["acquisition_view"]["unit"] = "mm"
+        super().__init__(acquisition=acquisition, instrument_view=instrument_view)
+        self.setWindowTitle("ExA-SPIM control")
+
+    def create_acquisition_widget(self) -> QSplitter:
+        """
+        Create the acquisition widget.
+
+        :raises KeyError: If the coordinate plane does not match instrument axes in tiling_stages
+        :return: Acquisition widget
+        :rtype: QSplitter
+        """
+        # find limits of all axes
+        lim_dict = {}
+        # add tiling stages
+        for name, stage in self.instrument.tiling_stages.items():
+            lim_dict.update({f"{stage.instrument_axis}": stage.limits_mm})
+        # last axis should be scanning axis
+        ((scan_name, scan_stage),) = self.instrument.scanning_stages.items()
+        lim_dict.update({f"{scan_stage.instrument_axis}": scan_stage.limits_mm})
+        try:
+            limits = [lim_dict[x.strip("-")] for x in self.coordinate_plane]
+        except KeyError:
+            raise KeyError("Coordinate plane must match instrument axes in tiling_stages")
+
+        # TODO fix this, messy way to figure out FOV dimensions from camera properties
+        first_camera_key = list(self.instrument.cameras.keys())[0]
+        camera = self.instrument.cameras[first_camera_key]
+        fov_height_mm = camera.fov_height_mm
+        fov_width_mm = camera.fov_width_mm
+        camera_rotation = self.config["instrument_view"]["properties"]["camera_rotation_deg"]
+        if camera_rotation in [-270, -90, 90, 270]:
+            fov_dimensions = [fov_height_mm, fov_width_mm, 0]
+        else:
+            fov_dimensions = [fov_width_mm, fov_height_mm, 0]
+
+        acquisition_widget = QSplitter(Qt.Vertical)
+        acquisition_widget.setChildrenCollapsible(False)
+
+        # create volume plan
+        self.volume_plan = VolumePlanWidget(
+            limits=limits, fov_dimensions=fov_dimensions, coordinate_plane=self.coordinate_plane, unit=self.unit
+        )
+        self.volume_plan.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Minimum)
+
+        # create volume model
+        self.volume_model = VolumeModel(
+            limits=limits,
+            fov_dimensions=fov_dimensions,
+            coordinate_plane=self.coordinate_plane,
+            unit=self.unit,
+            **self.config["acquisition_view"]["acquisition_widgets"].get("volume_model", {}).get("init", {}),
+        )
+        # combine floating volume_model widget with glwindow
+        combined_layout = QGridLayout()
+        combined_layout.addWidget(self.volume_model, 0, 0, 3, 1)
+        combined_layout.addWidget(self.volume_model.widgets, 3, 0, 1, 1)
+        combined = QWidget()
+        combined.setLayout(combined_layout)
+        acquisition_widget.addWidget(create_widget("H", self.volume_plan, combined))
+
+        # create channel plan
+        self.channel_plan = ChannelPlanWidget(
+            instrument_view=self.instrument_view,
+            channels=self.instrument.config["instrument"]["channels"],
+            unit=self.unit,
+            **self.config["acquisition_view"]["acquisition_widgets"].get("channel_plan", {}).get("init", {}),
+        )
+        # place volume_plan.tile_table and channel plan table side by side
+        table_splitter = QSplitter(Qt.Horizontal)
+        table_splitter.setChildrenCollapsible(False)
+        table_splitter.setHandleWidth(20)
+
+        widget = QWidget()  # dummy widget to move tile_table down in layout
+        widget.setMinimumHeight(25)
+        table_splitter.addWidget(create_widget("V", widget, self.volume_plan.tile_table))
+        table_splitter.addWidget(self.channel_plan)
+
+        # format splitter handle. Must do after all widgets are added
+        handle = table_splitter.handle(1)
+        handle_layout = QHBoxLayout(handle)
+        line = QFrame(handle)
+        line.setStyleSheet("QFrame {border: 1px dotted grey;}")
+        line.setFixedHeight(50)
+        line.setFrameShape(QFrame.VLine)
+        handle_layout.addWidget(line)
+
+        # add tables to layout
+        acquisition_widget.addWidget(table_splitter)
+
+        # connect signals
+        self.instrument_view.snapshotTaken.connect(self.volume_model.add_fov_image)  # connect snapshot signal
+        self.instrument_view.contrastChanged.connect(
+            self.volume_model.adjust_glimage_contrast
+        )  # connect snapshot adjusted
+        self.volume_model.fovHalt.connect(self.stop_stage)  # stop stage if halt button is pressed
+        self.volume_model.fovMove.connect(self.move_stage)  # move stage to clicked coords
+        self.volume_plan.valueChanged.connect(self.volume_plan_changed)
+        self.channel_plan.channelAdded.connect(self.channel_plan_changed)
+        self.channel_plan.channelChanged.connect(self.update_tiles)
+
+        # TODO: This feels like a clunky connection. Works for now but could probably be improved
+        self.volume_plan.header.startChanged.connect(lambda i: self.create_tile_list())
+        self.volume_plan.header.stopChanged.connect(lambda i: self.create_tile_list())
+
+        return acquisition_widget
 
     def update_acquisition_layer(self, image: np.ndarray, camera_name: str):
         """Update viewer with latest frame taken during acquisition
@@ -319,33 +496,6 @@ class ExASPIMAcquisitionView(AcquisitionView):
 
         if image is not None:
             self.instrument_view.update_layer((image, camera_name))
-
-        # if image is not None:
-        #     downsampler = GPUToolsRankDownSample2D(binning=self.acquisition_binning, rank=-2, data_type="uint16")
-        #     acquisition_image = downsampler.run(image)
-        #     # downsampled = skimage.measure.block_reduce(image, (4, 4), np.mean)
-
-        #     # calculate centroid of image
-        #     y_center_um = image.shape[0] // 2 * self.instrument_view.pixel_size_y_um
-        #     x_center_um = image.shape[1] // 2 * self.instrument_view.pixel_size_x_um
-
-        #     layer_name = f"{camera_name} acquisition"
-        #     if layer_name in self.instrument_view.viewer.layers:
-        #         layer = self.instrument_view.viewer.layers[layer_name]
-        #         layer.data = acquisition_image
-        #     else:
-        #         # Add image to a new layer if layer doesn't exist yet or image is snapshot
-        #         layer = self.instrument_view.viewer.add_image(
-        #             acquisition_image,
-        #             name=layer_name,
-        #             contrast_limits=(self.instrument_view.intensity_min, self.instrument_view.intensity_max),
-        #             scale=(
-        #                 self.instrument_view.pixel_size_y_um * self.acquisition_binning,
-        #                 self.instrument_view.pixel_size_x_um * self.acquisition_binning,
-        #             ),
-        #             translate=(-x_center_um, y_center_um),
-        #             rotate=self.instrument_view.camera_rotation,
-        #         )
 
     def start_acquisition(self):
         """Overwrite to emit acquisitionStarted signal"""
@@ -357,3 +507,28 @@ class ExASPIMAcquisitionView(AcquisitionView):
         """Overwrite to emit acquisitionEnded signal"""
         super().acquisition_ended()
         self.acquisitionEnded.emit()
+
+    def create_start_button(self) -> QPushButton:
+        """
+        Create the start button.
+
+        :return: Start button
+        :rtype: QPushButton
+        """
+        start = QPushButton("Start")
+        start.clicked.connect(self.start_acquisition)
+        start.setStyleSheet("background-color: #55a35d; color: black; border-radius: 10px;")
+        return start
+
+    def create_stop_button(self) -> QPushButton:
+        """
+        Create the stop button.
+
+        :return: Stop button
+        :rtype: QPushButton
+        """
+        stop = QPushButton("Stop")
+        stop.clicked.connect(self.acquisition.stop_acquisition)
+        stop.setStyleSheet("background-color: #a3555b; color: black; border-radius: 10px;")
+        stop.setDisabled(True)
+        return stop
