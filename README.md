@@ -5,8 +5,9 @@
 - [Overview](#overview)
 - [Getting Started](#getting-started)
   - [Prerequisites](#prerequisites)
-  - [Recommended Hardware](#recommended-hardware)
   - [Installation](#installation)
+  - [Finding Device IDs](#finding-device-ids)
+  - [Recommended Hardware](#recommended-hardware)
   - [Documentation](#documentation)
   - [Usage](#usage)
 - [Support and Contribution](#support-and-contribution)
@@ -64,36 +65,16 @@ This control software can optionally check I/O bandwidth to a local and external
      - [view](https://github.com/AllenNeuralDynamics/view) - core GUI codebase
 
 
-4. For the Vieworks VP-151MX camera you will need to install the **egrabber** python package. This is available for both Windows and Linux.
+4. For the Vieworks VP-151MX camera you will need to install the **egrabber** drivers. This is available for both Windows and Linux [eGrabber for CoaxLink and GigELink](https://www.euresys.com/en/Support/Download-area?Series=105d06c5-6ad9-42ff-b7ce-622585ce607f).
 
-    However, you will first need to have the [eGrabber for CoaxLink and GigELink](https://www.euresys.com/en/Support/Download-area?Series=105d06c5-6ad9-42ff-b7ce-622585ce607f) installed for your particular system.
+5. NI-DAQmx is required. Visit [ni.com/downloads](ni.com/downloads) to download the latest version of NI-DAQmx. None of the recommended additional items are required for nidaqmx to function, and they can be removed to minimize installation size. It is recommended you continue to install the NI Certificates package to allow your Operating System to trust NI built binaries, improving your software and hardware installation experience.
 
-     The official python SDK is not published on PyPI but comes bundled with the eGrabber SDK as a wheel file.
-
-     If you plan to use the provided [Memento](./vieworks/memento.py) class for logging statistics from the camera, you will need to also install [Memento](https://www.euresys.com/en/Support/Download-area?Series=105d06c5-6ad9-42ff-b7ce-622585ce607f)
-
-     To download the eGrabber SDK, you will first need to make an account.
-
-     Once the eGrabber SDK is installed, find the wheel file in the program's subfolder and install it into your environment using pip.
-
-     For example on windows:
-
-     ```bash
-     pip install "C:\Program Files\Euresys\eGrabber\python\egrabber-xx.xx.x.xx-py2.py3-none-any.whl"
-     ```
-     
-     Replace the path with the actual path to the wheel file on your system.
-     Replace the version number with the actual version of the wheel file you downloaded.
-
-     For more info installing the Python wheel file, see the [notes from Euresys](https://documentation.euresys.com/Products/COAXLINK/COAXLINK/en-us/Content/04_eGrabber/programmers-guide/Python.htm).
-
-5. NI-DAQmx is required. Visit [ni.com/downloads](ni.com/downloads) to download the latest version of NI-DAQmx. None of the recommended Additional items are required for nidaqmx to function, and they can be removed to minimize installation size. It is recommended you continue to install the NI Certificates package to allow your Operating System to trust NI built binaries, improving your software and hardware installation experience.
-
-6. To control the Coherent Genesis lasers, the [coherent-lasers](https://github.com/AllenNeuralDynamics/coherent-lasers) package is automatically installed. However, the CohrHOPS.dll and CohrFTCI2C.dll files must be manually downloaded from the latest [release](https://github.com/AllenNeuralDynamics/coherent-lasers/releases) and copied into the package directory under src/coherent_lasers/hops.
+6. To communicate with the ASI stages, the [USB driver](https://www.asiimaging.com/support/downloads/usb-support-on-ms-2000-wk-controllers/) must be installed.
 
 ### Finding Device IDs
 
-Device IDs (i.e. serial numbers) are necessary to accurately construct the [instrument.yaml](./src/exaspim_control/experimental/instrument.yaml) file.
+> [!NOTE]
+> Device IDs (i.e. serial numbers) are necessary to accurately construct the [instrument.yaml](./src/exaspim_control/experimental/instrument.yaml) file.
 
 1. To find the camera serial number, open the eGrabber Studio program. The connected camera should be listed with a serial number in parantheses. For example: VIEWORKS VP-151MX-M6H0 (##########).
 
@@ -119,7 +100,15 @@ Device IDs (i.e. serial numbers) are necessary to accurately construct the [inst
        ...
      ```
 
-     The 488 nm laser ID format will be A###########, the 561 nm laser ID format will be J###########, and the 639 nm laser ID format will be R###########. 
+     The 488 nm laser ID format will be A###########, the 561 nm laser ID format will be J###########, and the 639 nm laser ID format will be R###########.
+
+5. To find the COM port for the Optotune ICC4C Controller, we recommend using the [Optotune Cockpit](https://www.optotune.com/software-center) software. Please follow instructions in the link for installation and usage instructions.
+
+6. To find the ID of the Thorlabs MFF101 flip mounts, we recommend using the [Thorlabs Kinesis](https://www.thorlabs.com/software_pages/ViewSoftwarePage.cfm?Code=Motion_Control&viewtab=0) software. Please follow instructions in the link for installation and usage instructions. The ID is the serial number of the device.
+
+7. To find the ID of the Thorabs PM100D power meter, we recommend using the [Thorlabs Optical Power Monitor](https://www.thorlabs.com/software_pages/ViewSoftwarePage.cfm?Code=OPM) software. Please follow instructions in the link for installation and usage instructions. The ID is the serial number of the device.
+
+8. To find the ID of the Thorlabs TSP101 temperature and humidity sensor, we recommend using the [Thorlabs TSP101](https://www.thorlabs.com/thorproduct.cfm?partnumber=TSP01) software. Please follow instructions in the link for installation and usage instructions. The ID is the serial number of the device.
 
 ### Recommended Hardware
 
