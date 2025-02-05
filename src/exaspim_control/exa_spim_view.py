@@ -1,3 +1,7 @@
+import time
+from datetime import datetime
+from pathlib import Path
+
 import numpy as np
 from qtpy.QtCore import Qt, Signal
 from qtpy.QtWidgets import (
@@ -21,31 +25,27 @@ from view.widgets.acquisition_widgets.volume_model import VolumeModel
 from view.widgets.acquisition_widgets.volume_plan_widget import VolumePlanWidget
 from view.widgets.base_device_widget import create_widget, disable_button
 from voxel.processes.downsample.gpu.gputools.rank_downsample_2d import GPUToolsRankDownSample2D
-from napari.utils.theme import get_theme
-from view.widgets.base_device_widget import (
-    create_widget,
-    disable_button,
-)
-from qtpy.QtWidgets import (
-    QVBoxLayout,
-    QLabel,
-    QFrame,
-    QPushButton,
-    QScrollArea,
-)
-import numpy as np
-import time
-from napari.utils.theme import get_theme
 
 
 class ExASPIMInstrumentView(InstrumentView):
-    """View for ExASPIM Instrument"""
+    """Class for handling ExASPIM instrument view."""
 
-    def __init__(self, instrument, config_path: Path, log_level="INFO"):
+    def __init__(self, instrument: object, config_path: Path, log_level: str = "INFO"):
+        """
+        Initialize the ExASPIMInstrumentView object.
 
+        :param instrument: Instrument object
+        :type instrument: object
+        :param config_path: Configuration path
+        :type config_path: Path
+        :param log_level: Logging level, defaults to "INFO"
+        :type log_level: str, optional
+        """
         self.flip_mount_widgets = {}
         super().__init__(instrument, config_path, log_level)
+        # other setup taken care of in base instrumentview class
         self.setup_flip_mount_widgets()
+
         # viewer constants for ExA-SPIM
         self.viewer.title = "ExA-SPIM control"
         self.intensity_min = self.config["instrument_view"]["properties"]["intensity_min"]
@@ -69,11 +69,10 @@ class ExASPIMInstrumentView(InstrumentView):
         self.viewer.text_overlay.visible = True
         self.viewer.window._qt_viewer.canvas._scene_canvas.measure_fps(callback=self.update_fps)
 
-    def setup_camera_widgets(self):
+    def setup_camera_widgets(self) -> None:
         """
-        Setup live view and snapshot button
+        Set up camera widgets.
         """
-
         for camera_name, camera_widget in self.camera_widgets.items():
 
             # Add functionality to snapshot button
@@ -102,16 +101,17 @@ class ExASPIMInstrumentView(InstrumentView):
         stacked = self.stack_device_widgets("camera")
         self.viewer.window.add_dock_widget(stacked, area="right", name="Cameras", add_vertical_stretch=False)
 
-    def setup_filter_wheel_widgets(self):
-        """Setup filter wheels in the viewer window"""
+    def setup_filter_wheel_widgets(self) -> None:
+        """
+        Set up filter wheel widgets.
+        """
         self.log.info("passing on setting up filter wheel widgets")
         pass
 
     def setup_stage_widgets(self) -> None:
         """
-        Arrange stage position and joystick widget
+        Set up stage widgets.
         """
-
         stage_widgets = []
         for name, widget in {
             **self.tiling_stage_widgets,
@@ -194,12 +194,19 @@ class ExASPIMInstrumentView(InstrumentView):
         stacked = self.stack_device_widgets("flip_mount")
         self.viewer.window.add_dock_widget(stacked, area="right", name="Flip Mounts")
 
-    def update_fps(self, fps):
-        """Update FPS text overlay in viewer"""
+    def update_fps(self, fps: float) -> None:
+        """
+        Update the frames per second (FPS) display.
+
+        :param fps: Frames per second
+        :type fps: float
+        """
         self.viewer.text_overlay.text = f"{fps:1.1f} fps"
 
-    def update_layer(self, args, snapshot: bool = False) -> None:
-        """Multiscale image from exaspim and rotate images for volume widget
+    def update_layer(self, args: tuple, snapshot: bool = False) -> None:
+        """
+        Update the image layer in the viewer.
+
         :param args: Tuple containing image and camera name
         :type args: tuple
         :param snapshot: Whether the image is a snapshot, defaults to False
@@ -259,9 +266,11 @@ class ExASPIMInstrumentView(InstrumentView):
 
     def dissect_image(self, args: tuple) -> None:
         """
-        Process images for alignment mode
-        """
+        Dissect the image and add to the viewer.
 
+        :param args: Tuple containing image and camera name
+        :type args: tuple
+        """
         (image, camera_name) = args
 
         if image is not None:
@@ -332,8 +341,7 @@ class ExASPIMInstrumentView(InstrumentView):
 
     def enable_alignment_mode(self) -> None:
         """
-        Toggle view middle edges when pressed
-        :param camera_name: name of camera to set up
+        Enable alignment mode.
         """
         if not self.grab_frames_worker.is_running:
             return
@@ -349,26 +357,27 @@ class ExASPIMInstrumentView(InstrumentView):
 
     def dismantle_live(self, camera_name: str) -> None:
         """
-        Safely shut down live
-        :param camera_name: name of camera to shut down live
-        """
+        Dismantle live view for the specified camera.
 
+        :param camera_name: Camera name
+        :type camera_name: str
+        """
         self.instrument.cameras[camera_name].abort()
         for daq_name, daq in self.instrument.daqs.items():
             # wait for daq tasks to finish - prevents devices from stopping in
             # unsafe state, i.e. lasers still on
             daq.co_task.stop()
-            # sleep to allow last ao to play with 10% byffer
+            # sleep to allow last ao to play with 10% buffer
             time.sleep(1.0 / daq.co_frequency_hz * 1.1)
             # stop the ao task
             daq.ao_task.stop()
 
 
 class ExASPIMAcquisitionView(AcquisitionView):
-    """View for ExASPIM Acquisition"""
+    """Class for handling ExASPIM acquisition view."""
 
     acquisitionEnded = Signal()
-    acquisitionStarted = Signal((datetime))
+    acquisitionStarted = Signal((datetime,))
 
     def __init__(self, acquisition: object, instrument_view: ExASPIMInstrumentView):
         """
@@ -488,23 +497,57 @@ class ExASPIMAcquisitionView(AcquisitionView):
 
         return acquisition_widget
 
-    def update_acquisition_layer(self, image: np.ndarray, camera_name: str):
-        """Update viewer with latest frame taken during acquisition
-        :param image: numpy array to add to viewer
-        :param camera_name: name of camera that image came off
+    def update_acquisition_layer(self, image: np.ndarray, camera_name: str) -> None:
         """
+        Update the acquisition image layer in the viewer.
 
+        :param image: Image array
+        :type image: np.ndarray
+        :param camera_name: Camera name
+        :type camera_name: str
+        """
         if image is not None:
-            self.instrument_view.update_layer((image, camera_name))
+            downsampler = GPUToolsRankDownSample2D(binning=self.acquisition_binning, rank=-2, data_type="uint16")
+            acquisition_image = downsampler.run(image)
 
-    def start_acquisition(self):
-        """Overwrite to emit acquisitionStarted signal"""
+            # calculate centroid of image
+            y_center_um = image.shape[0] // 2 * self.instrument.cameras[camera_name].sampling_um_px
+            x_center_um = image.shape[1] // 2 * self.instrument.cameras[camera_name].sampling_um_px
 
+            layer_name = f"{camera_name} acquisition"
+            if layer_name in self.instrument_view.viewer.layers:
+                layer = self.instrument_view.viewer.layers[layer_name]
+                layer.data = acquisition_image
+                layer.scale = (
+                    self.acquisition_binning * self.instrument.cameras[camera_name].sampling_um_px,
+                    self.acquisition_binning * self.instrument.cameras[camera_name].sampling_um_px,
+                )
+                layer.translate = (-x_center_um, y_center_um)
+            else:
+                # Add image to a new layer if layer doesn't exist yet or image is snapshot
+                layer = self.instrument_view.viewer.add_image(
+                    acquisition_image,
+                    name=layer_name,
+                    contrast_limits=(self.instrument_view.intensity_min, self.instrument_view.intensity_max),
+                    scale=(
+                        self.acquisition_binning * self.instrument.cameras[camera_name].sampling_um_px,
+                        self.acquisition_binning * self.instrument.cameras[camera_name].sampling_um_px,
+                    ),
+                    translate=(-x_center_um, y_center_um),
+                    rotate=self.instrument_view.camera_rotation,
+                )
+
+    def start_acquisition(self) -> None:
+        """
+        Start the acquisition process.
+        """
         super().start_acquisition()
         self.acquisitionStarted.emit(datetime.now())
 
-    def acquisition_ended(self):
-        """Overwrite to emit acquisitionEnded signal"""
+    def acquisition_ended(self) -> None:
+        """
+        Handle the end of the acquisition process.
+        """
         super().acquisition_ended()
         self.acquisitionEnded.emit()
 
