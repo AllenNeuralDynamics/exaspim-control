@@ -67,6 +67,7 @@ class ExASPIMInstrumentView(InstrumentView):
         self.viewer.scale_bar.unit = "um"
         self.viewer.scale_bar.position = "bottom_left"
         self.viewer.text_overlay.visible = True
+        self.downsampler = GPUToolsRankDownSample2D(binning=2, rank=-2, data_type="uint16")
         self.viewer.window._qt_viewer.canvas._scene_canvas.measure_fps(callback=self.update_fps)
 
     def setup_camera_widgets(self) -> None:
@@ -227,9 +228,8 @@ class ExASPIMInstrumentView(InstrumentView):
                 image[image.shape[0] // 2 - 1 : image.shape[0] // 2 + 1, :] = 1 << 16 - 1
                 image[:, image.shape[1] // 2 - 1 : image.shape[1] // 2 + 1] = 1 << 16 - 1
             multiscale = [image]
-            downsampler = GPUToolsRankDownSample2D(binning=2, rank=-2, data_type="uint16")
             for binning in range(1, self.resolution_levels):
-                downsampled_frame = downsampler.run(multiscale[-1])
+                downsampled_frame = self.downsampler.run(multiscale[-1])
                 # add crosshairs to image
                 if self.crosshairs_button.isChecked():
                     downsampled_frame[downsampled_frame.shape[0] // 2 - 1 : downsampled_frame.shape[0] // 2 + 1, :] = (
@@ -272,6 +272,11 @@ class ExASPIMInstrumentView(InstrumentView):
         :type args: tuple
         """
         (image, camera_name) = args
+
+        # calculate centroid of image
+        y_center_um = image.shape[0] // 2 * self.instrument.cameras[camera_name].sampling_um_px
+        x_center_um = image.shape[1] // 2 * self.instrument.cameras[camera_name].sampling_um_px
+        pixel_size_um = self.instrument.cameras[camera_name].sampling_um_px
 
         if image is not None:
             # Dissect image and add to viewer
@@ -335,7 +340,8 @@ class ExASPIMInstrumentView(InstrumentView):
                     combined_roi,
                     name=layer_name,
                     contrast_limits=(self.intensity_min, self.intensity_max),
-                    scale=(self.pixel_size_y_um, self.pixel_size_x_um),
+                    scale=(pixel_size_um, pixel_size_um),
+                    translate=(-x_center_um, y_center_um),
                     rotate=self.camera_rotation,
                 )
 
