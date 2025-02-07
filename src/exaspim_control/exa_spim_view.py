@@ -355,10 +355,10 @@ class ExASPIMInstrumentView(InstrumentView):
         self.viewer.layers.clear()
 
         if self.alignment_button.isChecked():
-            self.grab_frames_worker.yielded.disconnect(self.update_layer)
+            self.grab_frames_worker.yielded.disconnect()
             self.grab_frames_worker.yielded.connect(self.dissect_image)
         else:
-            self.grab_frames_worker.yielded.disconnect(self.dissect_image)
+            self.grab_frames_worker.yielded.disconnect()
             self.grab_frames_worker.yielded.connect(self.update_layer)
 
     def dismantle_live(self, camera_name: str) -> None:
@@ -513,35 +513,7 @@ class ExASPIMAcquisitionView(AcquisitionView):
         :type camera_name: str
         """
         if image is not None:
-            downsampler = GPUToolsRankDownSample2D(binning=self.acquisition_binning, rank=-2, data_type="uint16")
-            acquisition_image = downsampler.run(image)
-
-            # calculate centroid of image
-            y_center_um = image.shape[0] // 2 * self.instrument.cameras[camera_name].sampling_um_px
-            x_center_um = image.shape[1] // 2 * self.instrument.cameras[camera_name].sampling_um_px
-
-            layer_name = f"{camera_name} acquisition"
-            if layer_name in self.instrument_view.viewer.layers:
-                layer = self.instrument_view.viewer.layers[layer_name]
-                layer.data = acquisition_image
-                layer.scale = (
-                    self.acquisition_binning * self.instrument.cameras[camera_name].sampling_um_px,
-                    self.acquisition_binning * self.instrument.cameras[camera_name].sampling_um_px,
-                )
-                layer.translate = (-x_center_um, y_center_um)
-            else:
-                # Add image to a new layer if layer doesn't exist yet or image is snapshot
-                layer = self.instrument_view.viewer.add_image(
-                    acquisition_image,
-                    name=layer_name,
-                    contrast_limits=(self.instrument_view.intensity_min, self.instrument_view.intensity_max),
-                    scale=(
-                        self.acquisition_binning * self.instrument.cameras[camera_name].sampling_um_px,
-                        self.acquisition_binning * self.instrument.cameras[camera_name].sampling_um_px,
-                    ),
-                    translate=(-x_center_um, y_center_um),
-                    rotate=self.instrument_view.camera_rotation,
-                )
+            self.instrument_view.update_layer((image, camera_name))
 
     def start_acquisition(self) -> None:
         """
