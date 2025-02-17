@@ -43,6 +43,8 @@ class ExASPIMAcquisition(Acquisition):
 
         # initialize stop engine event
         self.stop_engine = Event()
+        # store initial stage positions
+        self.initial_position_mm = dict()
 
     def run(self) -> None:
         """
@@ -63,10 +65,10 @@ class ExASPIMAcquisition(Acquisition):
         file_transfer_threads = dict()
 
         # store devices and routines
-        camera, camera_name = self._grab_first(self.instrument.cameras)  # only 1 camera for exaspim
-        scanning_stage, _ = self._grab_first(self.instrument.scanning_stages)  # only 1 scanning stage for exaspim
-        daq, _ = self._grab_first(self.instrument.daqs)  # only 1 daq for exaspim
-        writer, _ = self._grab_first(self.writers[camera_name])  # only 1 writer for exaspim
+        self.camera, camera_name = self._grab_first(self.instrument.cameras)  # only 1 camera for exaspim
+        self.scanning_stage, _ = self._grab_first(self.instrument.scanning_stages)  # only 1 scanning stage for exaspim
+        self.daq, _ = self._grab_first(self.instrument.daqs)  # only 1 daq for exaspim
+        self.writer, _ = self._grab_first(self.writers[camera_name])  # only 1 writer for exaspim
         if self.file_transfers:
             file_transfer, _ = self._grab_first(self.file_transfers[camera_name])  # only 1 file transfer for exaspim
         else:
@@ -75,6 +77,14 @@ class ExASPIMAcquisition(Acquisition):
             processes = self.processes[camera_name]  # processes could be > so leave as a dictionary
         else:
             processes = dict()
+
+        # tiling stages
+        for tiling_stage_id, tiling_stage in self.instrument.tiling_stages.items():
+            instrument_axis = tiling_stage.instrument_axis
+            self.initial_position_mm[instrument_axis] = tiling_stage.position_mm
+        # scanning stage
+        instrument_axis = self.scanning_stage.instrument_axis
+        self.initial_position_mm[instrument_axis] = self.scanning_stage.position_mm
 
         for tile in self.config["acquisition"]["tiles"]:
 
@@ -122,22 +132,22 @@ class ExASPIMAcquisition(Acquisition):
 
                 # prepare the scanning stage for step and shoot behavior
                 self.log.info("setting up scanning stage")
-                instrument_axis = scanning_stage.instrument_axis
+                instrument_axis = self.scanning_stage.instrument_axis
                 tile_position = tile["position_mm"][instrument_axis]
                 backlash_removal_position = tile_position - 0.01
                 self.log.info(f"moving scanning stage to {instrument_axis} = {backlash_removal_position} mm")
-                scanning_stage.move_absolute_mm(tile_position - 0.01, wait=False)
+                self.scanning_stage.move_absolute_mm(tile_position - 0.01, wait=False)
                 self.log.info(f"moving stage to {instrument_axis} = {tile_position} mm")
-                scanning_stage.move_absolute_mm(tile_position, wait=False)
+                self.scanning_stage.move_absolute_mm(tile_position, wait=False)
                 self.log.info("backlash on scanning stage removed")
                 step_size_um = tile["step_size"]
                 self.log.info(f"setting step shoot scan step size to {step_size_um} um")
-                scanning_stage.setup_step_shoot_scan(step_size_um)
+                self.scanning_stage.setup_step_shoot_scan(step_size_um)
                 # wait on scanning stage
-                while scanning_stage.is_axis_moving():
+                while self.scanning_stage.is_axis_moving():
                     self.log.info(
                         f"waiting for scanning stage: {instrument_axis} = "
-                        f"{scanning_stage.position_mm} -> {tile_position} mm"
+                        f"{self.scanning_stage.position_mm} -> {tile_position} mm"
                     )
 
                 # setup channel i.e. laser and filter wheels
@@ -153,20 +163,20 @@ class ExASPIMAcquisition(Acquisition):
                             self.log.info(f"setting {setting} for {device_type} {device_name} to {value}")
 
                 # setup daq
-                if daq.tasks.get("ao_task", None) is not None:
-                    daq.add_task("ao")
-                    daq.generate_waveforms("ao", tile_channel)
-                    daq.write_ao_waveforms()
-                if daq.tasks.get("do_task", None) is not None:
-                    daq.add_task("do")
-                    daq.generate_waveforms("do", tile_channel)
-                    daq.write_do_waveforms()
-                if daq.tasks.get("co_task", None) is not None:
-                    pulse_count = writer.chunk_count_px  # number of pulses matched to number of frames in one chunk
-                    daq.add_task("co", pulse_count)
+                if self.daq.tasks.get("ao_task", None) is not None:
+                    self.daq.add_task("ao")
+                    self.daq.generate_waveforms("ao", tile_channel)
+                    self.daq.write_ao_waveforms()
+                if self.daq.tasks.get("do_task", None) is not None:
+                    self.daq.add_task("do")
+                    self.daq.generate_waveforms("do", tile_channel)
+                    self.daq.write_do_waveforms()
+                if self.daq.tasks.get("co_task", None) is not None:
+                    pulse_count = self.writer.chunk_count_px  # number of pulses matched to number of frames in a chunk
+                    self.daq.add_task("co", pulse_count)
 
                 # log daq values
-                for name, port_values in daq.tasks["ao_task"]["ports"].items():
+                for name, port_values in self.daq.tasks["ao_task"]["ports"].items():
                     parameters = port_values["parameters"]
                     port = port_values["port"]
                     for parameter, channel_values in parameters.items():
@@ -184,44 +194,49 @@ class ExASPIMAcquisition(Acquisition):
 
                 # setup writers
                 self.log.info("setting up writer")
-                writer.row_count_px = camera.image_height_px
-                writer.column_count_px = camera.image_width_px
-                writer.frame_count_px = tile["steps"]
-                writer.x_position_mm = tile["position_mm"]["x"]
-                writer.y_position_mm = tile["position_mm"]["y"]
-                writer.z_position_mm = tile["position_mm"]["z"]
-                writer.x_voxel_size_um = camera.sampling_um_px
-                writer.y_voxel_size_um = camera.sampling_um_px
-                writer.z_voxel_size_um = tile["step_size"]
-                writer.filename = base_filename
-                writer.channel = tile["channel"]
+                self.writer.row_count_px = self.camera.image_height_px
+                self.writer.column_count_px = self.camera.image_width_px
+                self.writer.frame_count_px = tile["steps"]
+                self.writer.x_position_mm = tile["position_mm"]["x"]
+                self.writer.y_position_mm = tile["position_mm"]["y"]
+                self.writer.z_position_mm = tile["position_mm"]["z"]
+                self.writer.x_voxel_size_um = self.camera.sampling_um_px
+                self.writer.y_voxel_size_um = self.camera.sampling_um_px
+                self.writer.z_voxel_size_um = tile["step_size"]
+                self.writer.filename = base_filename
+                self.writer.channel = tile["channel"]
 
                 if tile["prechecks"] == "on":
                     # estimate the compresion ratio
-                    compression_ratio = self.check_compression_ratio(camera, writer)
+                    compression_ratio = self.check_compression_ratio(self.camera, self.writer)
                     # check write speed
                     if file_transfer:
                         self.check_write_speed(
-                            daq=daq, writer=writer, file_transfer=file_transfer, compression_ratio=compression_ratio
+                            daq=self.daq,
+                            writer=self.writer,
+                            file_transfer=file_transfer,
+                            compression_ratio=compression_ratio,
                         )
                     else:
-                        self.check_write_speed(daq=daq, writer=writer, compression_ratio=compression_ratio)
+                        self.check_write_speed(daq=self.daq, writer=self.writer, compression_ratio=compression_ratio)
                     # check local memory
-                    self.check_system_memory(writer)
+                    self.check_system_memory(self.writer)
                     # check gpu memory
-                    self.check_gpu_memory(writer)
+                    self.check_gpu_memory(self.writer)
                 else:
                     compression_ratio = 1.0
 
                 # check local disk space and run if enough disk space
                 # check external disk space
                 if file_transfer:
-                    while not self.check_external_disk_space(writer, file_transfer, compression_ratio):
+                    while not self.check_external_disk_space(self.writer, file_transfer, compression_ratio):
                         # recheck external disk space every minute, if not enough space, do not run
                         time.sleep(60)
                 # check local disk space and run if enough disk space
-                if self.check_local_disk_space(writer, compression_ratio):
-                    self.acquisition_engine(tile, base_filename, camera, daq, writer, processes, scanning_stage)
+                if self.check_local_disk_space(self.writer, compression_ratio):
+                    self.acquisition_engine(
+                        tile, base_filename, self.camera, self.daq, self.writer, processes, self.scanning_stage
+                    )
                 # if not enough local disk space, but file transfers are running
                 # wait for them to finish, because this will free up disk space
                 elif len(self.file_transfer_threads) != 0:
@@ -283,6 +298,19 @@ class ExASPIMAcquisition(Acquisition):
                 for writer in writer_dict.values():
                     self.instrument.update_current_state_config()
                     self.instrument.save_config(Path(writer.path, writer.acquisition_name) / "instrument_config.yaml")
+
+        # return to initial stage positions
+        # tiling stages
+        for tiling_stage_id, tiling_stage in self.instrument.tiling_stages.items():
+            instrument_axis = tiling_stage.instrument_axis
+            tiling_stage.position_mm = self.initial_position_mm[instrument_axis]
+            self.log.info(
+                f"moving stage {tiling_stage_id} to {instrument_axis} = {self.initial_position_mm[instrument_axis]} mm"
+            )
+        # scanning stage
+        instrument_axis = self.scanning_stage.instrument_axis
+        self.scanning_stage.position_mm = self.initial_position_mm[instrument_axis]
+        self.log.info(f"moving stage to {instrument_axis} = {self.initial_position_mm[instrument_axis]} mm")
 
     def acquisition_engine(
         self, tile: dict, base_filename: str, camera, daq, writer, processes: dict, scanning_stage
@@ -361,19 +389,22 @@ class ExASPIMAcquisition(Acquisition):
                 # log metrics from devices
                 laser_name = self.instrument.channels[tile["channel"]]["lasers"][0]
                 laser = self.instrument.lasers[laser_name]
-                temperature_sensor, _ = self._grab_first(self.instrument.temperature_sensors)
                 memory_info = virtual_memory()
                 self.log.info(f"RAM in use = {memory_info.used / (1024 ** 3):.2f} GB")
                 self.log.info(f"laser {laser.id} power = {laser.power_mw:.2f} [mW]")
                 self.log.info(f"laser {laser.id} temperature = {laser.temperature_c:.2f} [mW]")
                 self.log.info(f"camera {camera.id} sensor temperature = {camera.sensor_temperature_c:.2f} [C]")
                 self.log.info(f"camera {camera.id} mainboard temperature = {camera.mainboard_temperature_c:.2f} [C]")
-                self.log.info(
-                    f"sensor {temperature_sensor.id} temperature = {temperature_sensor.temperature_c:.2f} [C]"
-                )
-                self.log.info(
-                    f"sensor {temperature_sensor.id} humidity = {temperature_sensor.relative_humidity_percent:.2f} [%]"
-                )
+                try:
+                    temperature_sensor, _ = self._grab_first(self.instrument.temperature_sensors)
+                    self.log.info(
+                        f"sensor {temperature_sensor.id} temperature = {temperature_sensor.temperature_c:.2f} [C]"
+                    )
+                    self.log.info(
+                        f"sensor {temperature_sensor.id} humidity = {temperature_sensor.relative_humidity_percent:.2f} [%]"
+                    )
+                except Exception:
+                    self.log.info("no temperature humidity sensor detected")
 
                 # start the camera
                 camera.stop()
@@ -418,43 +449,62 @@ class ExASPIMAcquisition(Acquisition):
 
             frame_index += 1
 
-        # stop the camera and set frame number back to 0
-        camera.stop()
-        camera.frame_number = 0
+        if self.stop_engine.is_set():
+            # wait for daq tasks to finish - prevents devices from stopping in
+            # unsafe state, i.e. lasers still on
+            self.log.info("stopping daq")
+            self.daq.co_task.stop()
+            # sleep to allow last ao to play with 10% buffer
+            time.sleep(1.0 / self.daq.co_frequency_hz * 1.1)
+            # stop the ao task
+            self.daq.ao_task.stop()
+            self.daq.close()
+            self.log.info("stopping scanning stage")
+            self.scanning_stage.halt()
+            self.log.info("stopping camera")
+            self.camera.abort()
+            # need to directly terminate writer process
+            self.log.info("stopping writer")
+            self.writer._process.terminate()
+            self.stop_engine.clear()
+        else:
+            # stop the camera and set frame number back to 0
+            camera.stop()
+            camera.frame_number = 0
 
-        # wait for the writer to finish
-        writer.wait_to_finish()
+            # wait for the writer to finish
+            writer.wait_to_finish()
 
-        # stop the daq
-        self.log.info("stopping daq")
-        daq.stop()
+            # stop the daq
+            self.log.info("stopping daq")
+            daq.stop()
 
-        # disable scanning stage stepping
-        scanning_stage.mode = "off"  # turn off step and shoot mode
+            # disable scanning stage stepping
+            scanning_stage.mode = "off"  # turn off step and shoot mode
 
-        # log any statements in the writer log queue
-        while not writer._log_queue.empty():
-            self.log.info(writer._log_queue.get_nowait())
+            # log any statements in the writer log queue
+            while not writer._log_queue.empty():
+                self.log.info(writer._log_queue.get_nowait())
 
-        # wait for the processes to finish
-        for process in processes.values():
-            process.wait_to_finish()
+            # wait for the processes to finish
+            for process in processes.values():
+                process.wait_to_finish()
 
-        # clean up the image buffer
-        self.log.info("deallocating shared double buffer.")
-        img_buffer.close_and_unlink()
-        del img_buffer
-        for buffer in process_buffers.values():
-            buffer.close()
-            buffer.unlink()
-            del buffer
+            # clean up the image buffer
+            self.log.info("deallocating shared double buffer.")
+            img_buffer.close_and_unlink()
+            del img_buffer
+            for buffer in process_buffers.values():
+                buffer.close()
+                buffer.unlink()
+                del buffer
 
     def stop_acquisition(self) -> None:
         """
-        Overwrite to better stop acquisition.
+        Stop acquisition.
         """
+        self.log.info("stopping acquisition")
         self.stop_engine.set()
-        raise RuntimeError
 
     def check_local_disk_space(self, writer: object, compression_ratio: float = 1) -> bool:
         """
@@ -590,8 +640,7 @@ class ExASPIMAcquisition(Acquisition):
         camera_speed_mb_s = writer.get_frame_size_mb() / acquisition_rate_hz
         required_write_speed_mb_s = camera_speed_mb_s / compression_ratio
         self.log.info(f"required write speed = {required_write_speed_mb_s:.1f} [MB/sec] to directory {local_drive}")
-        test_filename = str(Path(f"{file_transfer.external_path}/{file_transfer.acquisition_name}/iotest").absolute())
-        print(test_filename)
+        test_filename = str(Path(f"{writer.path}/{writer.acquisition_name}/iotest").absolute())
         f = open(test_filename, "a")  # Create empty file to check reading/writing speed
         f.close()
         try:
@@ -623,7 +672,6 @@ class ExASPIMAcquisition(Acquisition):
             test_filename = str(
                 Path(f"{file_transfer.external_path}/{file_transfer.acquisition_name}/iotest").absolute()
             )
-            print(test_filename)
             f = open(test_filename, "a")  # Create empty file to check reading/writing speed
             f.close()
             try:
@@ -699,6 +747,7 @@ class ExASPIMAcquisition(Acquisition):
             )
 
             # set up and start writer and camera
+            camera.frame_number = 0
             writer.prepare()
             camera.prepare()
             writer.start()

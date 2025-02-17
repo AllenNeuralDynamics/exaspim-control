@@ -1,10 +1,13 @@
 import time
 from datetime import datetime
 from pathlib import Path
+from typing import Iterator
 
 import numpy as np
+from napari.qt.threading import thread_worker, create_worker
 from qtpy.QtCore import Qt, Signal
 from qtpy.QtWidgets import (
+    QComboBox,
     QFrame,
     QGridLayout,
     QHBoxLayout,
@@ -15,7 +18,6 @@ from qtpy.QtWidgets import (
     QSplitter,
     QVBoxLayout,
     QWidget,
-    QComboBox,
 )
 
 from view.acquisition_view import AcquisitionView
@@ -67,8 +69,8 @@ class ExASPIMInstrumentView(InstrumentView):
         self.viewer.scale_bar.unit = "um"
         self.viewer.scale_bar.position = "bottom_left"
         self.viewer.text_overlay.visible = True
-        self.downsampler = GPUToolsRankDownSample2D(binning=2, rank=-2, data_type="uint16")
         self.viewer.window._qt_viewer.canvas._scene_canvas.measure_fps(callback=self.update_fps)
+        self.downsampler = GPUToolsRankDownSample2D(binning=2, rank=-2, data_type="uint16")
 
     def setup_camera_widgets(self) -> None:
         """
@@ -97,7 +99,6 @@ class ExASPIMInstrumentView(InstrumentView):
             # Add functionality to the crosshairs button
             self.crosshairs_button = getattr(camera_widget, "crosshairs_button", QPushButton())
             self.crosshairs_button.setCheckable(True)
-            # self.crosshairs_button.released.connect(lambda camera=camera_name: self.show_crosshairs(camera))
 
         stacked = self.stack_device_widgets("camera")
         self.viewer.window.add_dock_widget(stacked, area="right", name="Cameras", add_vertical_stretch=False)
@@ -132,6 +133,13 @@ class ExASPIMInstrumentView(InstrumentView):
         stage_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         stage_scroll.setWidget(stage_axes_widget)
         self.viewer.window.add_dock_widget(stage_axes_widget, area="left", name="Stages")
+
+    def setup_flip_mount_widgets(self) -> None:
+        """
+        Set up flip mount widgets.
+        """
+        stacked = self.stack_device_widgets("flip_mount")
+        self.viewer.window.add_dock_widget(stacked, area="right", name="Flip Mounts")
 
     def setup_laser_widgets(self) -> None:
         """
@@ -188,13 +196,6 @@ class ExASPIMInstrumentView(InstrumentView):
             self.log.info(f"Enabling filter {filter}")
             self.instrument.filters[filter].enable()
 
-    def setup_flip_mount_widgets(self) -> None:
-        """
-        Set up flip mount widgets.
-        """
-        stacked = self.stack_device_widgets("flip_mount")
-        self.viewer.window.add_dock_widget(stacked, area="right", name="Flip Mounts")
-
     def update_fps(self, fps: float) -> None:
         """
         Update the frames per second (FPS) display.
@@ -217,9 +218,9 @@ class ExASPIMInstrumentView(InstrumentView):
         (image, camera_name) = args
 
         # calculate centroid of image
-        y_center_um = image.shape[0] // 2 * self.instrument.cameras[camera_name].sampling_um_px
-        x_center_um = image.shape[1] // 2 * self.instrument.cameras[camera_name].sampling_um_px
         pixel_size_um = self.instrument.cameras[camera_name].sampling_um_px
+        y_center_um = image.shape[0] // 2 * pixel_size_um
+        x_center_um = image.shape[1] // 2 * pixel_size_um
 
         if image is not None:
             _ = self.viewer.layers
@@ -230,6 +231,7 @@ class ExASPIMInstrumentView(InstrumentView):
             multiscale = [image]
             for binning in range(1, self.resolution_levels):
                 downsampled_frame = self.downsampler.run(multiscale[-1])
+                # downsampled_frame = multiscale[-1][::2, ::2]
                 # add crosshairs to image
                 if self.crosshairs_button.isChecked():
                     downsampled_frame[downsampled_frame.shape[0] // 2 - 1 : downsampled_frame.shape[0] // 2 + 1, :] = (
@@ -247,6 +249,8 @@ class ExASPIMInstrumentView(InstrumentView):
             if layer_name in self.viewer.layers and not snapshot:
                 layer = self.viewer.layers[layer_name]
                 layer.data = multiscale
+                layer.scale = (pixel_size_um, pixel_size_um)
+                layer.translate = (-x_center_um, y_center_um)
             else:
                 # Add image to a new layer if layer doesn't exist yet or image is snapshot
                 layer = self.viewer.add_image(
@@ -274,9 +278,9 @@ class ExASPIMInstrumentView(InstrumentView):
         (image, camera_name) = args
 
         # calculate centroid of image
-        y_center_um = image.shape[0] // 2 * self.instrument.cameras[camera_name].sampling_um_px
-        x_center_um = image.shape[1] // 2 * self.instrument.cameras[camera_name].sampling_um_px
         pixel_size_um = self.instrument.cameras[camera_name].sampling_um_px
+        y_center_um = image.shape[0] // 2 * pixel_size_um
+        x_center_um = image.shape[1] // 2 * pixel_size_um
 
         if image is not None:
             # Dissect image and add to viewer
@@ -369,7 +373,7 @@ class ExASPIMInstrumentView(InstrumentView):
         :type camera_name: str
         """
         self.instrument.cameras[camera_name].abort()
-        for daq_name, daq in self.instrument.daqs.items():
+        for _, daq in self.instrument.daqs.items():
             # wait for daq tasks to finish - prevents devices from stopping in
             # unsafe state, i.e. lasers still on
             daq.co_task.stop()
@@ -394,10 +398,11 @@ class ExASPIMAcquisitionView(AcquisitionView):
         :param instrument_view: Instrument view object
         :type instrument_view: ExASPIMInstrumentView
         """
-        # acquisition view constants for ExA-SPIM
-        self.acquisition_binning = 4
         instrument_view.config["acquisition_view"]["unit"] = "mm"
         super().__init__(acquisition=acquisition, instrument_view=instrument_view)
+        # acquisition view constants for ExA-SPIM
+        self.binning_levels = 2
+        self.acquisition_thread = create_worker(self.acquisition.run)
         self.setWindowTitle("ExA-SPIM control")
 
     def create_acquisition_widget(self) -> QSplitter:
@@ -503,6 +508,21 @@ class ExASPIMAcquisitionView(AcquisitionView):
 
         return acquisition_widget
 
+    @thread_worker
+    def grab_property_value(self, device: object, property_name: str, widget) -> Iterator:
+        """
+        Grab value of property and yield
+        :param device: device to grab property from
+        :param property_name: name of property to get
+        :param widget: corresponding device widget
+        :return: value of property and widget to update
+        """
+
+        while True:  # best way to do this or have some sort of break?
+            time.sleep(0.5)
+            value = getattr(device, property_name)
+            yield value, widget
+
     def update_acquisition_layer(self, image: np.ndarray, camera_name: str) -> None:
         """
         Update the acquisition image layer in the viewer.
@@ -512,15 +532,83 @@ class ExASPIMAcquisitionView(AcquisitionView):
         :param camera_name: Camera name
         :type camera_name: str
         """
+
         if image is not None:
-            self.instrument_view.update_layer((image, camera_name))
+
+            for binning in range(0, self.binning_levels):
+                image = self.instrument_view.downsampler.run(image)
+
+            # calculate centroid of image
+            pixel_size_um = self.instrument.cameras[camera_name].sampling_um_px * 2**self.binning_levels
+            y_center_um = image.shape[0] // 2 * pixel_size_um
+            x_center_um = image.shape[1] // 2 * pixel_size_um
+
+            layer_name = f"{camera_name} acquisition"
+            if layer_name in self.instrument_view.viewer.layers:
+                layer = self.instrument_view.viewer.layers[layer_name]
+                layer.data = image
+                layer.scale = (pixel_size_um, pixel_size_um)
+                layer.translate = (-x_center_um, y_center_um)
+            else:
+                layer = self.instrument_view.viewer.add_image(
+                    image,
+                    name=layer_name,
+                    contrast_limits=(self.instrument_view.intensity_min, self.instrument_view.intensity_max),
+                    scale=(pixel_size_um, pixel_size_um),
+                    translate=(-x_center_um, y_center_um),
+                    rotate=self.instrument_view.camera_rotation,
+                )
 
     def start_acquisition(self) -> None:
         """
-        Start the acquisition process.
+        Start acquisition and disable widgets
         """
-        super().start_acquisition()
+
+        # add tiles to acquisition config
+        self.update_tiles()
+
+        if self.instrument_view.grab_frames_worker.is_running:  # stop livestream if running
+            self.instrument_view.grab_frames_worker.quit()
+
+        # write correct daq values if different from livestream
+        for daq_name, daq in self.instrument.daqs.items():
+            if daq_name in self.config["acquisition_view"].get("data_acquisition_tasks", {}).keys():
+                daq.tasks = self.config["acquisition_view"]["data_acquisition_tasks"][daq_name]["tasks"]
+
+        # anchor grid in volume widget
+        for anchor, widget in zip(self.volume_plan.anchor_widgets, self.volume_plan.grid_offset_widgets):
+            anchor.setChecked(True)
+            widget.setDisabled(True)
+        self.volume_plan.tile_table.setDisabled(True)
+        self.channel_plan.setDisabled(True)
+
+        # disable acquisition view. Can't disable whole thing so stop button can be functional
+        self.start_button.setEnabled(False)
+        self.metadata_widget.setEnabled(False)
+        for operation in ["writer", "transfer", "process", "routine"]:
+            if hasattr(self, f"{operation}_dock"):
+                getattr(self, f"{operation}_dock").setDisabled(True)
+        self.stop_button.setEnabled(True)
+        # disable instrument view
+        self.instrument_view.setDisabled(True)
+
+        # Start acquisition
+        self.acquisition_thread = create_worker(self.acquisition.run)
+        self.acquisition_thread.start()
+        self.acquisition_thread.finished.connect(self.acquisition_ended)
+
+        # start all workers
+        for worker in self.property_workers:
+            worker.resume()
+            time.sleep(1)
         self.acquisitionStarted.emit(datetime.now())
+
+    def stop_acquisition(self) -> None:
+        """
+        Stop the acquisition process.
+        """
+        self.acquisition_thread.quit()
+        self.acquisition.stop_acquisition()
 
     def acquisition_ended(self) -> None:
         """
@@ -549,7 +637,7 @@ class ExASPIMAcquisitionView(AcquisitionView):
         :rtype: QPushButton
         """
         stop = QPushButton("Stop")
-        stop.clicked.connect(self.acquisition.stop_acquisition)
+        stop.clicked.connect(self.stop_acquisition)
         stop.setStyleSheet("background-color: #a3555b; color: black; border-radius: 10px;")
         stop.setDisabled(True)
         return stop
