@@ -145,6 +145,7 @@ class BackgroundCollection:
         trigger["mode"] = "off"
         camera.trigger = trigger
         # prepare and start camera
+        camera.frame_number = 0
         camera.prepare()
         camera.start()
         background_stack = np.zeros(
