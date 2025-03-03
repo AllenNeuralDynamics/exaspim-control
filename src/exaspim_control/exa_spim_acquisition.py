@@ -97,6 +97,7 @@ class ExASPIMAcquisition(Acquisition):
                 time.sleep(tile["start_delay"])
 
                 tile_num = tile["tile_number"]
+
                 tile_channel = tile["channel"]
                 tile_prefix = tile["prefix"]
                 if repeat > 0:
@@ -149,6 +150,11 @@ class ExASPIMAcquisition(Acquisition):
                         f"waiting for scanning stage: {instrument_axis} = "
                         f"{self.scanning_stage.position_mm} -> {tile_position} mm"
                     )
+
+                # check disable scanning stage stepping
+                if tile["disable_scanning"] == "on":
+                    self.log.info("disabling scanning stage stepping")
+                    self.scanning_stage.mode = "off"  # turn off step and shoot mode
 
                 # setup channel i.e. laser and filter wheels
                 self.log.info(f"setting up channel: {tile_channel}")
@@ -393,18 +399,18 @@ class ExASPIMAcquisition(Acquisition):
                 self.log.info(f"RAM in use = {memory_info.used / (1024 ** 3):.2f} GB")
                 self.log.info(f"laser {laser.id} power = {laser.power_mw:.2f} [mW]")
                 self.log.info(f"laser {laser.id} temperature = {laser.temperature_c:.2f} [mW]")
-                self.log.info(f"camera {camera.id} sensor temperature = {camera.sensor_temperature_c:.2f} [C]")
-                self.log.info(f"camera {camera.id} mainboard temperature = {camera.mainboard_temperature_c:.2f} [C]")
-                try:
-                    temperature_sensor, _ = self._grab_first(self.instrument.temperature_sensors)
-                    self.log.info(
-                        f"sensor {temperature_sensor.id} temperature = {temperature_sensor.temperature_c:.2f} [C]"
-                    )
-                    self.log.info(
-                        f"sensor {temperature_sensor.id} humidity = {temperature_sensor.relative_humidity_percent:.2f} [%]"
-                    )
-                except Exception:
-                    self.log.info("no temperature humidity sensor detected")
+                # self.log.info(f"camera {camera.id} sensor temperature = {camera.sensor_temperature_c:.2f} [C]")
+                # self.log.info(f"camera {camera.id} mainboard temperature = {camera.mainboard_temperature_c:.2f} [C]")
+                # try:
+                #     temperature_sensor, _ = self._grab_first(self.instrument.temperature_sensors)
+                #     self.log.info(
+                #         f"sensor {temperature_sensor.id} temperature = {temperature_sensor.temperature_c:.2f} [C]"
+                #     )
+                #     self.log.info(
+                #         f"sensor {temperature_sensor.id} humidity = {temperature_sensor.relative_humidity_percent:.2f} [%]"
+                #     )
+                # except Exception:
+                #     self.log.info("no temperature humidity sensor detected")
 
                 # start the camera
                 camera.stop()

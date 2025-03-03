@@ -107,8 +107,8 @@ class ExASPIMInstrumentView(InstrumentView):
         """
         Set up filter wheel widgets.
         """
-        self.log.info("passing on setting up filter wheel widgets")
-        pass
+        stacked = self.stack_device_widgets("filter_wheel")
+        self.viewer.window.add_dock_widget(stacked, area="bottom", name="Filter Wheels")
 
     def setup_stage_widgets(self) -> None:
         """
@@ -230,8 +230,8 @@ class ExASPIMInstrumentView(InstrumentView):
                 image[:, image.shape[1] // 2 - 1 : image.shape[1] // 2 + 1] = 1 << 16 - 1
             multiscale = [image]
             for binning in range(1, self.resolution_levels):
-                downsampled_frame = self.downsampler.run(multiscale[-1])
-                # downsampled_frame = multiscale[-1][::2, ::2]
+                # downsampled_frame = self.downsampler.run(multiscale[-1])
+                downsampled_frame = multiscale[-1][::2, ::2]
                 # add crosshairs to image
                 if self.crosshairs_button.isChecked():
                     downsampled_frame[downsampled_frame.shape[0] // 2 - 1 : downsampled_frame.shape[0] // 2 + 1, :] = (
@@ -519,7 +519,7 @@ class ExASPIMAcquisitionView(AcquisitionView):
         """
 
         while True:  # best way to do this or have some sort of break?
-            time.sleep(0.5)
+            time.sleep(1.0)
             value = getattr(device, property_name)
             yield value, widget
 

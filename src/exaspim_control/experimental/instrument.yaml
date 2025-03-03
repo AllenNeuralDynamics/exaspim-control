@@ -5,14 +5,17 @@ instrument:
       lasers: [561 nm]
       cameras: [vp-151mx]
       focusing_stages: [left, right, camera]
+      filters: [620/60BP]
     "639":
       lasers: [639 nm]
       cameras: [vp-151mx]
       focusing_stages: [left, right, camera]
+      filters: [655LP]
     "488":
       lasers: [488 nm]
       cameras: [vp-151mx]
       focusing_stages: [left, right, camera]
+      filters: [500LP]
   devices:
     vp-151mx:
       type: camera
@@ -176,13 +179,13 @@ instrument:
         #        a: a
         #        b: b
         #        m: m
-    temperature_sensor:
-      type: temperature_sensor
-      driver: voxel.devices.temperature_sensor.thorlabs.tsp0b1
-      module: TSP01BTemperatureSensor
-      init:
-        id: M01221847
-        channel: TH1
+    # temperature_sensor:
+    #   type: temperature_sensor
+    #   driver: voxel.devices.temperature_sensor.thorlabs.tsp0b1
+    #   module: TSP01BTemperatureSensor
+    #   init:
+    #     id: M01221847
+    #     channel: TH1
     # power meter:
     #   type: power_meter
     #   driver: voxel.devices.power_meter.thorlabs.pm100
@@ -232,6 +235,40 @@ instrument:
       module: NIDAQ
       init:
         dev: Dev2
+      subdevices:
+        filter wheel:
+          type: filter_wheel
+          driver: voxel.devices.filterwheel.ni
+          module: DAQFilterWheel
+          init:
+            dev: Dev2
+            filters:
+              500LP: 0
+              655LP: 4
+              620/60BP: 6
+            ports:
+              500LP: ao23
+              655LP: ao19
+              620/60BP: ao29
+          subdevices:
+            500LP:
+              type: filter
+              driver: voxel.devices.filter.ni
+              module: Filter
+              init:
+                id: 500LP
+            655LP:
+              type: filter
+              driver: voxel.devices.filter.ni
+              module: Filter
+              init:
+                id: 655LP
+            620/60BP:
+              type: filter
+              driver: voxel.devices.filter.ni
+              module: Filter
+              init:
+                id: 620/60BP
       properties:
         tasks:
           ao_task:

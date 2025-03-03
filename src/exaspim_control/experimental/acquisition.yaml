@@ -19,35 +19,45 @@ acquisition:
         format: [ instrument_type, subject_id ]
   operations:
     vp-151mx:
-      # imaris:
-      #   type: writer
-      #   driver: voxel.writers.imaris
-      #   module: ImarisWriter
-      #   init:
-      #     path: D:\\
-      #   properties:
-      #     compression: lz4shuffle
-      #     data_type: uint16
-      aqz:
+      imaris:
         type: writer
-        driver: voxel.writers.zarr
-        module: ZarrWriter
+        driver: voxel.writers.imaris
+        module: ImarisWriter
         init:
           path: D:\\
         properties:
-          compression: zstd
+          compression: lz4shuffle
           data_type: uint16
-          chunk_size_x_px: 128
-          chunk_size_y_px: 128
-          chunk_size_z_px: 32
-          multiscale: True
-          version: v3
+      # tiff:
+      #   type: writer
+      #   driver: voxel.writers.tiff
+      #   module: TiffWriter
+      #   init:
+      #     path: D:\\
+      #   properties:
+      #     compression: none
+      #     data_type: uint16
+      # aqz:
+      #   type: writer
+      #   driver: voxel.writers.zarr
+      #   module: ZarrWriter
+      #   init:
+      #     path: D:\\
+      #   properties:
+      #     compression: zstd
+      #     data_type: uint16
+      #     chunk_size_x_px: 128
+      #     chunk_size_y_px: 128
+      #     chunk_size_z_px: 32
+      #     shuffle: True
+      #     multiscale: True
+      #     version: v3
       robocopy:
         type: file_transfer
-        driver: voxel.file_transfers.robocopy_zarr
+        driver: voxel.file_transfers.robocopy
         module: RobocopyFileTransfer
         init:
-          external_path: Z:\\scratch\\adam.glaser
+          external_path: Z:\\stage\\exaSPIM
           local_path: D:\\
         properties:
           verify_transfer: True
