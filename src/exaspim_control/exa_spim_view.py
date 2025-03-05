@@ -434,7 +434,11 @@ class ExASPIMAcquisitionView(AcquisitionView):
         camera = self.instrument.cameras[first_camera_key]
         fov_height_mm = camera.fov_height_mm
         fov_width_mm = camera.fov_width_mm
-        camera_rotation = self.config["instrument_view"]["properties"]["camera_rotation_deg"]
+        camera_rotation = (
+            self.config["instrument_view"]["properties"]["camera_rotation_deg"]
+            if "camera_rotation_deg" in self.config["instrument_view"]["properties"]
+            else 0
+        )
         if camera_rotation in [-270, -90, 90, 270]:
             fov_dimensions = [fov_height_mm, fov_width_mm, 0]
         else:
@@ -445,7 +449,18 @@ class ExASPIMAcquisitionView(AcquisitionView):
 
         # create volume plan
         self.volume_plan = VolumePlanWidget(
-            limits=limits, fov_dimensions=fov_dimensions, coordinate_plane=self.coordinate_plane, unit=self.unit
+            limits=limits,
+            fov_dimensions=fov_dimensions,
+            coordinate_plane=self.coordinate_plane,
+            unit=self.unit,
+            default_overlap=(
+                self.config["acquisition_view"]["overlap"] if "overlap" in self.config["acquisition_view"] else 15.0
+            ),
+            default_order=(
+                self.config["acquisition_view"]["tile_order"]
+                if "tile_order" in self.config["acquisition_view"]
+                else "row_wise"
+            ),
         )
         self.volume_plan.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Minimum)
 
