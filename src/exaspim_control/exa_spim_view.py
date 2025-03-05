@@ -381,6 +381,9 @@ class ExASPIMInstrumentView(InstrumentView):
             time.sleep(1.0 / daq.co_frequency_hz * 1.1)
             # stop the ao task
             daq.ao_task.stop()
+            # close the tasks
+            daq.co_task.close()
+            daq.ao_task.close()
 
 
 class ExASPIMAcquisitionView(AcquisitionView):
