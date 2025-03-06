@@ -454,11 +454,11 @@ class ExASPIMAcquisitionView(AcquisitionView):
             coordinate_plane=self.coordinate_plane,
             unit=self.unit,
             default_overlap=(
-                self.config["acquisition_view"]["overlap"] if "overlap" in self.config["acquisition_view"] else 15.0
+                self.config["acquisition_view"]["default_overlap"] if "default_overlap" in self.config["acquisition_view"] else 15.0
             ),
             default_order=(
-                self.config["acquisition_view"]["tile_order"]
-                if "tile_order" in self.config["acquisition_view"]
+                self.config["acquisition_view"]["default_tile_order"]
+                if "default_tile_order" in self.config["acquisition_view"]
                 else "row_wise"
             ),
         )
