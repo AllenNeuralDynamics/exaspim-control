@@ -182,7 +182,7 @@ class FilterWheelGraph(PlotWidget):
             # create label
             index = TextItem(text=str(i), anchor=(0.5, 0.5), color="white")
             font = QFont()
-            font.setPointSize(round(filter_diameter**2 - 6))
+            font.setPointSize(12)
             index.setFont(font)
             index.setPos(*pos)
             self.addItem(index)
