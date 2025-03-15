@@ -108,7 +108,7 @@ class ExASPIMInstrumentView(InstrumentView):
         Set up filter wheel widgets.
         """
         stacked = self.stack_device_widgets("filter_wheel")
-        self.viewer.window.add_dock_widget(stacked, area="bottom", name="Filter Wheels")
+        self.viewer.window.add_dock_widget(stacked, area="right", name="Filter Wheels")
 
     def setup_stage_widgets(self) -> None:
         """
@@ -152,7 +152,7 @@ class ExASPIMInstrumentView(InstrumentView):
             layout.addWidget(create_widget("H", label, widget))
             laser_widgets.append(layout)
         laser_widget = create_widget("V", *laser_widgets)
-        laser_widget.layout().setSpacing(6)
+        laser_widget.layout().setSpacing(12)
         self.viewer.window.add_dock_widget(laser_widget, area="bottom", name="Lasers")
 
     def setup_channel_widget(self) -> None:
@@ -166,7 +166,7 @@ class ExASPIMInstrumentView(InstrumentView):
         laser_combo_box.addItems(self.channels.keys())
         laser_combo_box.currentTextChanged.connect(lambda value: self.change_channel(value))
         laser_combo_box.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Minimum)
-        laser_combo_box.setCurrentIndex(1)  # initialize to first channel index
+        laser_combo_box.setCurrentIndex(0)  # initialize to first channel index
         layout.addWidget(label)
         layout.addWidget(laser_combo_box)
         widget.setLayout(layout)
@@ -454,7 +454,9 @@ class ExASPIMAcquisitionView(AcquisitionView):
             coordinate_plane=self.coordinate_plane,
             unit=self.unit,
             default_overlap=(
-                self.config["acquisition_view"]["default_overlap"] if "default_overlap" in self.config["acquisition_view"] else 15.0
+                self.config["acquisition_view"]["default_overlap"]
+                if "default_overlap" in self.config["acquisition_view"]
+                else 15.0
             ),
             default_order=(
                 self.config["acquisition_view"]["default_tile_order"]

@@ -1,12 +1,14 @@
 from math import atan, cos, degrees, pi, radians, sin
 from typing import Callable, Union
 
-from pyqtgraph import PlotWidget, ScatterPlotItem, TextItem, mkBrush, mkPen, setConfigOptions
+from pyqtgraph import (PlotWidget, ScatterPlotItem, TextItem, mkBrush, mkPen,
+                       setConfigOptions)
 from qtpy.QtCore import Property, QObject, QTimer, Signal, Slot
 from qtpy.QtGui import QColor, QFont
-from qtpy.QtWidgets import QComboBox, QGraphicsEllipseItem
+from qtpy.QtWidgets import QComboBox, QGraphicsEllipseItem, QSizePolicy
 
-from view.widgets.base_device_widget import BaseDeviceWidget, scan_for_properties
+from view.widgets.base_device_widget import (BaseDeviceWidget,
+                                             scan_for_properties)
 
 setConfigOptions(antialias=True)
 
@@ -44,6 +46,7 @@ class FilterWheelWidget(BaseDeviceWidget):
         self.filter_widget.currentTextChanged.connect(lambda val: setattr(self, "filter", val[val.index(" ") + 1 :]))
         self.filter_widget.currentTextChanged.connect(lambda: self.ValueChangedInside.emit("filter"))
         self.filter_widget.setCurrentText(f"{self.filters[filter_wheel.filter]}: {filter_wheel.filter}")
+        self.filter_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
         # Add back to property widget
         self.property_widgets["filter"].layout().addWidget(self.filter_widget)
@@ -53,6 +56,8 @@ class FilterWheelWidget(BaseDeviceWidget):
         self.wheel_widget.ValueChangedInside[str].connect(
             lambda v: self.filter_widget.setCurrentText(f"{self.filters[v]}: {v}")
         )
+        self.wheel_widget.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
+
         self.filter_widget.currentTextChanged.connect(
             lambda val: self.wheel_widget.move_wheel(val[val.index(" ") + 1 :])
         )
@@ -61,7 +66,7 @@ class FilterWheelWidget(BaseDeviceWidget):
 
         if not advanced_user:
             self.wheel_widget.setDisabled(True)
-            self.filter_widget.setDisabled(True)
+            self.wheel_widget.setVisible(False)
 
     def filter_change_wrapper(self, func: Callable) -> Callable:
         """
@@ -182,7 +187,7 @@ class FilterWheelGraph(PlotWidget):
             # create label
             index = TextItem(text=str(i), anchor=(0.5, 0.5), color="white")
             font = QFont()
-            font.setPointSize(round(filter_diameter**2 - 6))
+            font.setPointSize(12)
             index.setFont(font)
             index.setPos(*pos)
             self.addItem(index)
