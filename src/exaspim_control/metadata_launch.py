@@ -175,6 +175,8 @@ class MetadataLaunch:
             tile_position_x_mm = tile["position_mm"]["x"]
             tile_position_y_mm = tile["position_mm"]["y"]
             tile_position_z_mm = tile["position_mm"]["z"]
+            nested_device_list = [v for k, v in channels[tile_ch].items() if k not in ["lasers", "cameras"]]
+            addtional_devices = np.array([item for sublist in nested_device_list for item in sublist]).flatten()
             tiles.append(
                 {
                     "file_name": f"{tile['prefix']}_{tile['tile_number']:06}_ch_{tile_ch}.ims",
@@ -190,9 +192,7 @@ class MetadataLaunch:
                         "light_source_name": laser,
                         "filter_names": channels[tile_ch].get("filters", []),
                         "detector_name": channels[tile_ch]["cameras"][0],
-                        "additional_device_names": np.array(
-                            [v for k, v in channels[tile_ch].items() if k not in ["lasers", "cameras"]]
-                        ).flatten(),
+                        "additional_device_names": addtional_devices,
                         "excitation_wavelength": excitation_wavelength,
                         "excitation_power": tile[laser]["power_setpoint_mw"],
                         "filter_wheel_index": 0,
