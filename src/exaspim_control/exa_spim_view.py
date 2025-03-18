@@ -167,6 +167,7 @@ class ExASPIMInstrumentView(InstrumentView):
         laser_combo_box.currentTextChanged.connect(lambda value: self.change_channel(value))
         laser_combo_box.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Minimum)
         laser_combo_box.setCurrentIndex(0)  # initialize to first channel index
+        self.livestream_channel = laser_combo_box.currentText()  # initialize livestream channel
         layout.addWidget(label)
         layout.addWidget(laser_combo_box)
         widget.setLayout(layout)
