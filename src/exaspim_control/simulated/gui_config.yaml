@@ -6,6 +6,12 @@ instrument_view:
     intensity_max: 400
     alignment_roi_size: 512
   device_widgets:
+      filter wheel:
+        type: filter_wheel
+        driver: exaspim_control.widgets.filter_wheel_widget
+        module: FilterWheelWidget
+        init:
+          advanced_user: False
       vp-151mx:
         type: camera
         driver: exaspim_control.widgets.camera_widget
@@ -142,9 +148,10 @@ acquisition_view:
     channel_plan:
       init:
         properties:
-          cameras: [ binning ]
+          cameras: [ binning, pixel_type ]
           lasers: [ power_setpoint_mw ]
           focusing_stages: [ position_mm ]
+          filter_wheels: [ filter ]
           round_z_mm:
             delegate: combo
             type: str
