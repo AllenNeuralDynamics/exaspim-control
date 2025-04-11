@@ -117,7 +117,9 @@ class ExASPIMAcquisition(Acquisition):
                     ):  # must be divisible by round_z_mm for direct use of IMS pyramid volumes
                         tile_count_px = round_z_mm * math.ceil(tile["steps"] / round_z_mm)
                         tile["steps"] = tile_count_px
-                        self.log.info(f"adjusting tile frame count to be divisible by {round_z_mm} -> {tile_count_px} [px]")
+                        self.log.info(
+                            f"adjusting tile frame count to be divisible by {round_z_mm} -> {tile_count_px} [px]"
+                        )
 
                     # move all tiling stages to correct positions
                     for tiling_stage_id, tiling_stage in self.instrument.tiling_stages.items():
@@ -181,7 +183,9 @@ class ExASPIMAcquisition(Acquisition):
                         self.daq.generate_waveforms("do", tile_channel)
                         self.daq.write_do_waveforms()
                     if self.daq.tasks.get("co_task", None) is not None:
-                        pulse_count = self.writer.chunk_count_px  # number of pulses matched to number of frames in a chunk
+                        pulse_count = (
+                            self.writer.chunk_count_px
+                        )  # number of pulses matched to number of frames in a chunk
                         self.daq.add_task("co", pulse_count)
 
                     # log daq values
@@ -227,7 +231,9 @@ class ExASPIMAcquisition(Acquisition):
                                 compression_ratio=compression_ratio,
                             )
                         else:
-                            self.check_write_speed(daq=self.daq, writer=self.writer, compression_ratio=compression_ratio)
+                            self.check_write_speed(
+                                daq=self.daq, writer=self.writer, compression_ratio=compression_ratio
+                            )
                         # check local memory
                         self.check_system_memory(self.writer)
                         # check gpu memory
@@ -258,6 +264,15 @@ class ExASPIMAcquisition(Acquisition):
                     # for the first tile
                     else:
                         raise ValueError("not enough local disk space")
+
+                    # stop the daq tasks
+                    self.log.info("stopping daq")
+                    self.daq.co_task.stop()
+                    # sleep to allow last ao to play with 10% buffer
+                    time.sleep(1.0 / self.daq.co_frequency_hz * 1.1)
+                    # stop the ao task
+                    self.daq.ao_task.stop()
+                    self.daq.close()
 
                     # create and start transfer threads from previous tile
                     if file_transfer:

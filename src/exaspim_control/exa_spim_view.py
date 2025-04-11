@@ -108,6 +108,7 @@ class ExASPIMInstrumentView(InstrumentView):
         Set up filter wheel widgets.
         """
         stacked = self.stack_device_widgets("filter_wheel")
+        self.filter_wheel_widget = stacked
         self.viewer.window.add_dock_widget(stacked, area="right", name="Filter Wheels")
 
     def setup_stage_widgets(self) -> None:
@@ -366,6 +367,58 @@ class ExASPIMInstrumentView(InstrumentView):
             self.grab_frames_worker.yielded.disconnect()
             self.grab_frames_worker.yielded.connect(self.update_layer)
 
+    def setup_live(self, camera_name: str, frames=float("inf")) -> None:
+        """
+        Set up for either livestream or snapshot
+        :param camera_name: name of camera to set up
+        :param frames: how many frames to take
+        """
+
+        if self.grab_frames_worker.is_running:
+            if frames == 1:  # create snapshot layer with the latest image
+                layer = self.viewer.layers[f"{camera_name} {self.livestream_channel}"]
+                image = layer.data[0] if layer.multiscale else image.data
+                self.update_layer((image, camera_name), snapshot=True)
+            return
+
+        self.grab_frames_worker = self.grab_frames(camera_name, frames)
+
+        if frames == 1:  # pass in optional argument that this image is a snapshot
+            self.grab_frames_worker.yielded.connect(lambda args: self.update_layer(args, snapshot=True))
+        else:
+            self.grab_frames_worker.yielded.connect(lambda args: self.update_layer(args))
+
+        self.grab_frames_worker.finished.connect(lambda: self.dismantle_live(camera_name))
+        self.grab_frames_worker.start()
+
+        self.instrument.cameras[camera_name].prepare()
+        self.instrument.cameras[camera_name].start(frames)
+
+        for laser in self.channels[self.livestream_channel].get("lasers", []):
+            self.log.info(f"Enabling laser {laser}")
+            self.instrument.lasers[laser].enable()
+
+        for filter in self.channels[self.livestream_channel].get("filters", []):
+            self.log.info(f"Enabling filter {filter}")
+            self.instrument.filters[filter].enable()
+
+        for daq_name, daq in self.instrument.daqs.items():
+            if daq.tasks.get("ao_task", None) is not None:
+                daq.add_task("ao")
+                daq.generate_waveforms("ao", self.livestream_channel)
+                daq.write_ao_waveforms()
+            if daq.tasks.get("do_task", None) is not None:
+                daq.add_task("do")
+                daq.generate_waveforms("do", self.livestream_channel)
+                daq.write_do_waveforms()
+            if daq.tasks.get("co_task", None) is not None:
+                pulse_count = daq.tasks["co_task"]["timing"].get("pulse_count", None)
+                daq.add_task("co", pulse_count)
+
+            daq.start()
+
+        self.filter_wheel_widget.setDisabled(True)  # disable filter wheel widget
+
     def dismantle_live(self, camera_name: str) -> None:
         """
         Dismantle live view for the specified camera.
@@ -385,6 +438,7 @@ class ExASPIMInstrumentView(InstrumentView):
             # close the tasks
             daq.co_task.close()
             daq.ao_task.close()
+        self.filter_wheel_widget.setDisabled(False)  # enable filter wheel widget
 
 
 class ExASPIMAcquisitionView(AcquisitionView):
