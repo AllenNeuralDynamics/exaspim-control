@@ -5,15 +5,27 @@ instrument:
       lasers: [561 nm]
       cameras: [vp-151mx]
       focusing_stages: [left, right, camera]
+      filter_wheels: [filter wheel]
     "639":
       lasers: [639 nm]
       cameras: [vp-151mx]
       focusing_stages: [left, right, camera]
+      filter_wheels: [filter wheel]
     "488":
       lasers: [488 nm]
       cameras: [vp-151mx]
       focusing_stages: [left, right, camera]
+      filter_wheels: [filter wheel]
   devices:
+    filter wheel:
+      type: filter_wheel
+      driver: voxel.devices.filterwheel.simulated
+      module: SimulatedFilterWheel
+      init:
+        id: FW1000
+        filters:
+          - 500lp
+          - 560lp
     vp-151mx:
       type: camera
       driver: voxel.devices.camera.simulated

@@ -79,7 +79,7 @@ class MetadataLaunch:
                     acquisition_model = self.parse_metadata(
                         external_drive=save_to, local_drive=str(Path(transfer.local_path, transfer.acquisition_name))
                     )
-                    acquisition_model.write_standard_file(output_directory=save_to, prefix="exaspim")
+                    acquisition_model.write_standard_file(output_directory=save_to, prefix=None)
                     # move the log file
                     self.log.info(f"copying {self.log_filename} to {save_to}")
                     shutil.copy(

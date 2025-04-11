@@ -35,17 +35,7 @@ class FilterWheelWidget(BaseDeviceWidget):
 
         super().__init__(type(filter_wheel), properties)
 
-        # Remove filter widget
-        self.centralWidget().layout().removeWidget(self.filter_widget)
-        self.filter_widget.deleteLater()
         self.filters = filter_wheel.filters
-
-        # recreate as combo box with filters as options
-        self.filter_widget = QComboBox()
-        self.filter_widget.addItems([f"{v}: {k}" for k, v in self.filters.items()])
-        self.filter_widget.currentTextChanged.connect(lambda val: setattr(self, "filter", val[val.index(" ") + 1 :]))
-        self.filter_widget.currentTextChanged.connect(lambda: self.ValueChangedInside.emit("filter"))
-        self.filter_widget.setCurrentText(f"{self.filters[filter_wheel.filter]}: {filter_wheel.filter}")
         self.filter_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
         # Add back to property widget
@@ -54,12 +44,12 @@ class FilterWheelWidget(BaseDeviceWidget):
         # Create wheel widget and connect to signals
         self.wheel_widget = FilterWheelGraph(self.filters, colors if colors else {})
         self.wheel_widget.ValueChangedInside[str].connect(
-            lambda v: self.filter_widget.setCurrentText(f"{self.filters[v]}: {v}")
+            lambda v: self.filter_widget.setCurrentText(f"{v}")
         )
         self.wheel_widget.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
 
         self.filter_widget.currentTextChanged.connect(
-            lambda val: self.wheel_widget.move_wheel(val[val.index(" ") + 1 :])
+            lambda val: self.wheel_widget.move_wheel(val)
         )
         self.ValueChangedOutside[str].connect(lambda name: self.wheel_widget.move_wheel(self.filter))
         self.centralWidget().layout().addWidget(self.wheel_widget)
@@ -163,7 +153,7 @@ class FilterWheelGraph(PlotWidget):
 
         angles = [pi / 2 + (2 * pi / l * i) for i in range(l)]
         self.points = {}
-        for angle, (filter, i) in zip(angles, self.filters.items()):
+        for angle, (i, filter) in zip(angles, (enumerate(self.filters))):
             color = colors.get(filter, "black")
             if type(color) is str:
                 color = QColor(color).getRgb()
@@ -240,10 +230,9 @@ class FilterWheelGraph(PlotWidget):
 
         self._timelines = []
         # create timelines for all filters and labels
-        filter_names = list(self.filters.keys())
-        filter_index = filter_names.index(name)
+        filter_index = self.filters.index(name)
         filters = [
-            filter_names[(filter_index + i) % len(filter_names)] for i in range(len(filter_names))
+            self.filters[(filter_index + i) % len(self.filters)] for i in range(len(self.filters))
         ]  # reorder filters starting with filter selected
         del_theta = 2 * pi / len(filters)
         for i, filt in enumerate(filters):
@@ -251,7 +240,7 @@ class FilterWheelGraph(PlotWidget):
             timeline = TimeLine(loopCount=1, interval=10, step_size=step_size)
             timeline.setFrameRange(filter_theta + shift, notch_theta + shift)
             timeline.frameChanged.connect(lambda i, slot=self.points[filt]: self.move_point(i, slot))
-            timeline.frameChanged.connect(lambda i, slot=self.points[self.filters[filt]]: self.move_point(i, slot))
+            timeline.frameChanged.connect(lambda i, slot=self.points[self.filters[i]]: self.move_point(i, slot))
             self._timelines.append(timeline)
 
         # start all
