@@ -207,6 +207,24 @@ class ExASPIMInstrumentView(InstrumentView):
         """
         self.viewer.text_overlay.text = f"{fps:1.1f} fps"
 
+    @thread_worker
+    def grab_frames(self, camera_name: str, frames=float("inf")) -> Iterator[tuple[np.ndarray, str]]:
+        """
+        Grab frames from camera
+        :param frames: how many frames to take
+        :param camera_name: name of camera
+        """
+
+        i = 0
+        while i < frames:  # while loop since frames can == inf
+            time.sleep(0.5)
+            multiscale = [self.instrument.cameras[camera_name].grab_frame()]
+            for binning in range(1, self.resolution_levels):
+                downsampled_frame = multiscale[-1][::2, ::2]
+                multiscale.append(downsampled_frame)
+            yield multiscale, camera_name
+            i += 1
+
     def update_layer(self, args: tuple, snapshot: bool = False) -> None:
         """
         Update the image layer in the viewer.
@@ -221,28 +239,11 @@ class ExASPIMInstrumentView(InstrumentView):
 
         # calculate centroid of image
         pixel_size_um = self.instrument.cameras[camera_name].sampling_um_px
-        y_center_um = image.shape[0] // 2 * pixel_size_um
-        x_center_um = image.shape[1] // 2 * pixel_size_um
+        y_center_um = image[0].shape[0] // 2 * pixel_size_um
+        x_center_um = image[0].shape[1] // 2 * pixel_size_um
 
         if image is not None:
             _ = self.viewer.layers
-            # add crosshairs to image
-            if self.crosshairs_button.isChecked():
-                image[image.shape[0] // 2 - 1 : image.shape[0] // 2 + 1, :] = 1 << 16 - 1
-                image[:, image.shape[1] // 2 - 1 : image.shape[1] // 2 + 1] = 1 << 16 - 1
-            multiscale = [image]
-            for binning in range(1, self.resolution_levels):
-                # downsampled_frame = self.downsampler.run(multiscale[-1])
-                downsampled_frame = multiscale[-1][::2, ::2]
-                # add crosshairs to image
-                if self.crosshairs_button.isChecked():
-                    downsampled_frame[downsampled_frame.shape[0] // 2 - 1 : downsampled_frame.shape[0] // 2 + 1, :] = (
-                        1 << 16 - 1
-                    )
-                    downsampled_frame[:, downsampled_frame.shape[1] // 2 - 1 : downsampled_frame.shape[1] // 2 + 1] = (
-                        1 << 16 - 1
-                    )
-                multiscale.append(downsampled_frame)
             layer_name = (
                 f"{camera_name} {self.livestream_channel}"
                 if not snapshot
@@ -250,13 +251,13 @@ class ExASPIMInstrumentView(InstrumentView):
             )
             if layer_name in self.viewer.layers and not snapshot:
                 layer = self.viewer.layers[layer_name]
-                layer.data = multiscale
+                layer.data = image
                 layer.scale = (pixel_size_um, pixel_size_um)
                 layer.translate = (-x_center_um, y_center_um)
             else:
                 # Add image to a new layer if layer doesn't exist yet or image is snapshot
                 layer = self.viewer.add_image(
-                    multiscale,
+                    image,
                     name=layer_name,
                     contrast_limits=(self.intensity_min, self.intensity_max),
                     scale=(pixel_size_um, pixel_size_um),
@@ -265,7 +266,7 @@ class ExASPIMInstrumentView(InstrumentView):
                 )
                 layer.mouse_drag_callbacks.append(self.save_image)
                 if snapshot:  # emit signal if snapshot
-                    self.snapshotTaken.emit(np.rot90(multiscale[-3], k=2), layer.contrast_limits)
+                    self.snapshotTaken.emit(np.rot90(image[-3], k=2), layer.contrast_limits)
                     layer.events.contrast_limits.connect(
                         lambda event: self.contrastChanged.emit(np.rot90(layer.data[-3], k=2), layer.contrast_limits)
                     )

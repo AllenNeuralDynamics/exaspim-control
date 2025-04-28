@@ -33,10 +33,10 @@ instrument:
       init:
         id: MP151BBX006
       properties:
-        exposure_time_ms: 200.0
+        exposure_time_ms: 500.0
         pixel_type: mono16
-        height_px: 512
-        width_px: 1024
+        height_px: 10640
+        width_px: 14192
         trigger:
           mode: off
           polarity: rising
