@@ -269,6 +269,15 @@ class ExASPIMInstrumentView(InstrumentView):
                     layer.events.contrast_limits.connect(
                         lambda event: self.contrastChanged.emit(np.rot90(layer.data[-3], k=2), layer.contrast_limits)
                     )
+            for layer in self.viewer.layers:
+                if layer.name == layer_name:
+                    layer.selected = True
+                    layer.visible = True
+                else:
+                    layer.selected = False
+                    layer.visible = False
+
+        # print(self.viewer.window.qt_viewer.view.camera.get_state())
 
     def dissect_image(self, args: tuple) -> None:
         """
