@@ -267,11 +267,13 @@ class ExASPIMAcquisition(Acquisition):
 
                     # stop the daq tasks
                     self.log.info("stopping daq")
-                    self.daq.co_task.stop()
+                    if self.daq.co_task:
+                        self.daq.co_task.stop()
                     # sleep to allow last ao to play with 10% buffer
                     time.sleep(1.0 / self.daq.co_frequency_hz * 1.1)
                     # stop the ao task
-                    self.daq.ao_task.stop()
+                    if self.daq.ao_task:
+                        self.daq.ao_task.stop()
                     self.daq.close()
 
                     # create and start transfer threads from previous tile
