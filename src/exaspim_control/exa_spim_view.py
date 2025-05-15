@@ -68,9 +68,9 @@ class ExASPIMInstrumentView(InstrumentView):
         self.viewer.scale_bar.visible = True
         self.viewer.scale_bar.unit = "um"
         self.viewer.scale_bar.position = "bottom_left"
-        self.viewer.text_overlay.visible = True
-        self.viewer.window._qt_viewer.canvas._scene_canvas.measure_fps(callback=self.update_fps)
-        self.downsampler = GPUToolsRankDownSample2D(binning=2, rank=-2, data_type="uint16")
+        # self.viewer.text_overlay.visible = True
+        # self.viewer.window._qt_viewer.canvas._scene_canvas.measure_fps(callback=self.update_fps)
+        # self.downsampler = GPUToolsRankDownSample2D(binning=2, rank=-2, data_type="uint16")
 
     def setup_camera_widgets(self) -> None:
         """
@@ -201,14 +201,14 @@ class ExASPIMInstrumentView(InstrumentView):
             self.log.info(f"Enabling filter {filter}")
             self.instrument.filters[filter].enable()
 
-    def update_fps(self, fps: float) -> None:
-        """
-        Update the frames per second (FPS) display.
+    # def update_fps(self, fps: float) -> None:
+    #     """
+    #     Update the frames per second (FPS) display.
 
-        :param fps: Frames per second
-        :type fps: float
-        """
-        self.viewer.text_overlay.text = f"{fps:1.1f} fps"
+    #     :param fps: Frames per second
+    #     :type fps: float
+    #     """
+    #     self.viewer.text_overlay.text = f"{fps:1.1f} fps"
 
     @thread_worker
     def grab_frames(self, camera_name: str, frames=float("inf")) -> Iterator[tuple[np.ndarray, str]]:
@@ -221,12 +221,9 @@ class ExASPIMInstrumentView(InstrumentView):
         i = 0
         while i < frames:  # while loop since frames can == inf
             time.sleep(0.5)
-            multiscale = [self.instrument.cameras[camera_name].grab_frame()]
-            for binning in range(1, self.resolution_levels):
-                downsampled_frame = multiscale[-1][::2, ::2]
-                multiscale.append(downsampled_frame)
-            yield multiscale, camera_name
+            image = self.instrument.cameras[camera_name].grab_frame()
             i += 1
+            yield image, camera_name
 
     def update_layer(self, args: tuple, snapshot: bool = False) -> None:
         """
@@ -242,8 +239,8 @@ class ExASPIMInstrumentView(InstrumentView):
 
         # calculate centroid of image
         pixel_size_um = self.instrument.cameras[camera_name].sampling_um_px
-        y_center_um = image[0].shape[0] // 2 * pixel_size_um
-        x_center_um = image[0].shape[1] // 2 * pixel_size_um
+        y_center_um = image.shape[0] // 2 * pixel_size_um
+        x_center_um = image.shape[1] // 2 * pixel_size_um
 
         if image is not None:
             _ = self.viewer.layers
@@ -298,53 +295,53 @@ class ExASPIMInstrumentView(InstrumentView):
 
         # calculate centroid of image
         pixel_size_um = self.instrument.cameras[camera_name].sampling_um_px
-        y_center_um = image[0].shape[0] // 2 * pixel_size_um
-        x_center_um = image[1].shape[1] // 2 * pixel_size_um
+        y_center_um = image.shape[0] // 2 * pixel_size_um
+        x_center_um = image.shape[1] // 2 * pixel_size_um
 
         if image is not None:
             # Dissect image and add to viewer
             alignment_roi = self.alignment_roi_size
             combined_roi = np.zeros((alignment_roi * 3, alignment_roi * 3))
             # top left corner
-            top_left = image[0][0:alignment_roi, 0:alignment_roi]
+            top_left = image[0:alignment_roi, 0:alignment_roi]
             combined_roi[0:alignment_roi, 0:alignment_roi] = top_left
             # top right corner
-            top_right = image[0][0:alignment_roi, -alignment_roi:]
+            top_right = image[0:alignment_roi, -alignment_roi:]
             combined_roi[0:alignment_roi, alignment_roi * 2 : alignment_roi * 3] = top_right
             # bottom left corner
-            bottom_left = image[0][-alignment_roi:, 0:alignment_roi]
+            bottom_left = image[-alignment_roi:, 0:alignment_roi]
             combined_roi[alignment_roi * 2 : alignment_roi * 3, 0:alignment_roi] = bottom_left
             # bottom right corner
-            bottom_right = image[0][-alignment_roi:, -alignment_roi:]
+            bottom_right = image[-alignment_roi:, -alignment_roi:]
             combined_roi[alignment_roi * 2 : alignment_roi * 3, alignment_roi * 2 : alignment_roi * 3] = bottom_right
             # center left
-            center_left = image[0][
-                round((image[0].shape[0] / 2) - alignment_roi / 2) : round((image[0].shape[0] / 2) + alignment_roi / 2),
+            center_left = image[
+                round((image.shape[0] / 2) - alignment_roi / 2) : round((image.shape[0] / 2) + alignment_roi / 2),
                 0:alignment_roi,
             ]
             combined_roi[alignment_roi : alignment_roi * 2, 0:alignment_roi] = center_left
             # center right
-            center_right = image[0][
-                round((image[0].shape[0] / 2) - alignment_roi / 2) : round((image[0].shape[0] / 2) + alignment_roi / 2),
+            center_right = image[
+                round((image.shape[0] / 2) - alignment_roi / 2) : round((image.shape[0] / 2) + alignment_roi / 2),
                 -alignment_roi:,
             ]
             combined_roi[alignment_roi : alignment_roi * 2, alignment_roi * 2 : alignment_roi * 3] = center_right
             # center top
-            center_top = image[0][
+            center_top = image[
                 0:alignment_roi,
-                round((image[0].shape[1] / 2) - alignment_roi / 2) : round((image[0].shape[1] / 2) + alignment_roi / 2),
+                round((image.shape[1] / 2) - alignment_roi / 2) : round((image.shape[1] / 2) + alignment_roi / 2),
             ]
             combined_roi[0:alignment_roi, alignment_roi : alignment_roi * 2] = center_top
             # center bottom
-            center_bottom = image[0][
+            center_bottom = image[
                 -alignment_roi:,
-                round((image[0].shape[1] / 2) - alignment_roi / 2) : round((image[0].shape[1] / 2) + alignment_roi / 2),
+                round((image.shape[1] / 2) - alignment_roi / 2) : round((image.shape[1] / 2) + alignment_roi / 2),
             ]
             combined_roi[alignment_roi * 2 : alignment_roi * 3, alignment_roi : alignment_roi * 2] = center_bottom
             # center roi
-            center = image[0][
-                round((image[0].shape[0] / 2) - alignment_roi / 2) : round((image[0].shape[0] / 2) + alignment_roi / 2),
-                round((image[0].shape[1] / 2) - alignment_roi / 2) : round((image[0].shape[1] / 2) + alignment_roi / 2),
+            center = image[
+                round((image.shape[0] / 2) - alignment_roi / 2) : round((image.shape[0] / 2) + alignment_roi / 2),
+                round((image.shape[1] / 2) - alignment_roi / 2) : round((image.shape[1] / 2) + alignment_roi / 2),
             ]
             combined_roi[alignment_roi : alignment_roi * 2, alignment_roi : alignment_roi * 2] = center
 
@@ -398,16 +395,6 @@ class ExASPIMInstrumentView(InstrumentView):
                 self.update_layer((image, camera_name), snapshot=True)
             return
 
-        self.grab_frames_worker = self.grab_frames(camera_name, frames)
-
-        if frames == 1:  # pass in optional argument that this image is a snapshot
-            self.grab_frames_worker.yielded.connect(lambda args: self.update_layer(args, snapshot=True))
-        else:
-            self.grab_frames_worker.yielded.connect(lambda args: self.update_layer(args))
-
-        self.grab_frames_worker.finished.connect(lambda: self.dismantle_live(camera_name))
-        self.grab_frames_worker.start()
-
         self.instrument.cameras[camera_name].prepare()
         self.instrument.cameras[camera_name].start(frames)
 
@@ -433,6 +420,14 @@ class ExASPIMInstrumentView(InstrumentView):
                 daq.add_task("co", pulse_count)
 
             daq.start()
+
+        self.grab_frames_worker = self.grab_frames(camera_name, frames)
+        self.grab_frames_worker.finished.connect(lambda: self.dismantle_live(camera_name))
+        if frames == 1:  # pass in optional argument that this image is a snapshot
+            self.grab_frames_worker.yielded.connect(lambda args: self.update_layer(args, snapshot=True))
+        else:
+            self.grab_frames_worker.yielded.connect(lambda args: self.update_layer(args))
+        self.grab_frames_worker.start()
 
         self.filter_wheel_widget.setDisabled(True)  # disable filter wheel widget
         self.alignment_button.setDisabled(False)  # enable alignment button
