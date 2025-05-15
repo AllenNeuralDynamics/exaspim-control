@@ -2,11 +2,12 @@ import time
 from datetime import datetime
 from pathlib import Path
 from typing import Iterator
-
+import qtpy.QtCore as QtCore
 import numpy as np
 from napari.qt.threading import thread_worker, create_worker
 from qtpy.QtCore import Qt, Signal
 from qtpy.QtWidgets import (
+    QStyle,
     QComboBox,
     QFrame,
     QGridLayout,
@@ -68,9 +69,9 @@ class ExASPIMInstrumentView(InstrumentView):
         self.viewer.scale_bar.visible = True
         self.viewer.scale_bar.unit = "um"
         self.viewer.scale_bar.position = "bottom_left"
-        self.viewer.text_overlay.visible = True
-        self.viewer.window._qt_viewer.canvas._scene_canvas.measure_fps(callback=self.update_fps)
-        self.downsampler = GPUToolsRankDownSample2D(binning=2, rank=-2, data_type="uint16")
+        # self.viewer.text_overlay.visible = True
+        # self.viewer.window._qt_viewer.canvas._scene_canvas.measure_fps(callback=self.update_fps)
+        # self.downsampler = GPUToolsRankDownSample2D(binning=2, rank=-2, data_type="uint16")
 
     def setup_camera_widgets(self) -> None:
         """
@@ -86,10 +87,8 @@ class ExASPIMInstrumentView(InstrumentView):
             self.snapshot_button.pressed.connect(lambda camera=camera_name: self.setup_live(camera, 1))
 
             # Add functionality to live button
-            live_button = getattr(camera_widget, "live_button", QPushButton())
-            live_button.pressed.connect(lambda button=live_button: disable_button(button))  # disable to avoid spamming
-            live_button.pressed.connect(lambda camera=camera_name: self.setup_live(camera))
-            live_button.pressed.connect(lambda camera=camera_name: self.toggle_live_button(camera))
+            self.live_button = getattr(camera_widget, "live_button", QPushButton())
+            self.live_button.pressed.connect(lambda camera=camera_name: self.setup_live(camera))
 
             # Add functionality to the edges button
             self.alignment_button = getattr(camera_widget, "alignment_button", QPushButton())
@@ -200,15 +199,6 @@ class ExASPIMInstrumentView(InstrumentView):
         for filter in self.channels[self.livestream_channel].get("filters", []):
             self.log.info(f"Enabling filter {filter}")
             self.instrument.filters[filter].enable()
-
-    def update_fps(self, fps: float) -> None:
-        """
-        Update the frames per second (FPS) display.
-
-        :param fps: Frames per second
-        :type fps: float
-        """
-        self.viewer.text_overlay.text = f"{fps:1.1f} fps"
 
     @thread_worker
     def grab_frames(self, camera_name: str, frames=float("inf")) -> Iterator[tuple[np.ndarray, str]]:
@@ -372,8 +362,6 @@ class ExASPIMInstrumentView(InstrumentView):
         """
         Enable alignment mode.
         """
-        if not self.grab_frames_worker.is_running:
-            return
 
         self.viewer.layers.clear()
 
@@ -398,16 +386,21 @@ class ExASPIMInstrumentView(InstrumentView):
                 self.update_layer((image, camera_name), snapshot=True)
             return
 
-        self.grab_frames_worker = self.grab_frames(camera_name, frames)
+        self.live_button.setEnabled(False)  # disable live button
+        QtCore.QTimer.singleShot(3000, lambda: self.live_button.setDisabled(False))
 
-        if frames == 1:  # pass in optional argument that this image is a snapshot
-            self.grab_frames_worker.yielded.connect(lambda args: self.update_layer(args, snapshot=True))
+        self.live_button.clicked.disconnect(self.setup_live)
+
+        if self.live_button.text() == "Live":
+            self.live_button.setText("Stop")
+            stop_icon = self.live_button.style().standardIcon(QStyle.StandardPixmap.SP_MediaStop)
+            self.live_button.setIcon(stop_icon)
         else:
-            self.grab_frames_worker.yielded.connect(lambda args: self.update_layer(args))
+            self.live_button.setText("Live")
+            start_icon = self.live_button.style().standardIcon(QStyle.StandardPixmap.SP_MediaPlay)
+            self.live_button.setIcon(start_icon)
 
-        self.grab_frames_worker.finished.connect(lambda: self.dismantle_live(camera_name))
-        self.grab_frames_worker.start()
-
+        # start the instrument
         self.instrument.cameras[camera_name].prepare()
         self.instrument.cameras[camera_name].start(frames)
 
@@ -434,10 +427,47 @@ class ExASPIMInstrumentView(InstrumentView):
 
             daq.start()
 
+        # start the grab frames worker
+        self.grab_frames_worker = self.grab_frames(camera_name, frames)
+        self.grab_frames_worker.finished.connect(lambda: self.dismantle_live(camera_name))
+        if frames == 1:  # pass in optional argument that this image is a snapshot
+            self.grab_frames_worker.yielded.connect(lambda args: self.update_layer(args, snapshot=True))
+        else:
+            self.grab_frames_worker.yielded.connect(lambda args: self.update_layer(args))
+        self.grab_frames_worker.start()
+
         self.filter_wheel_widget.setDisabled(True)  # disable filter wheel widget
         self.alignment_button.setDisabled(False)  # enable alignment button
         self.crosshairs_button.setDisabled(False)  # enable crosshairs button
         self.snapshot_button.setDisabled(True)  # disable crosshairs button
+
+        # set the stop behavior of the button
+        self.live_button.clicked.connect(self.stop_live_view)
+
+    def stop_live_view(self):
+
+        """Stop livestreaming"""
+        self.grab_frames_worker.quit()
+        self.live_button.setEnabled(False)  # disable live button
+        QtCore.QTimer.singleShot(3000, lambda: self.live_button.setDisabled(False))
+        self.live_button.clicked.disconnect(self.stop_live_view)
+
+        if self.live_button.text() == "Live":
+            self.live_button.setText("Stop")
+            stop_icon = self.live_button.style().standardIcon(QStyle.StandardPixmap.SP_MediaStop)
+            self.live_button.setIcon(stop_icon)
+        else:
+            self.live_button.setText("Live")
+            start_icon = self.live_button.style().standardIcon(QStyle.StandardPixmap.SP_MediaPlay)
+            self.live_button.setIcon(start_icon)
+
+        self.live_button.clicked.connect(self.setup_live)
+        self.filter_wheel_widget.setDisabled(False)  # enable filter wheel widget
+        self.alignment_button.setDisabled(True)  # disable alignment button
+        self.alignment_button.setChecked(False)
+        self.crosshairs_button.setDisabled(True)  # disable crosshairs button
+        self.crosshairs_button.setChecked(False)
+        self.snapshot_button.setDisabled(False)  # enable crosshairs button
 
     def dismantle_live(self, camera_name: str) -> None:
         """
@@ -458,12 +488,6 @@ class ExASPIMInstrumentView(InstrumentView):
             # close the tasks
             daq.co_task.close()
             daq.ao_task.close()
-        self.filter_wheel_widget.setDisabled(False)  # enable filter wheel widget
-        self.alignment_button.setDisabled(True)  # disable alignment button
-        self.alignment_button.setChecked(False)
-        self.crosshairs_button.setDisabled(True)  # disable crosshairs button
-        self.crosshairs_button.setChecked(False)
-        self.snapshot_button.setDisabled(False)  # enable crosshairs button
 
 
 class ExASPIMAcquisitionView(AcquisitionView):
