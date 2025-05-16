@@ -175,20 +175,28 @@ class ExASPIMAcquisition(Acquisition):
 
                     # setup daq
                     if self.daq.tasks.get("ao_task", None) is not None:
+                        self.log.info('adding ao tasks')
                         self.daq.add_task("ao")
+                        self.log.info('generating ao waveforms')
                         self.daq.generate_waveforms("ao", tile_channel)
+                        self.log.info('writing ao waveforms')
                         self.daq.write_ao_waveforms()
                     if self.daq.tasks.get("do_task", None) is not None:
+                        self.log.info('adding do tasks')
                         self.daq.add_task("do")
+                        self.log.info('genearating do waveforms')
                         self.daq.generate_waveforms("do", tile_channel)
+                        self.log.info('writing do waveforms')
                         self.daq.write_do_waveforms()
                     if self.daq.tasks.get("co_task", None) is not None:
+                        self.log.info('adding co tasks')
                         pulse_count = (
                             self.writer.chunk_count_px
                         )  # number of pulses matched to number of frames in a chunk
                         self.daq.add_task("co", pulse_count)
 
                     # log daq values
+                    self.log.info('logging daq values')
                     for name, port_values in self.daq.tasks["ao_task"]["ports"].items():
                         parameters = port_values["parameters"]
                         port = port_values["port"]
