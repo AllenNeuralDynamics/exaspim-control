@@ -267,6 +267,7 @@ class ExASPIMInstrumentView(InstrumentView):
                         translate=(-x_center_um, y_center_um),
                         rotate=self.camera_rotation,
                     )
+                    layer.mouse_drag_callbacks.append(self.save_image)
                 for layer in self.viewer.layers:
                     if layer.name == layer_name:
                         layer.selected = True
