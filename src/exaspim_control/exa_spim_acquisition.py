@@ -5,6 +5,7 @@ import shutil
 import subprocess
 import threading
 import time
+import copy
 from multiprocessing.shared_memory import SharedMemory
 from pathlib import Path
 from threading import Event, Lock
@@ -282,7 +283,7 @@ class ExASPIMAcquisition(Acquisition):
                             file_transfer_threads[tile_num] = dict()
                         if tile_channel not in file_transfer_threads[tile_num]:
                             file_transfer_threads[tile_num][tile_channel] = dict()
-                        file_transfer_threads[tile_num][tile_channel][repeat] = file_transfer
+                        file_transfer_threads[tile_num][tile_channel][repeat] = copy.deepcopy(file_transfer)
                         file_transfer_threads[tile_num][tile_channel][repeat].filename = base_filename
                         self.log.info(f"starting file transfer for {base_filename}")
                         file_transfer_threads[tile_num][tile_channel][repeat].start()
