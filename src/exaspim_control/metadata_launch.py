@@ -5,6 +5,7 @@ from datetime import datetime
 from pathlib import Path
 
 import numpy as np
+import json
 from aind_data_schema.core import acquisition
 from exaspim_control.exa_spim_acquisition import ExASPIMAcquisition
 from exaspim_control.exa_spim_instrument import ExASPIM
@@ -86,6 +87,18 @@ class MetadataLaunch:
                         self.log_filename,
                         str(Path(save_to, self.log_filename)),
                     )
+            # create and save processing_manifest.json
+            status = "pending"
+            status_time = datetime.datetime.now()
+            processing_manifest = {
+                "dataset_status": {
+                    "status": status,
+                    "status_date": f"{status_time.year:02d}-{status_time.month:02d}-{status_time.day:02d}",
+                    "status_time": f"{status_time.hour:02d}-{status_time.minute:02d}-{status_time.second:02d}"
+                }
+            }
+            with open(Path(save_to, "processing_manifest.json"), "w", encoding="utf-8") as f:
+                json.dump(processing_manifest, f, indent=4, ensure_ascii=False)
             # re-arrange external directory
             os.makedirs(Path(save_to, "exaSPIM"))
             os.makedirs(Path(save_to, "derivatives"))
