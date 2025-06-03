@@ -1,4 +1,5 @@
 import time
+import inflection
 from datetime import datetime
 from pathlib import Path
 from typing import Iterator
@@ -428,6 +429,8 @@ class ExASPIMInstrumentView(InstrumentView):
             daq.start()
 
         self.filter_wheel_widget.setDisabled(True)  # disable filter wheel widget
+
+        self.viewer.layers.clear()
 
     def dismantle_live(self, camera_name: str) -> None:
         """
