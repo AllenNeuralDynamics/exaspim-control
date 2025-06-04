@@ -169,9 +169,15 @@ class ExASPIMInstrumentView(InstrumentView):
             layout = QVBoxLayout()
             layout.addWidget(create_widget("H", label, widget))
             laser_widgets.append(layout)
-        laser_widget = create_widget("V", *laser_widgets)
-        laser_widget.layout().setSpacing(12)
-        self.viewer.window.add_dock_widget(laser_widget, area="bottom", name="Lasers")
+        self.laser_widget = create_widget("V", *laser_widgets)
+        print(self.laser_widget.children())
+        for child in self.laser_widget.children():
+            print(child)
+        print(self.laser_widget.children()[1].children()[0])
+        print(self.laser_widget.children()[1].children()[1])
+        print(self.laser_widget.children()[1].children()[2])
+        self.laser_widget.layout().setSpacing(12)
+        self.viewer.window.add_dock_widget(self.laser_widget, area="bottom", name="Lasers")
 
     def setup_channel_widget(self) -> None:
         """
@@ -185,6 +191,7 @@ class ExASPIMInstrumentView(InstrumentView):
         laser_combo_box.currentTextChanged.connect(lambda value: self.change_channel(value))
         laser_combo_box.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Minimum)
         laser_combo_box.setCurrentIndex(0)  # initialize to first channel index
+        self.laser_combo_box = laser_combo_box
         self.livestream_channel = laser_combo_box.currentText()  # initialize livestream channel
         layout.addWidget(label)
         layout.addWidget(laser_combo_box)
@@ -459,7 +466,12 @@ class ExASPIMInstrumentView(InstrumentView):
         for laser in self.channels[self.livestream_channel].get("lasers", []):
             self.log.info(f"Enabling laser {laser}")
             self.instrument.lasers[laser].enable()
-
+            for child in self.laser_widget.children()[1::]:  # skip first child widget
+                laser_name = child.children()[1].text()  # first child is label widget
+                if laser != laser_name:
+                    child.setDisabled(True)
+                    child.children()[2].setDisabled(True)
+    
         for filter in self.channels[self.livestream_channel].get("filters", []):
             self.log.info(f"Enabling filter {filter}")
             self.instrument.filters[filter].enable()
@@ -480,6 +492,7 @@ class ExASPIMInstrumentView(InstrumentView):
             daq.start()
 
         self.filter_wheel_widget.setDisabled(True)  # disable filter wheel widget
+        self.laser_combo_box.setDisabled(True)  # disable channel widget
         self.alignment_button.setDisabled(False)  # enable alignment button
         self.crosshairs_button.setDisabled(False)  # enable crosshairs button
         self.snapshot_button.setDisabled(True)  # disable crosshairs button
@@ -503,7 +516,12 @@ class ExASPIMInstrumentView(InstrumentView):
             # close the tasks
             daq.co_task.close()
             daq.ao_task.close()
+
+        for child in self.laser_widget.children()[1::]:  # skip first child widget
+            child.setDisabled(False)
+
         self.filter_wheel_widget.setDisabled(False)  # enable filter wheel widget
+        self.laser_combo_box.setDisabled(False)
         self.alignment_button.setDisabled(True)  # disable alignment button
         self.alignment_button.setChecked(False)
         self.crosshairs_button.setDisabled(True)  # disable crosshairs button
