@@ -243,14 +243,15 @@ class ExASPIMInstrumentView(InstrumentView):
         y_center_um = image[0].shape[0] // 2 * pixel_size_um
         x_center_um = image[0].shape[1] // 2 * pixel_size_um
 
+        layer_list = self.viewer.layers
+
         if image is not None:
-            _ = self.viewer.layers
             layer_name = (
                 f"{camera_name} {self.livestream_channel}"
                 if not snapshot
                 else f"{camera_name} {self.livestream_channel} snapshot"
             )
-            if layer_name in self.viewer.layers and not snapshot:
+            if layer_name in layer_list and not snapshot:
                 layer = self.viewer.layers[layer_name]
                 layer.data = image
                 layer.scale = (pixel_size_um, pixel_size_um)
@@ -264,7 +265,7 @@ class ExASPIMInstrumentView(InstrumentView):
                     scale=(pixel_size_um, pixel_size_um),
                     translate=(-x_center_um, y_center_um),
                     rotate=self.camera_rotation,
-                )
+                )   
                 layer.mouse_drag_callbacks.append(self.save_image)
                 if snapshot:  # emit signal if snapshot
                     self.snapshotTaken.emit(np.rot90(image[-3], k=2), layer.contrast_limits)
@@ -278,8 +279,6 @@ class ExASPIMInstrumentView(InstrumentView):
                 else:
                     layer.selected = False
                     layer.visible = False
-
-        # print(self.viewer.window.qt_viewer.view.camera.get_state())
 
     def dissect_image(self, args: tuple) -> None:
         """
@@ -385,6 +384,13 @@ class ExASPIMInstrumentView(InstrumentView):
         :param frames: how many frames to take
         """
 
+        layer_list = self.viewer.layers
+        layer_name = (f"{camera_name} {self.livestream_channel}")
+
+        # check if switching channels
+        if layer_list and layer_name not in layer_list:
+            self.viewer.layers.clear()
+
         if self.grab_frames_worker.is_running:
             if frames == 1:  # create snapshot layer with the latest image
                 layer = self.viewer.layers[f"{camera_name} {self.livestream_channel}"]
@@ -430,8 +436,6 @@ class ExASPIMInstrumentView(InstrumentView):
 
         self.filter_wheel_widget.setDisabled(True)  # disable filter wheel widget
 
-        self.viewer.layers.clear()
-
     def dismantle_live(self, camera_name: str) -> None:
         """
         Dismantle live view for the specified camera.
@@ -452,6 +456,7 @@ class ExASPIMInstrumentView(InstrumentView):
             daq.co_task.close()
             daq.ao_task.close()
         self.filter_wheel_widget.setDisabled(False)  # enable filter wheel widget
+        self.viewer_state = self.viewer.window.qt_viewer.view.camera.get_state()  # store viewer state
 
 
 class ExASPIMAcquisitionView(AcquisitionView):
