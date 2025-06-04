@@ -6,6 +6,7 @@ from typing import Iterator
 
 import numpy as np
 from napari.qt.threading import thread_worker, create_worker
+from napari.utils.events import Event
 from qtpy.QtCore import Qt, Signal
 from qtpy.QtWidgets import (
     QComboBox,
@@ -72,6 +73,12 @@ class ExASPIMInstrumentView(InstrumentView):
         self.viewer.text_overlay.visible = True
         self.viewer.window._qt_viewer.canvas._scene_canvas.measure_fps(callback=self.update_fps)
         self.downsampler = GPUToolsRankDownSample2D(binning=2, rank=-2, data_type="uint16")
+
+        # setup and connect viewer camera events
+        self.viewer_state = self.viewer.window.qt_viewer.view.camera.get_state()
+        self.previous_layer = None
+        self.viewer.camera.events.zoom.connect(self.camera_zoom)
+        self.viewer.camera.events.center.connect(self.camera_position)
 
     def setup_camera_widgets(self) -> None:
         """
@@ -226,6 +233,16 @@ class ExASPIMInstrumentView(InstrumentView):
             yield multiscale, camera_name
             i += 1
 
+    def camera_position(self, event: Event):
+        # store viewer state anytime camera moves and there is a layer
+        if self.previous_layer in self.viewer.layers:
+            self.viewer_state = self.viewer.window.qt_viewer.view.camera.get_state()
+
+    def camera_zoom(self, event: Event):
+        # store viewer state anytime camera zooms and there is a layer
+        if self.previous_layer in self.viewer.layers:
+            self.viewer_state = self.viewer.window.qt_viewer.view.camera.get_state()
+
     def update_layer(self, args: tuple, snapshot: bool = False) -> None:
         """
         Update the image layer in the viewer.
@@ -265,7 +282,10 @@ class ExASPIMInstrumentView(InstrumentView):
                     scale=(pixel_size_um, pixel_size_um),
                     translate=(-x_center_um, y_center_um),
                     rotate=self.camera_rotation,
-                )   
+                )
+                self.previous_layer = layer_name
+                # set state from previous stored value if creating new layer
+                self.viewer_state = self.viewer.window.qt_viewer.view.camera.set_state(self.viewer_state)
                 layer.mouse_drag_callbacks.append(self.save_image)
                 if snapshot:  # emit signal if snapshot
                     self.snapshotTaken.emit(np.rot90(image[-3], k=2), layer.contrast_limits)
@@ -456,7 +476,6 @@ class ExASPIMInstrumentView(InstrumentView):
             daq.co_task.close()
             daq.ao_task.close()
         self.filter_wheel_widget.setDisabled(False)  # enable filter wheel widget
-        self.viewer_state = self.viewer.window.qt_viewer.view.camera.get_state()  # store viewer state
 
 
 class ExASPIMAcquisitionView(AcquisitionView):
