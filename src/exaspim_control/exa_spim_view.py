@@ -5,6 +5,7 @@ from typing import Iterator
 
 import numpy as np
 from napari.qt.threading import thread_worker, create_worker
+from napari.utils.events import Event
 from qtpy.QtCore import Qt, Signal
 from qtpy.QtWidgets import (
     QComboBox,
@@ -71,6 +72,19 @@ class ExASPIMInstrumentView(InstrumentView):
         self.viewer.text_overlay.visible = True
         self.viewer.window._qt_viewer.canvas._scene_canvas.measure_fps(callback=self.update_fps)
         self.downsampler = GPUToolsRankDownSample2D(binning=2, rank=-2, data_type="uint16")
+
+        # setup and connect viewer camera events
+        self.viewer.window.qt_viewer.view.camera.reset()
+        self.viewer_state = self.viewer.window.qt_viewer.view.camera.get_state()
+        self.previous_layer = None
+        self.viewer.camera.events.zoom.connect(self.camera_zoom)
+        self.viewer.camera.events.center.connect(self.camera_position)
+
+        # create cache for contrast limit values
+        self.contrast_limits = dict()
+        for key in self.channels.keys():
+            self.contrast_limits[key] = [self.intensity_min, self.intensity_max]
+
 
     def setup_camera_widgets(self) -> None:
         """
@@ -228,6 +242,20 @@ class ExASPIMInstrumentView(InstrumentView):
             yield multiscale, camera_name
             i += 1
 
+    def camera_position(self, event: Event):
+        # store viewer state anytime camera moves and there is a layer
+        if self.previous_layer in self.viewer.layers:
+            self.viewer_state = self.viewer.window.qt_viewer.view.camera.get_state()
+
+    def camera_zoom(self, event: Event):
+        # store viewer state anytime camera zooms and there is a layer
+        if self.previous_layer in self.viewer.layers:
+            self.viewer_state = self.viewer.window.qt_viewer.view.camera.get_state()
+
+    def viewer_contrast_limits(self, event: Event):
+        # store viewer contrast limits anytime contrast limits change
+        self.contrast_limits[self.livestream_channel] = self.viewer.layers[self.livestream_channel].contrast_limits
+
     def update_layer(self, args: tuple, snapshot: bool = False) -> None:
         """
         Update the image layer in the viewer.
@@ -245,30 +273,38 @@ class ExASPIMInstrumentView(InstrumentView):
         y_center_um = image[0].shape[0] // 2 * pixel_size_um
         x_center_um = image[0].shape[1] // 2 * pixel_size_um
 
+        layer_list = self.viewer.layers
+
         if image is not None:
-            _ = self.viewer.layers
-            layer_name = (
-                f"{camera_name} {self.livestream_channel}"
+            layer_name = (self.livestream_channel
                 if not snapshot
-                else f"{camera_name} {self.livestream_channel} snapshot"
+                else f"{self.livestream_channel} snapshot"
             )
             if not snapshot:
-                if layer_name in self.viewer.layers:
-                    layer = self.viewer.layers[layer_name]
+                if layer_name in layer_list:
+                    layer = layer_list[layer_name]
                     layer.data = image
                     layer.scale = (pixel_size_um, pixel_size_um)
                     layer.translate = (-x_center_um, y_center_um)
                 else:
+                    contrast_limits = self.contrast_limits[self.livestream_channel]
                     layer = self.viewer.add_image(
                         image,
                         name=layer_name,
-                        contrast_limits=(self.intensity_min, self.intensity_max),
+                        contrast_limits=(contrast_limits[0], contrast_limits[1]),
                         scale=(pixel_size_um, pixel_size_um),
                         translate=(-x_center_um, y_center_um),
                         rotate=self.camera_rotation,
                     )
+                    # connect contrast limits event
+                    layer.events.contrast_limits.connect(self.viewer_contrast_limits)
+                    # only reset state if there is a previous layer, otherwise pass
+                    if self.previous_layer:
+                        self.viewer_state = self.viewer.window.qt_viewer.view.camera.set_state(self.viewer_state)
+                    # update previous layer name
+                    self.previous_layer = layer_name
                     layer.mouse_drag_callbacks.append(self.save_image)
-                for layer in self.viewer.layers:
+                for layer in layer_list:
                     if layer.name == layer_name:
                         layer.selected = True
                         layer.visible = True
@@ -355,7 +391,7 @@ class ExASPIMInstrumentView(InstrumentView):
             combined_roi[:, alignment_roi - 2 : alignment_roi + 2] = 1 << 16 - 1
             combined_roi[:, alignment_roi * 2 - 2 : alignment_roi * 2 + 2] = 1 << 16 - 1
 
-            layer_name = f"{camera_name} {self.livestream_channel} Alignment"
+            layer_name = f"{self.livestream_channel} alignment"
             if layer_name in self.viewer.layers:
                 layer = self.viewer.layers[layer_name]
                 layer.data = combined_roi
@@ -391,6 +427,14 @@ class ExASPIMInstrumentView(InstrumentView):
         :param camera_name: name of camera to set up
         :param frames: how many frames to take
         """
+
+        layer_list = self.viewer.layers
+
+        layer_name = self.livestream_channel
+
+        # check if switching channels
+        if layer_list and layer_name not in layer_list:
+            self.viewer.layers.clear()
 
         if self.grab_frames_worker.is_running:
             if frames == 1:  # create snapshot layer with the latest image
@@ -646,7 +690,7 @@ class ExASPIMAcquisitionView(AcquisitionView):
             y_center_um = image.shape[0] // 2 * pixel_size_um
             x_center_um = image.shape[1] // 2 * pixel_size_um
 
-            layer_name = f"{camera_name} acquisition"
+            layer_name = f"acquisition"
             if layer_name in self.instrument_view.viewer.layers:
                 layer = self.instrument_view.viewer.layers[layer_name]
                 layer.data = image
