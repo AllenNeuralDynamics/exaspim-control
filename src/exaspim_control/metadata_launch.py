@@ -89,7 +89,7 @@ class MetadataLaunch:
                     )
             # create and save processing_manifest.json
             status = "pending"
-            status_time = datetime.datetime.now()
+            status_time = datetime.now()
             processing_manifest = {
                 "dataset_status": {
                     "status": status,

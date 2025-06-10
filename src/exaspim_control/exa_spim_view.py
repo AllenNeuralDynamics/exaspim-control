@@ -170,12 +170,6 @@ class ExASPIMInstrumentView(InstrumentView):
             layout.addWidget(create_widget("H", label, widget))
             laser_widgets.append(layout)
         self.laser_widget = create_widget("V", *laser_widgets)
-        print(self.laser_widget.children())
-        for child in self.laser_widget.children():
-            print(child)
-        print(self.laser_widget.children()[1].children()[0])
-        print(self.laser_widget.children()[1].children()[1])
-        print(self.laser_widget.children()[1].children()[2])
         self.laser_widget.layout().setSpacing(12)
         self.viewer.window.add_dock_widget(self.laser_widget, area="bottom", name="Lasers")
 
@@ -463,14 +457,14 @@ class ExASPIMInstrumentView(InstrumentView):
         self.instrument.cameras[camera_name].prepare()
         self.instrument.cameras[camera_name].start(frames)
 
-        for laser in self.channels[self.livestream_channel].get("lasers", []):
-            self.log.info(f"Enabling laser {laser}")
-            self.instrument.lasers[laser].enable()
-            for child in self.laser_widget.children()[1::]:  # skip first child widget
-                laser_name = child.children()[1].text()  # first child is label widget
-                if laser != laser_name:
-                    child.setDisabled(True)
-                    child.children()[2].setDisabled(True)
+        # for laser in self.channels[self.livestream_channel].get("lasers", []):
+        #     self.log.info(f"Enabling laser {laser}")
+        #     self.instrument.lasers[laser].enable()
+        #     for child in self.laser_widget.children()[1::]:  # skip first child widget
+        #         laser_name = child.children()[1].text()  # first child is label widget
+        #         if laser != laser_name:
+        #             child.setDisabled(True)
+        #             child.children()[2].setDisabled(True)
     
         for filter in self.channels[self.livestream_channel].get("filters", []):
             self.log.info(f"Enabling filter {filter}")
@@ -517,8 +511,8 @@ class ExASPIMInstrumentView(InstrumentView):
             daq.co_task.close()
             daq.ao_task.close()
 
-        for child in self.laser_widget.children()[1::]:  # skip first child widget
-            child.setDisabled(False)
+        # for child in self.laser_widget.children()[1::]:  # skip first child widget
+        #     child.setDisabled(False)
 
         self.filter_wheel_widget.setDisabled(False)  # enable filter wheel widget
         self.laser_combo_box.setDisabled(False)
