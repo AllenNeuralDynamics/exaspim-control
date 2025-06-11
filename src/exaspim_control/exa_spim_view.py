@@ -170,12 +170,6 @@ class ExASPIMInstrumentView(InstrumentView):
             layout.addWidget(create_widget("H", label, widget))
             laser_widgets.append(layout)
         self.laser_widget = create_widget("V", *laser_widgets)
-        print(self.laser_widget.children())
-        for child in self.laser_widget.children():
-            print(child)
-        print(self.laser_widget.children()[1].children()[0])
-        print(self.laser_widget.children()[1].children()[1])
-        print(self.laser_widget.children()[1].children()[2])
         self.laser_widget.layout().setSpacing(12)
         self.viewer.window.add_dock_widget(self.laser_widget, area="bottom", name="Lasers")
 
@@ -471,6 +465,13 @@ class ExASPIMInstrumentView(InstrumentView):
                 if laser != laser_name:
                     child.setDisabled(True)
                     child.children()[2].setDisabled(True)
+                    child.children()[2].power_setpoint_mw_widget_slider.setStyleSheet(
+                        f"QSlider::groove:horizontal {{background: {child.children()[2].inactive_color}; border: 2px solid {child.children()[2].border_color};height: 10px;border-radius: 6px;}}"
+                        f"QSlider::handle:horizontal {{background-color: {child.children()[2].handle_color}; width: 16px; height: 14px; "
+                        f"line-height: 14px; margin-top: -4px; margin-bottom: -4px; border-radius: 0px; }}"
+                        f"QSlider::sub-page:horizontal {{background: {child.children()[2].disabled_color};border: 2px solid {child.children()[2].border_color};"
+                        f"height: 10px;border-radius: 6px;}}"
+                    )
     
         for filter in self.channels[self.livestream_channel].get("filters", []):
             self.log.info(f"Enabling filter {filter}")
@@ -519,6 +520,14 @@ class ExASPIMInstrumentView(InstrumentView):
 
         for child in self.laser_widget.children()[1::]:  # skip first child widget
             child.setDisabled(False)
+            child.children()[2].setDisabled(False)
+            child.children()[2].power_setpoint_mw_widget_slider.setStyleSheet(
+                f"QSlider::groove:horizontal {{background: {child.children()[2].inactive_color}; border: 2px solid {child.children()[2].border_color};height: 10px;border-radius: 6px;}}"
+                f"QSlider::handle:horizontal {{background-color: {child.children()[2].handle_color}; width: 16px; height: 14px; "
+                f"line-height: 14px; margin-top: -4px; margin-bottom: -4px; border-radius: 0px; }}"
+                f"QSlider::sub-page:horizontal {{background: {child.children()[2].active_color};border: 2px solid {child.children()[2].border_color};"
+                f"height: 10px;border-radius: 6px;}}"
+            )
 
         self.filter_wheel_widget.setDisabled(False)  # enable filter wheel widget
         self.laser_combo_box.setDisabled(False)

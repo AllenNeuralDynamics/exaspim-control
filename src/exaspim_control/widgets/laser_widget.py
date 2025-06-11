@@ -71,30 +71,37 @@ class LaserWidget(BaseDeviceWidget):
 
         # active slider color
         hsv_active_color = list(QColor(self.slider_color).getHsv())
-        active_color = QColor.fromHsv(*tuple(hsv_active_color)).name()
+        self.active_color = QColor.fromHsv(*tuple(hsv_active_color)).name()
 
         # inactive slide color
         hsv_inactive_color = hsv_active_color
         hsv_inactive_color[2] = hsv_inactive_color[2] // 4
-        inactive_color = QColor.fromHsv(*tuple(hsv_inactive_color)).name()
+        self.inactive_color = QColor.fromHsv(*tuple(hsv_inactive_color)).name()
 
         # border color
         hsv_border_color = hsv_active_color
         hsv_border_color[2] = 100
         hsv_border_color[1] = 100
-        border_color = QColor.fromHsv(*tuple(hsv_border_color)).name()
+        self.border_color = QColor.fromHsv(*tuple(hsv_border_color)).name()
 
         # handle color
         hsv_handle_color = hsv_active_color
         hsv_handle_color[2] = 128
         hsv_handle_color[1] = 64
-        handle_color = QColor.fromHsv(*tuple(hsv_handle_color)).name()
+        self.handle_color = QColor.fromHsv(*tuple(hsv_handle_color)).name()
+
+        # disabled slide color
+        hsv_disabled_color = hsv_active_color
+        hsv_disabled_color[0] = hsv_inactive_color[0] // 4
+        hsv_disabled_color[1] = hsv_inactive_color[1] // 4
+        hsv_disabled_color[2] = hsv_inactive_color[2] // 2
+        self.disabled_color = QColor.fromHsv(*tuple(hsv_disabled_color)).name()
 
         slider.setStyleSheet(
-            f"QSlider::groove:horizontal {{background: {inactive_color}; border: 2px solid {border_color};height: 10px;border-radius: 6px;}}"
-            f"QSlider::handle:horizontal {{background-color: {handle_color}; width: 16px; height: 14px; "
+            f"QSlider::groove:horizontal {{background: {self.inactive_color}; border: 2px solid {self.border_color};height: 10px;border-radius: 6px;}}"
+            f"QSlider::handle:horizontal {{background-color: {self.handle_color}; width: 16px; height: 14px; "
             f"line-height: 14px; margin-top: -4px; margin-bottom: -4px; border-radius: 0px; }}"
-            f"QSlider::sub-page:horizontal {{background: {active_color};border: 2px solid {border_color};"
+            f"QSlider::sub-page:horizontal {{background: {self.active_color};border: 2px solid {self.border_color};"
             f"height: 10px;border-radius: 6px;}}"
         )
 
