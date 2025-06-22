@@ -127,13 +127,14 @@ class ExASPIMAcquisition(Acquisition):
                         # grab stage axis letter
                         instrument_axis = tiling_stage.instrument_axis
                         tile_position = tile["position_mm"][instrument_axis]
-                        self.log.info(f"moving stage {tiling_stage_id} to {instrument_axis} = {tile_position} mm")
+                        self.log.info(f"moving stage {tiling_stage_id} to {instrument_axis} = {tile_position:.3f} mm")
                         tiling_stage.move_absolute_mm(tile_position, wait=False)
+                        time.sleep(1.0) # wait one second before polling moving status
                         # wait on tiling stage
                         while tiling_stage.is_axis_moving():
                             self.log.info(
                                 f"waiting for stage {tiling_stage_id}: {instrument_axis} ="
-                                f"{tiling_stage.position_mm} -> {tile_position} mm"
+                                f"{tiling_stage.position_mm:.3f} -> {tile_position:.3f} mm"
                             )
                             time.sleep(1.0)
 
@@ -142,19 +143,20 @@ class ExASPIMAcquisition(Acquisition):
                     instrument_axis = self.scanning_stage.instrument_axis
                     tile_position = tile["position_mm"][instrument_axis]
                     backlash_removal_position = tile_position - 0.01
-                    self.log.info(f"moving scanning stage to {instrument_axis} = {backlash_removal_position} mm")
+                    self.log.info(f"moving scanning stage to {instrument_axis} = {backlash_removal_position:.3f} mm")
                     self.scanning_stage.move_absolute_mm(tile_position - 0.01, wait=False)
-                    self.log.info(f"moving stage to {instrument_axis} = {tile_position} mm")
+                    self.log.info(f"moving stage to {instrument_axis} = {tile_position:.3f} mm")
                     self.scanning_stage.move_absolute_mm(tile_position, wait=False)
                     self.log.info("backlash on scanning stage removed")
                     step_size_um = tile["step_size"]
                     self.log.info(f"setting step shoot scan step size to {step_size_um} um")
                     self.scanning_stage.setup_step_shoot_scan(step_size_um)
+                    time.sleep(1.0) # wait one second before polling moving status
                     # wait on scanning stage
                     while self.scanning_stage.is_axis_moving():
                         self.log.info(
                             f"waiting for scanning stage: {instrument_axis} = "
-                            f"{self.scanning_stage.position_mm} -> {tile_position} mm"
+                            f"{self.scanning_stage.position_mm} -> {tile_position:.3f} mm"
                         )
 
                     # check disable scanning stage stepping
@@ -169,15 +171,22 @@ class ExASPIMAcquisition(Acquisition):
                         for device_name in devices:
                             device = getattr(self.instrument, device_type)[device_name]
                             if device_type in ["lasers", "filters"]:
+                                self.log.info(f"{device_type} {device_name} enabled")
                                 device.enable()
                             for setting, value in tile.get(device_name, {}).items():
-                                setattr(device, setting, value)
                                 self.log.info(f"setting {setting} for {device_type} {device_name} to {value}")
+                                setattr(device, setting, value)
+                                self.log.info(f"{setting} for {device_type} {device_name} set to {value}")
 
                     # setup daq
+                    time.sleep(1.0)
+                    self.log.info('setting up daq')
                     if self.daq.tasks.get("ao_task", None) is not None:
+                        self.log.info('adding ao task')
                         self.daq.add_task("ao")
+                        self.log.info('generating ao waveforms')
                         self.daq.generate_waveforms("ao", tile_channel)
+                        self.log.info('writing ao waveforms')
                         self.daq.write_ao_waveforms()
                     if self.daq.tasks.get("do_task", None) is not None:
                         self.daq.add_task("do")
@@ -332,12 +341,12 @@ class ExASPIMAcquisition(Acquisition):
             instrument_axis = tiling_stage.instrument_axis
             tiling_stage.position_mm = self.initial_position_mm[instrument_axis]
             self.log.info(
-                f"moving stage {tiling_stage_id} to {instrument_axis} = {self.initial_position_mm[instrument_axis]} mm"
+                f"moving stage {tiling_stage_id} to {instrument_axis} = {self.initial_position_mm[instrument_axis]:.3f} mm"
             )
         # scanning stage
         instrument_axis = self.scanning_stage.instrument_axis
         self.scanning_stage.position_mm = self.initial_position_mm[instrument_axis]
-        self.log.info(f"moving stage to {instrument_axis} = {self.initial_position_mm[instrument_axis]} mm")
+        self.log.info(f"moving stage to {instrument_axis} = {self.initial_position_mm[instrument_axis]:.3f} mm")
 
     def acquisition_engine(
         self, tile: dict, base_filename: str, camera, daq, writer, processes: dict, scanning_stage

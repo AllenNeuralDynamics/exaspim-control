@@ -588,6 +588,7 @@ class ExASPIMAcquisitionView(AcquisitionView):
 
         # create volume plan
         self.volume_plan = VolumePlanWidget(
+            instrument=self.instrument,
             limits=limits,
             fov_dimensions=fov_dimensions,
             coordinate_plane=self.coordinate_plane,
