@@ -2,7 +2,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 from typing import Iterator
-
+import ruamel
 import numpy as np
 from napari.qt.threading import thread_worker, create_worker
 from napari.utils.events import Event
@@ -29,6 +29,23 @@ from view.widgets.acquisition_widgets.volume_plan_widget import VolumePlanWidget
 from view.widgets.base_device_widget import create_widget, disable_button
 from voxel.processes.downsample.gpu.gputools.rank_downsample_2d import GPUToolsRankDownSample2D
 
+
+class NonAliasingRTRepresenter(ruamel.yaml.RoundTripRepresenter):
+    """
+    Custom representer for ruamel.yaml to ignore aliases.
+    This class is used to ensure that YAML files do not contain aliases,
+    which can cause issues with certain YAML parsers.
+    It overrides the `ignore_aliases` method to always return True.
+    This prevents ruamel.yaml from creating aliases for any data structures
+    that it represents.
+
+    :param ruamel: ruamel.yaml.RoundTripRepresenter
+    :type ruamel: ruamel.yaml.RoundTripRepresenter
+    """
+
+    def ignore_aliases(self, data):
+        return True
+    
 
 class ExASPIMInstrumentView(InstrumentView):
     """Class for handling ExASPIM instrument view."""
@@ -718,6 +735,23 @@ class ExASPIMAcquisitionView(AcquisitionView):
                     translate=(-x_center_um, y_center_um),
                     rotate=self.instrument_view.camera_rotation,
                 )
+
+    def save_acquisition(self) -> None:
+        """
+        Save a tile configuration to a YAML file.
+        """
+
+        # create YAML handler with non-aliasing representer
+        yaml = ruamel.yaml.YAML()
+        yaml.Representer = NonAliasingRTRepresenter
+
+        # save daq tasks to config
+        daq = self.instrument.daqs[list(self.instrument.daqs.keys())[0]]
+        self.acquisition.config["acquisition"]["daq"] = daq.tasks
+
+        # save the tile configuration to the YAML file
+        with open(f"{self.acquisition.metadata.acquisition_name}_tiles.yaml", "w") as file:
+            yaml.dump(self.acquisition.config, file)
 
     def start_acquisition(self) -> None:
         """
