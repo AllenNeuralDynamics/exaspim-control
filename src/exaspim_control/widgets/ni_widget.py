@@ -426,6 +426,7 @@ class NIWidget(BaseDeviceWidget):
         textbox = getattr(self, f"{name}_widget")
         slider = getattr(self, f"{name}_slider")
         maximum = slider.maximum()
+        minimum = slider.minimum()
 
         name_lst = name.split(".")
         parameters = ".".join(name_lst[: name_lst.index("parameters") + 1])
@@ -434,13 +435,15 @@ class NIWidget(BaseDeviceWidget):
         # sawtooth or triangle
         offset = value if "offset_volts" in name else getattr(self, f"{parameters}.offset_volts.channels.{wl}")
         amplitude = value if "amplitude_volts" in name else getattr(self, f"{parameters}.amplitude_volts.channels.{wl}")
-        other_voltage = amplitude if "offset_volts" in name else offset
 
-        total_amplitude = offset + amplitude
-        if total_amplitude > maximum:
-            value = value - (total_amplitude - maximum)
-        elif ("amplitude_volts" in name and amplitude > offset) or ("offset_volts" in name and offset < amplitude):
-            value = other_voltage
+        total_positive_amplitude = offset + amplitude
+        total_negative_amplitude = offset - amplitude
+
+        if total_positive_amplitude > maximum:
+            value = value - (total_positive_amplitude - maximum)
+        elif total_negative_amplitude < minimum:
+            value = value + (minimum - total_negative_amplitude)
+
         textbox.setText(str(value))
         slider.setValue(float(value))
         self.ValueChangedInside.emit(name)

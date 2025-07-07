@@ -66,6 +66,10 @@ class ExASPIMAcquisition(Acquisition):
         file_transfer_threads = dict()
 
         # store devices and routines
+        if hasattr(self.instrument, "indicator_lights"):
+            self.indicator_light, _ = self._grab_first(self.instrument.indicator_lights)  # only 1 indicator light for exaspim
+        else:
+            self.indicator_light = None
         self.camera, camera_name = self._grab_first(self.instrument.cameras)  # only 1 camera for exaspim
         self.scanning_stage, _ = self._grab_first(self.instrument.scanning_stages)  # only 1 scanning stage for exaspim
         self.daq, _ = self._grab_first(self.instrument.daqs)  # only 1 daq for exaspim
@@ -87,6 +91,10 @@ class ExASPIMAcquisition(Acquisition):
         instrument_axis = self.scanning_stage.instrument_axis
         self.initial_position_mm[instrument_axis] = self.scanning_stage.position_mm
 
+        # turn on indicator light
+        if self.indicator_light:
+            self.log.info("turning on indicator light")
+            self.indicator_light.enable()
         for tile in self.config["acquisition"]["tiles"]:
 
             # number of times to repeat tile -> pulled from GUI only make sure in gui.yaml file
@@ -347,6 +355,11 @@ class ExASPIMAcquisition(Acquisition):
         instrument_axis = self.scanning_stage.instrument_axis
         self.scanning_stage.position_mm = self.initial_position_mm[instrument_axis]
         self.log.info(f"moving stage to {instrument_axis} = {self.initial_position_mm[instrument_axis]:.3f} mm")
+
+        # turn off indicator light
+        if self.indicator_light:
+            self.log.info("turning off indicator light")
+            self.indicator_light.disable()
 
     def acquisition_engine(
         self, tile: dict, base_filename: str, camera, daq, writer, processes: dict, scanning_stage

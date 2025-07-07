@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Iterator
 import ruamel
 import numpy as np
+import inflection
 from napari.qt.threading import thread_worker, create_worker
 from napari.utils.events import Event
 from qtpy.QtCore import Qt, Signal
@@ -474,14 +475,14 @@ class ExASPIMInstrumentView(InstrumentView):
         self.instrument.cameras[camera_name].prepare()
         self.instrument.cameras[camera_name].start(frames)
 
-        # for laser in self.channels[self.livestream_channel].get("lasers", []):
-        #     self.log.info(f"Enabling laser {laser}")
-        #     self.instrument.lasers[laser].enable()
-        #     for child in self.laser_widget.children()[1::]:  # skip first child widget
-        #         laser_name = child.children()[1].text()  # first child is label widget
-        #         if laser != laser_name:
-        #             child.setDisabled(True)
-        #             child.children()[2].setDisabled(True)
+        for laser in self.channels[self.livestream_channel].get("lasers", []):
+            self.log.info(f"Enabling laser {laser}")
+            self.instrument.lasers[laser].enable()
+            for child in self.laser_widget.children()[1::]:  # skip first child widget
+                laser_name = child.children()[1].text()  # first child is label widget
+                if laser != laser_name:
+                    child.setDisabled(True)
+                    child.children()[2].setDisabled(True)
     
         for filter in self.channels[self.livestream_channel].get("filters", []):
             self.log.info(f"Enabling filter {filter}")
@@ -528,8 +529,12 @@ class ExASPIMInstrumentView(InstrumentView):
             daq.co_task.close()
             daq.ao_task.close()
 
-        # for child in self.laser_widget.children()[1::]:  # skip first child widget
-        #     child.setDisabled(False)
+        for laser in self.channels[self.livestream_channel].get("lasers", []):
+            for child in self.laser_widget.children()[1::]:  # skip first child widget
+                laser_name = child.children()[1].text()  # first child is label widget
+                if laser != laser_name:
+                    child.setDisabled(False)
+                    child.children()[2].setDisabled(False)
 
         self.filter_wheel_widget.setDisabled(False)  # enable filter wheel widget
         self.laser_combo_box.setDisabled(False)
@@ -539,6 +544,29 @@ class ExASPIMInstrumentView(InstrumentView):
         self.crosshairs_button.setChecked(False)
         self.snapshot_button.setDisabled(False)  # enable crosshairs button
 
+    def close(self) -> None:
+        """
+        Close instruments and end threads
+        """
+
+        for worker in self.property_workers:
+            worker.quit()
+            while worker.is_running:
+                time.sleep(0.1)
+        for worker in self.property_workers:
+            while worker.is_running:
+                time.sleep(0.1)
+        self.grab_frames_worker.quit()
+        while self.grab_frames_worker.is_running:
+            time.sleep(0.1)
+        for device_name, device_specs in self.instrument.config["instrument"]["devices"].items():
+            device_type = device_specs["type"]
+            device = getattr(self.instrument, inflection.pluralize(device_type))[device_name]
+            try:
+                device.close()
+            except AttributeError:
+                self.log.debug(f"{device_name} does not have close function")
+        self.instrument.close()
 
 class ExASPIMAcquisitionView(AcquisitionView):
     """Class for handling ExASPIM acquisition view."""
