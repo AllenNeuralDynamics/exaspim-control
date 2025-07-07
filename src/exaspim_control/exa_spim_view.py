@@ -46,7 +46,7 @@ class NonAliasingRTRepresenter(ruamel.yaml.RoundTripRepresenter):
 
     def ignore_aliases(self, data):
         return True
-    
+
 
 class ExASPIMInstrumentView(InstrumentView):
     """Class for handling ExASPIM instrument view."""
@@ -102,7 +102,6 @@ class ExASPIMInstrumentView(InstrumentView):
         self.contrast_limits = dict()
         for key in self.channels.keys():
             self.contrast_limits[key] = [self.intensity_min, self.intensity_max]
-
 
     def setup_camera_widgets(self) -> None:
         """
@@ -295,10 +294,7 @@ class ExASPIMInstrumentView(InstrumentView):
         layer_list = self.viewer.layers
 
         if image is not None:
-            layer_name = (self.livestream_channel
-                if not snapshot
-                else f"{self.livestream_channel} snapshot"
-            )
+            layer_name = self.livestream_channel if not snapshot else f"{self.livestream_channel} snapshot"
             if not snapshot:
                 if layer_name in layer_list:
                     layer = layer_list[layer_name]
@@ -335,7 +331,10 @@ class ExASPIMInstrumentView(InstrumentView):
                     image[-1],
                     name=layer_name,
                     contrast_limits=(self.intensity_min, self.intensity_max),
-                    scale=(pixel_size_um*2**(self.resolution_levels-1), pixel_size_um*2**(self.resolution_levels-1)),
+                    scale=(
+                        pixel_size_um * 2 ** (self.resolution_levels - 1),
+                        pixel_size_um * 2 ** (self.resolution_levels - 1),
+                    ),
                     translate=(-x_center_um, y_center_um),
                     rotate=self.camera_rotation,
                 )
@@ -483,10 +482,15 @@ class ExASPIMInstrumentView(InstrumentView):
                 if laser != laser_name:
                     child.setDisabled(True)
                     child.children()[2].setDisabled(True)
-    
+
         for filter in self.channels[self.livestream_channel].get("filters", []):
             self.log.info(f"Enabling filter {filter}")
             self.instrument.filters[filter].enable()
+
+        # TODO fix this, messy way to figure out FOV dimensions from camera properties
+        if hasattr(self.instrument, "indicator_lights"):
+            first_indicator_light_key = list(self.instrument.indicator_lights.keys())[0]
+            self.instrument.indicator_lights[first_indicator_light_key].enable()
 
         for daq_name, daq in self.instrument.daqs.items():
             if daq.tasks.get("ao_task", None) is not None:
@@ -536,6 +540,11 @@ class ExASPIMInstrumentView(InstrumentView):
                     child.setDisabled(False)
                     child.children()[2].setDisabled(False)
 
+        # TODO fix this, messy way to figure out FOV dimensions from camera properties
+        if hasattr(self.instrument, "indicator_lights"):
+            first_indicator_light_key = list(self.instrument.indicator_lights.keys())[0]
+            self.instrument.indicator_lights[first_indicator_light_key].disable()
+
         self.filter_wheel_widget.setDisabled(False)  # enable filter wheel widget
         self.laser_combo_box.setDisabled(False)
         self.alignment_button.setDisabled(True)  # disable alignment button
@@ -567,6 +576,7 @@ class ExASPIMInstrumentView(InstrumentView):
             except AttributeError:
                 self.log.debug(f"{device_name} does not have close function")
         self.instrument.close()
+
 
 class ExASPIMAcquisitionView(AcquisitionView):
     """Class for handling ExASPIM acquisition view."""
