@@ -67,7 +67,9 @@ class ExASPIMAcquisition(Acquisition):
 
         # store devices and routines
         if hasattr(self.instrument, "indicator_lights"):
-            self.indicator_light, _ = self._grab_first(self.instrument.indicator_lights)  # only 1 indicator light for exaspim
+            self.indicator_light, _ = self._grab_first(
+                self.instrument.indicator_lights
+            )  # only 1 indicator light for exaspim
         else:
             self.indicator_light = None
         self.camera, camera_name = self._grab_first(self.instrument.cameras)  # only 1 camera for exaspim
@@ -137,7 +139,7 @@ class ExASPIMAcquisition(Acquisition):
                         tile_position = tile["position_mm"][instrument_axis]
                         self.log.info(f"moving stage {tiling_stage_id} to {instrument_axis} = {tile_position:.3f} mm")
                         tiling_stage.move_absolute_mm(tile_position, wait=False)
-                        time.sleep(1.0) # wait one second before polling moving status
+                        time.sleep(1.0)  # wait one second before polling moving status
                         # wait on tiling stage
                         while tiling_stage.is_axis_moving():
                             self.log.info(
@@ -159,7 +161,7 @@ class ExASPIMAcquisition(Acquisition):
                     step_size_um = tile["step_size"]
                     self.log.info(f"setting step shoot scan step size to {step_size_um} um")
                     self.scanning_stage.setup_step_shoot_scan(step_size_um)
-                    time.sleep(1.0) # wait one second before polling moving status
+                    time.sleep(1.0)  # wait one second before polling moving status
                     # wait on scanning stage
                     while self.scanning_stage.is_axis_moving():
                         self.log.info(
@@ -186,15 +188,27 @@ class ExASPIMAcquisition(Acquisition):
                                 setattr(device, setting, value)
                                 self.log.info(f"{setting} for {device_type} {device_name} set to {value}")
 
+                    # update etl offsets if in channel plan table
+                    if "etl_left_offset" in tile:
+                        if tile["etl_left_offset"] is not None:
+                            self.daq.tasks["ao_task"]["ports"]["left tunable lens"]["parameters"]["offset_volts"][
+                                "channels"
+                            ][tile_channel] = tile["etl_left_offset"]
+                    if "etl_right_offset" in tile:
+                        if tile["etl_right_offset"] is not None:
+                            self.daq.tasks["ao_task"]["ports"]["right tunable lens"]["parameters"]["offset_volts"][
+                                "channels"
+                            ][tile_channel] = tile["etl_right_offset"]
+
                     # setup daq
                     time.sleep(1.0)
-                    self.log.info('setting up daq')
+                    self.log.info("setting up daq")
                     if self.daq.tasks.get("ao_task", None) is not None:
-                        self.log.info('adding ao task')
+                        self.log.info("adding ao task")
                         self.daq.add_task("ao")
-                        self.log.info('generating ao waveforms')
+                        self.log.info("generating ao waveforms")
                         self.daq.generate_waveforms("ao", tile_channel)
-                        self.log.info('writing ao waveforms')
+                        self.log.info("writing ao waveforms")
                         self.daq.write_ao_waveforms()
                     if self.daq.tasks.get("do_task", None) is not None:
                         self.daq.add_task("do")
