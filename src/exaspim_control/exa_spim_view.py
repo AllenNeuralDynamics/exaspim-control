@@ -2,9 +2,11 @@ import time
 from datetime import datetime
 from pathlib import Path
 from typing import Iterator
-
+import ruamel
 import numpy as np
+import inflection
 from napari.qt.threading import thread_worker, create_worker
+from napari.utils.events import Event
 from qtpy.QtCore import Qt, Signal
 from qtpy.QtWidgets import (
     QComboBox,
@@ -27,6 +29,23 @@ from view.widgets.acquisition_widgets.volume_model import VolumeModel
 from view.widgets.acquisition_widgets.volume_plan_widget import VolumePlanWidget
 from view.widgets.base_device_widget import create_widget, disable_button
 from voxel.processes.downsample.gpu.gputools.rank_downsample_2d import GPUToolsRankDownSample2D
+
+
+class NonAliasingRTRepresenter(ruamel.yaml.RoundTripRepresenter):
+    """
+    Custom representer for ruamel.yaml to ignore aliases.
+    This class is used to ensure that YAML files do not contain aliases,
+    which can cause issues with certain YAML parsers.
+    It overrides the `ignore_aliases` method to always return True.
+    This prevents ruamel.yaml from creating aliases for any data structures
+    that it represents.
+
+    :param ruamel: ruamel.yaml.RoundTripRepresenter
+    :type ruamel: ruamel.yaml.RoundTripRepresenter
+    """
+
+    def ignore_aliases(self, data):
+        return True
 
 
 class ExASPIMInstrumentView(InstrumentView):
@@ -72,6 +91,18 @@ class ExASPIMInstrumentView(InstrumentView):
         self.viewer.window._qt_viewer.canvas._scene_canvas.measure_fps(callback=self.update_fps)
         self.downsampler = GPUToolsRankDownSample2D(binning=2, rank=-2, data_type="uint16")
 
+        # setup and connect viewer camera events
+        self.viewer.window.qt_viewer.view.camera.reset()
+        self.viewer_state = self.viewer.window.qt_viewer.view.camera.get_state()
+        self.previous_layer = None
+        self.viewer.camera.events.zoom.connect(self.camera_zoom)
+        self.viewer.camera.events.center.connect(self.camera_position)
+
+        # create cache for contrast limit values
+        self.contrast_limits = dict()
+        for key in self.channels.keys():
+            self.contrast_limits[key] = [self.intensity_min, self.intensity_max]
+
     def setup_camera_widgets(self) -> None:
         """
         Set up camera widgets.
@@ -79,11 +110,11 @@ class ExASPIMInstrumentView(InstrumentView):
         for camera_name, camera_widget in self.camera_widgets.items():
 
             # Add functionality to snapshot button
-            snapshot_button = getattr(camera_widget, "snapshot_button", QPushButton())
-            snapshot_button.pressed.connect(
-                lambda button=snapshot_button: disable_button(button)
+            self.snapshot_button = getattr(camera_widget, "snapshot_button", QPushButton())
+            self.snapshot_button.pressed.connect(
+                lambda button=self.snapshot_button: disable_button(button)
             )  # disable to avoid spamming
-            snapshot_button.pressed.connect(lambda camera=camera_name: self.setup_live(camera, 1))
+            self.snapshot_button.pressed.connect(lambda camera=camera_name: self.setup_live(camera, 1))
 
             # Add functionality to live button
             live_button = getattr(camera_widget, "live_button", QPushButton())
@@ -99,6 +130,9 @@ class ExASPIMInstrumentView(InstrumentView):
             # Add functionality to the crosshairs button
             self.crosshairs_button = getattr(camera_widget, "crosshairs_button", QPushButton())
             self.crosshairs_button.setCheckable(True)
+
+            self.alignment_button.setDisabled(True)  # disable alignment button
+            self.crosshairs_button.setDisabled(True)  # disable crosshairs button
 
         stacked = self.stack_device_widgets("camera")
         self.viewer.window.add_dock_widget(stacked, area="right", name="Cameras", add_vertical_stretch=False)
@@ -152,9 +186,9 @@ class ExASPIMInstrumentView(InstrumentView):
             layout = QVBoxLayout()
             layout.addWidget(create_widget("H", label, widget))
             laser_widgets.append(layout)
-        laser_widget = create_widget("V", *laser_widgets)
-        laser_widget.layout().setSpacing(12)
-        self.viewer.window.add_dock_widget(laser_widget, area="bottom", name="Lasers")
+        self.laser_widget = create_widget("V", *laser_widgets)
+        self.laser_widget.layout().setSpacing(12)
+        self.viewer.window.add_dock_widget(self.laser_widget, area="bottom", name="Lasers")
 
     def setup_channel_widget(self) -> None:
         """
@@ -168,6 +202,7 @@ class ExASPIMInstrumentView(InstrumentView):
         laser_combo_box.currentTextChanged.connect(lambda value: self.change_channel(value))
         laser_combo_box.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Minimum)
         laser_combo_box.setCurrentIndex(0)  # initialize to first channel index
+        self.laser_combo_box = laser_combo_box
         self.livestream_channel = laser_combo_box.currentText()  # initialize livestream channel
         layout.addWidget(label)
         layout.addWidget(laser_combo_box)
@@ -225,6 +260,20 @@ class ExASPIMInstrumentView(InstrumentView):
             yield multiscale, camera_name
             i += 1
 
+    def camera_position(self, event: Event):
+        # store viewer state anytime camera moves and there is a layer
+        if self.previous_layer in self.viewer.layers:
+            self.viewer_state = self.viewer.window.qt_viewer.view.camera.get_state()
+
+    def camera_zoom(self, event: Event):
+        # store viewer state anytime camera zooms and there is a layer
+        if self.previous_layer in self.viewer.layers:
+            self.viewer_state = self.viewer.window.qt_viewer.view.camera.get_state()
+
+    def viewer_contrast_limits(self, event: Event):
+        # store viewer contrast limits anytime contrast limits change
+        self.contrast_limits[self.livestream_channel] = self.viewer.layers[self.livestream_channel].contrast_limits
+
     def update_layer(self, args: tuple, snapshot: bool = False) -> None:
         """
         Update the image layer in the viewer.
@@ -242,43 +291,56 @@ class ExASPIMInstrumentView(InstrumentView):
         y_center_um = image[0].shape[0] // 2 * pixel_size_um
         x_center_um = image[0].shape[1] // 2 * pixel_size_um
 
+        layer_list = self.viewer.layers
+
         if image is not None:
-            _ = self.viewer.layers
-            layer_name = (
-                f"{camera_name} {self.livestream_channel}"
-                if not snapshot
-                else f"{camera_name} {self.livestream_channel} snapshot"
-            )
-            if layer_name in self.viewer.layers and not snapshot:
-                layer = self.viewer.layers[layer_name]
-                layer.data = image
-                layer.scale = (pixel_size_um, pixel_size_um)
-                layer.translate = (-x_center_um, y_center_um)
+            layer_name = self.livestream_channel if not snapshot else f"{self.livestream_channel} snapshot"
+            if not snapshot:
+                if layer_name in layer_list:
+                    layer = layer_list[layer_name]
+                    layer.data = image
+                    layer.scale = (pixel_size_um, pixel_size_um)
+                    layer.translate = (-x_center_um, y_center_um)
+                else:
+                    contrast_limits = self.contrast_limits[self.livestream_channel]
+                    layer = self.viewer.add_image(
+                        image,
+                        name=layer_name,
+                        contrast_limits=(contrast_limits[0], contrast_limits[1]),
+                        scale=(pixel_size_um, pixel_size_um),
+                        translate=(-x_center_um, y_center_um),
+                        rotate=self.camera_rotation,
+                    )
+                    # connect contrast limits event
+                    layer.events.contrast_limits.connect(self.viewer_contrast_limits)
+                    # only reset state if there is a previous layer, otherwise pass
+                    if self.previous_layer:
+                        self.viewer_state = self.viewer.window.qt_viewer.view.camera.set_state(self.viewer_state)
+                    # update previous layer name
+                    self.previous_layer = layer_name
+                    layer.mouse_drag_callbacks.append(self.save_image)
+                for layer in layer_list:
+                    if layer.name == layer_name:
+                        layer.selected = True
+                        layer.visible = True
+                    else:
+                        layer.selected = False
+                        layer.visible = False
             else:
-                # Add image to a new layer if layer doesn't exist yet or image is snapshot
                 layer = self.viewer.add_image(
-                    image,
+                    image[-1],
                     name=layer_name,
                     contrast_limits=(self.intensity_min, self.intensity_max),
-                    scale=(pixel_size_um, pixel_size_um),
+                    scale=(
+                        pixel_size_um * 2 ** (self.resolution_levels - 1),
+                        pixel_size_um * 2 ** (self.resolution_levels - 1),
+                    ),
                     translate=(-x_center_um, y_center_um),
                     rotate=self.camera_rotation,
                 )
-                layer.mouse_drag_callbacks.append(self.save_image)
-                if snapshot:  # emit signal if snapshot
-                    self.snapshotTaken.emit(np.rot90(image[-3], k=2), layer.contrast_limits)
-                    layer.events.contrast_limits.connect(
-                        lambda event: self.contrastChanged.emit(np.rot90(layer.data[-3], k=2), layer.contrast_limits)
-                    )
-            for layer in self.viewer.layers:
-                if layer.name == layer_name:
-                    layer.selected = True
-                    layer.visible = True
-                else:
-                    layer.selected = False
-                    layer.visible = False
-
-        # print(self.viewer.window.qt_viewer.view.camera.get_state())
+                self.snapshotTaken.emit(np.copy(np.rot90(image[-1], k=2)), layer.contrast_limits)
+                layer.selected = False
+                layer.visible = False
 
     def dissect_image(self, args: tuple) -> None:
         """
@@ -291,53 +353,53 @@ class ExASPIMInstrumentView(InstrumentView):
 
         # calculate centroid of image
         pixel_size_um = self.instrument.cameras[camera_name].sampling_um_px
-        y_center_um = image.shape[0] // 2 * pixel_size_um
-        x_center_um = image.shape[1] // 2 * pixel_size_um
+        y_center_um = image[0].shape[0] // 2 * pixel_size_um
+        x_center_um = image[1].shape[1] // 2 * pixel_size_um
 
         if image is not None:
             # Dissect image and add to viewer
             alignment_roi = self.alignment_roi_size
             combined_roi = np.zeros((alignment_roi * 3, alignment_roi * 3))
             # top left corner
-            top_left = image[0:alignment_roi, 0:alignment_roi]
+            top_left = image[0][0:alignment_roi, 0:alignment_roi]
             combined_roi[0:alignment_roi, 0:alignment_roi] = top_left
             # top right corner
-            top_right = image[0:alignment_roi, -alignment_roi:]
+            top_right = image[0][0:alignment_roi, -alignment_roi:]
             combined_roi[0:alignment_roi, alignment_roi * 2 : alignment_roi * 3] = top_right
             # bottom left corner
-            bottom_left = image[-alignment_roi:, 0:alignment_roi]
+            bottom_left = image[0][-alignment_roi:, 0:alignment_roi]
             combined_roi[alignment_roi * 2 : alignment_roi * 3, 0:alignment_roi] = bottom_left
             # bottom right corner
-            bottom_right = image[-alignment_roi:, -alignment_roi:]
+            bottom_right = image[0][-alignment_roi:, -alignment_roi:]
             combined_roi[alignment_roi * 2 : alignment_roi * 3, alignment_roi * 2 : alignment_roi * 3] = bottom_right
             # center left
-            center_left = image[
-                round((image.shape[0] / 2) - alignment_roi / 2) : round((image.shape[0] / 2) + alignment_roi / 2),
+            center_left = image[0][
+                round((image[0].shape[0] / 2) - alignment_roi / 2) : round((image[0].shape[0] / 2) + alignment_roi / 2),
                 0:alignment_roi,
             ]
             combined_roi[alignment_roi : alignment_roi * 2, 0:alignment_roi] = center_left
             # center right
-            center_right = image[
-                round((image.shape[0] / 2) - alignment_roi / 2) : round((image.shape[0] / 2) + alignment_roi / 2),
+            center_right = image[0][
+                round((image[0].shape[0] / 2) - alignment_roi / 2) : round((image[0].shape[0] / 2) + alignment_roi / 2),
                 -alignment_roi:,
             ]
             combined_roi[alignment_roi : alignment_roi * 2, alignment_roi * 2 : alignment_roi * 3] = center_right
             # center top
-            center_top = image[
+            center_top = image[0][
                 0:alignment_roi,
-                round((image.shape[1] / 2) - alignment_roi / 2) : round((image.shape[1] / 2) + alignment_roi / 2),
+                round((image[0].shape[1] / 2) - alignment_roi / 2) : round((image[0].shape[1] / 2) + alignment_roi / 2),
             ]
             combined_roi[0:alignment_roi, alignment_roi : alignment_roi * 2] = center_top
             # center bottom
-            center_bottom = image[
+            center_bottom = image[0][
                 -alignment_roi:,
-                round((image.shape[1] / 2) - alignment_roi / 2) : round((image.shape[1] / 2) + alignment_roi / 2),
+                round((image[0].shape[1] / 2) - alignment_roi / 2) : round((image[0].shape[1] / 2) + alignment_roi / 2),
             ]
             combined_roi[alignment_roi * 2 : alignment_roi * 3, alignment_roi : alignment_roi * 2] = center_bottom
             # center roi
-            center = image[
-                round((image.shape[0] / 2) - alignment_roi / 2) : round((image.shape[0] / 2) + alignment_roi / 2),
-                round((image.shape[1] / 2) - alignment_roi / 2) : round((image.shape[1] / 2) + alignment_roi / 2),
+            center = image[0][
+                round((image[0].shape[0] / 2) - alignment_roi / 2) : round((image[0].shape[0] / 2) + alignment_roi / 2),
+                round((image[0].shape[1] / 2) - alignment_roi / 2) : round((image[0].shape[1] / 2) + alignment_roi / 2),
             ]
             combined_roi[alignment_roi : alignment_roi * 2, alignment_roi : alignment_roi * 2] = center
 
@@ -347,7 +409,7 @@ class ExASPIMInstrumentView(InstrumentView):
             combined_roi[:, alignment_roi - 2 : alignment_roi + 2] = 1 << 16 - 1
             combined_roi[:, alignment_roi * 2 - 2 : alignment_roi * 2 + 2] = 1 << 16 - 1
 
-            layer_name = f"{camera_name} {self.livestream_channel} Alignment"
+            layer_name = f"{self.livestream_channel} alignment"
             if layer_name in self.viewer.layers:
                 layer = self.viewer.layers[layer_name]
                 layer.data = combined_roi
@@ -384,6 +446,14 @@ class ExASPIMInstrumentView(InstrumentView):
         :param frames: how many frames to take
         """
 
+        layer_list = self.viewer.layers
+
+        layer_name = self.livestream_channel
+
+        # check if switching channels
+        if layer_list and layer_name not in layer_list:
+            self.viewer.layers.clear()
+
         if self.grab_frames_worker.is_running:
             if frames == 1:  # create snapshot layer with the latest image
                 layer = self.viewer.layers[f"{camera_name} {self.livestream_channel}"]
@@ -407,10 +477,20 @@ class ExASPIMInstrumentView(InstrumentView):
         for laser in self.channels[self.livestream_channel].get("lasers", []):
             self.log.info(f"Enabling laser {laser}")
             self.instrument.lasers[laser].enable()
+            for child in self.laser_widget.children()[1::]:  # skip first child widget
+                laser_name = child.children()[1].text()  # first child is label widget
+                if laser != laser_name:
+                    child.setDisabled(True)
+                    child.children()[2].setDisabled(True)
 
         for filter in self.channels[self.livestream_channel].get("filters", []):
             self.log.info(f"Enabling filter {filter}")
             self.instrument.filters[filter].enable()
+
+        # TODO fix this, messy way to figure out FOV dimensions from camera properties
+        if hasattr(self.instrument, "indicator_lights"):
+            first_indicator_light_key = list(self.instrument.indicator_lights.keys())[0]
+            self.instrument.indicator_lights[first_indicator_light_key].enable()
 
         for daq_name, daq in self.instrument.daqs.items():
             if daq.tasks.get("ao_task", None) is not None:
@@ -428,6 +508,10 @@ class ExASPIMInstrumentView(InstrumentView):
             daq.start()
 
         self.filter_wheel_widget.setDisabled(True)  # disable filter wheel widget
+        self.laser_combo_box.setDisabled(True)  # disable channel widget
+        self.alignment_button.setDisabled(False)  # enable alignment button
+        self.crosshairs_button.setDisabled(False)  # enable crosshairs button
+        self.snapshot_button.setDisabled(True)  # disable crosshairs button
 
     def dismantle_live(self, camera_name: str) -> None:
         """
@@ -448,7 +532,50 @@ class ExASPIMInstrumentView(InstrumentView):
             # close the tasks
             daq.co_task.close()
             daq.ao_task.close()
+
+        for laser in self.channels[self.livestream_channel].get("lasers", []):
+            for child in self.laser_widget.children()[1::]:  # skip first child widget
+                laser_name = child.children()[1].text()  # first child is label widget
+                if laser != laser_name:
+                    child.setDisabled(False)
+                    child.children()[2].setDisabled(False)
+
+        # TODO fix this, messy way to figure out FOV dimensions from camera properties
+        if hasattr(self.instrument, "indicator_lights"):
+            first_indicator_light_key = list(self.instrument.indicator_lights.keys())[0]
+            self.instrument.indicator_lights[first_indicator_light_key].disable()
+
         self.filter_wheel_widget.setDisabled(False)  # enable filter wheel widget
+        self.laser_combo_box.setDisabled(False)
+        self.alignment_button.setDisabled(True)  # disable alignment button
+        self.alignment_button.setChecked(False)
+        self.crosshairs_button.setDisabled(True)  # disable crosshairs button
+        self.crosshairs_button.setChecked(False)
+        self.snapshot_button.setDisabled(False)  # enable crosshairs button
+
+    def close(self) -> None:
+        """
+        Close instruments and end threads
+        """
+
+        for worker in self.property_workers:
+            worker.quit()
+            while worker.is_running:
+                time.sleep(0.1)
+        for worker in self.property_workers:
+            while worker.is_running:
+                time.sleep(0.1)
+        self.grab_frames_worker.quit()
+        while self.grab_frames_worker.is_running:
+            time.sleep(0.1)
+        for device_name, device_specs in self.instrument.config["instrument"]["devices"].items():
+            device_type = device_specs["type"]
+            device = getattr(self.instrument, inflection.pluralize(device_type))[device_name]
+            try:
+                device.close()
+            except AttributeError:
+                self.log.debug(f"{device_name} does not have close function")
+        self.instrument.close()
 
 
 class ExASPIMAcquisitionView(AcquisitionView):
@@ -471,6 +598,8 @@ class ExASPIMAcquisitionView(AcquisitionView):
         # acquisition view constants for ExA-SPIM
         self.binning_levels = 2
         self.acquisition_thread = create_worker(self.acquisition.run)
+        # Eventual threads
+        self.grab_frames_worker = create_worker(lambda: None)  # dummy thread
         self.setWindowTitle("ExA-SPIM control")
 
     def create_acquisition_widget(self) -> QSplitter:
@@ -514,6 +643,7 @@ class ExASPIMAcquisitionView(AcquisitionView):
 
         # create volume plan
         self.volume_plan = VolumePlanWidget(
+            instrument=self.instrument,
             limits=limits,
             fov_dimensions=fov_dimensions,
             coordinate_plane=self.coordinate_plane,
@@ -620,15 +750,15 @@ class ExASPIMAcquisitionView(AcquisitionView):
 
         if image is not None:
 
-            for binning in range(0, self.binning_levels):
-                image = self.instrument_view.downsampler.run(image)
+            # for binning in range(0, self.binning_levels):
+            #     image = self.instrument_view.downsampler.run(image)
 
             # calculate centroid of image
-            pixel_size_um = self.instrument.cameras[camera_name].sampling_um_px * 2**self.binning_levels
+            pixel_size_um = self.instrument.cameras[camera_name].sampling_um_px
             y_center_um = image.shape[0] // 2 * pixel_size_um
             x_center_um = image.shape[1] // 2 * pixel_size_um
 
-            layer_name = f"{camera_name} acquisition"
+            layer_name = f"acquisition"
             if layer_name in self.instrument_view.viewer.layers:
                 layer = self.instrument_view.viewer.layers[layer_name]
                 layer.data = image
@@ -643,6 +773,23 @@ class ExASPIMAcquisitionView(AcquisitionView):
                     translate=(-x_center_um, y_center_um),
                     rotate=self.instrument_view.camera_rotation,
                 )
+
+    def save_acquisition(self) -> None:
+        """
+        Save a tile configuration to a YAML file.
+        """
+
+        # create YAML handler with non-aliasing representer
+        yaml = ruamel.yaml.YAML()
+        yaml.Representer = NonAliasingRTRepresenter
+
+        # save daq tasks to config
+        daq = self.instrument.daqs[list(self.instrument.daqs.keys())[0]]
+        self.acquisition.config["acquisition"]["daq"] = daq.tasks
+
+        # save the tile configuration to the YAML file
+        with open(f"{self.acquisition.metadata.acquisition_name}_tiles.yaml", "w") as file:
+            yaml.dump(self.acquisition.config, file)
 
     def start_acquisition(self) -> None:
         """

@@ -1,3 +1,4 @@
+import copy
 import math
 import os
 import platform
@@ -5,20 +6,18 @@ import shutil
 import subprocess
 import threading
 import time
-import copy
 from multiprocessing.shared_memory import SharedMemory
 from pathlib import Path
-from threading import Event, Lock
-
+from threading import Lock
 import inflection
 import numpy
 from gputools import get_device
 from psutil import virtual_memory
 from ruamel.yaml import YAML
-
 from voxel.acquisition.acquisition import Acquisition
 from voxel.instruments.instrument import Instrument
 from voxel.writers.data_structures.shared_double_buffer import SharedDoubleBuffer
+
 
 DIRECTORY = Path(__file__).parent.resolve()
 
@@ -26,7 +25,13 @@ DIRECTORY = Path(__file__).parent.resolve()
 class ExASPIMAcquisition(Acquisition):
     """Class for handling ExASPIM acquisition."""
 
-    def __init__(self, instrument: Instrument, config_filename: str, yaml_handler: YAML, log_level="INFO"):
+    def __init__(
+        self,
+        instrument: Instrument,
+        config_filename: str,
+        yaml_handler: YAML,
+        log_level="INFO",
+    ):
         """
         Initialize the ExASPIMAcquisition object.
 
@@ -40,10 +45,10 @@ class ExASPIMAcquisition(Acquisition):
         :type log_level: str, optional
         """
         self.metadata = None  # initialize as none since setting up metadata class with call setup_class
-        super().__init__(instrument, DIRECTORY / Path(config_filename), yaml_handler, log_level)
+        super().__init__(
+            instrument, DIRECTORY / Path(config_filename), yaml_handler, log_level
+        )
 
-        # initialize stop engine event
-        self.stop_engine = Event()
         # store initial stage positions
         self.initial_position_mm = dict()
 
@@ -66,12 +71,6 @@ class ExASPIMAcquisition(Acquisition):
         file_transfer_threads = dict()
 
         # store devices and routines
-        if hasattr(self.instrument, "indicator_lights"):
-            self.indicator_light, _ = self._grab_first(
-                self.instrument.indicator_lights
-            )  # only 1 indicator light for exaspim
-        else:
-            self.indicator_light = None
         self.camera, camera_name = self._grab_first(self.instrument.cameras)  # only 1 camera for exaspim
         self.scanning_stage, _ = self._grab_first(self.instrument.scanning_stages)  # only 1 scanning stage for exaspim
         self.daq, _ = self._grab_first(self.instrument.daqs)  # only 1 daq for exaspim
@@ -93,10 +92,6 @@ class ExASPIMAcquisition(Acquisition):
         instrument_axis = self.scanning_stage.instrument_axis
         self.initial_position_mm[instrument_axis] = self.scanning_stage.position_mm
 
-        # turn on indicator light
-        if self.indicator_light:
-            self.log.info("turning on indicator light")
-            self.indicator_light.enable()
         for tile in self.config["acquisition"]["tiles"]:
 
             # number of times to repeat tile -> pulled from GUI only make sure in gui.yaml file
@@ -139,7 +134,7 @@ class ExASPIMAcquisition(Acquisition):
                         tile_position = tile["position_mm"][instrument_axis]
                         self.log.info(f"moving stage {tiling_stage_id} to {instrument_axis} = {tile_position:.3f} mm")
                         tiling_stage.move_absolute_mm(tile_position, wait=False)
-                        time.sleep(1.0)  # wait one second before polling moving status
+                        time.sleep(1.0) # wait one second before polling moving status
                         # wait on tiling stage
                         while tiling_stage.is_axis_moving():
                             self.log.info(
@@ -161,13 +156,14 @@ class ExASPIMAcquisition(Acquisition):
                     step_size_um = tile["step_size"]
                     self.log.info(f"setting step shoot scan step size to {step_size_um} um")
                     self.scanning_stage.setup_step_shoot_scan(step_size_um)
-                    time.sleep(1.0)  # wait one second before polling moving status
+                    time.sleep(1.0) # wait one second before polling moving status
                     # wait on scanning stage
                     while self.scanning_stage.is_axis_moving():
                         self.log.info(
                             f"waiting for scanning stage: {instrument_axis} = "
                             f"{self.scanning_stage.position_mm} -> {tile_position:.3f} mm"
                         )
+                        time.sleep(1.0)
 
                     # check disable scanning stage stepping
                     if tile["disable_scanning"] == "on":
@@ -188,27 +184,15 @@ class ExASPIMAcquisition(Acquisition):
                                 setattr(device, setting, value)
                                 self.log.info(f"{setting} for {device_type} {device_name} set to {value}")
 
-                    # update etl offsets if in channel plan table
-                    if "etl_left_offset" in tile:
-                        if tile["etl_left_offset"] is not None:
-                            self.daq.tasks["ao_task"]["ports"]["left tunable lens"]["parameters"]["offset_volts"][
-                                "channels"
-                            ][tile_channel] = tile["etl_left_offset"]
-                    if "etl_right_offset" in tile:
-                        if tile["etl_right_offset"] is not None:
-                            self.daq.tasks["ao_task"]["ports"]["right tunable lens"]["parameters"]["offset_volts"][
-                                "channels"
-                            ][tile_channel] = tile["etl_right_offset"]
-
                     # setup daq
                     time.sleep(1.0)
-                    self.log.info("setting up daq")
+                    self.log.info('setting up daq')
                     if self.daq.tasks.get("ao_task", None) is not None:
-                        self.log.info("adding ao task")
+                        self.log.info('adding ao task')
                         self.daq.add_task("ao")
-                        self.log.info("generating ao waveforms")
+                        self.log.info('generating ao waveforms')
                         self.daq.generate_waveforms("ao", tile_channel)
-                        self.log.info("writing ao waveforms")
+                        self.log.info('writing ao waveforms')
                         self.daq.write_ao_waveforms()
                     if self.daq.tasks.get("do_task", None) is not None:
                         self.daq.add_task("do")
@@ -370,10 +354,30 @@ class ExASPIMAcquisition(Acquisition):
         self.scanning_stage.position_mm = self.initial_position_mm[instrument_axis]
         self.log.info(f"moving stage to {instrument_axis} = {self.initial_position_mm[instrument_axis]:.3f} mm")
 
-        # turn off indicator light
-        if self.indicator_light:
-            self.log.info("turning off indicator light")
-            self.indicator_light.disable()
+        if self.instrument.cameras:
+            for camera in self.instrument.cameras.values():
+                camera.close()
+        if self.instrument.lasers:
+            for laser in self.instrument.lasers.values():
+                laser.close()
+        if self.instrument.flip_mounts:
+            for flip_mount in self.instrument.flip_mounts.values():
+                flip_mount.close()
+        if self.instrument.scanning_stages:
+            for stage in self.instrument.scanning_stages.values():
+                stage.close()
+        if self.instrument.tiling_stages:
+            for stage in self.instrument.tiling_stages.values():
+                stage.close()
+        if self.instrument.focusing_stages:
+            for stage in self.instrument.focusing_stages.values():
+                stage.close()
+        if self.instrument.controllers:
+            for controller in self.instrument.controllers.values():
+                controller.close()
+        if self.instrument.daqs:
+            for daq in self.instrument.daqs.values():
+                daq.close()
 
     def acquisition_engine(
         self, tile: dict, base_filename: str, camera, daq, writer, processes: dict, scanning_stage
@@ -444,8 +448,6 @@ class ExASPIMAcquisition(Acquisition):
 
         # Images arrive serialized in repeating channel order.
         for stack_index in range(tile["steps"]):
-            if self.stop_engine.is_set():
-                break
             chunk_index = stack_index % writer.chunk_count_px
             # Start a batch of pulses to generate more frames and movements.
             if chunk_index == 0:
@@ -456,18 +458,6 @@ class ExASPIMAcquisition(Acquisition):
                 self.log.info(f"RAM in use = {memory_info.used / (1024 ** 3):.2f} GB")
                 self.log.info(f"laser {laser.id} power = {laser.power_mw:.2f} [mW]")
                 self.log.info(f"laser {laser.id} temperature = {laser.temperature_c:.2f} [mW]")
-                # self.log.info(f"camera {camera.id} sensor temperature = {camera.sensor_temperature_c:.2f} [C]")
-                # self.log.info(f"camera {camera.id} mainboard temperature = {camera.mainboard_temperature_c:.2f} [C]")
-                # try:
-                #     temperature_sensor, _ = self._grab_first(self.instrument.temperature_sensors)
-                #     self.log.info(
-                #         f"sensor {temperature_sensor.id} temperature = {temperature_sensor.temperature_c:.2f} [C]"
-                #     )
-                #     self.log.info(
-                #         f"sensor {temperature_sensor.id} humidity = {temperature_sensor.relative_humidity_percent:.2f} [%]"
-                #     )
-                # except Exception:
-                #     self.log.info("no temperature humidity sensor detected")
 
                 # start the camera
                 camera.stop()
@@ -496,7 +486,7 @@ class ExASPIMAcquisition(Acquisition):
             if chunk_index + 1 == writer.chunk_count_px or stack_index == last_frame_index:
                 daq.stop()
                 # Toggle double buffer to continue writing images.
-                while not writer.done_reading.is_set() and not self.stop_engine.is_set():
+                while not writer.done_reading.is_set():
                     time.sleep(0.001)
                 with chunk_lock:
                     img_buffer.toggle_buffers()
@@ -512,64 +502,40 @@ class ExASPIMAcquisition(Acquisition):
 
             frame_index += 1
 
-        if self.stop_engine.is_set():
-            # wait for daq tasks to finish - prevents devices from stopping in
-            # unsafe state, i.e. lasers still on
-            self.log.info("stopping daq")
-            self.daq.co_task.stop()
-            # sleep to allow last ao to play with 10% buffer
-            time.sleep(1.0 / self.daq.co_frequency_hz * 1.1)
-            # stop the ao task
-            self.daq.ao_task.stop()
-            self.daq.close()
-            self.log.info("stopping scanning stage")
-            self.scanning_stage.halt()
-            self.log.info("stopping camera")
-            self.camera.abort()
-            # need to directly terminate writer process
-            self.log.info("stopping writer")
-            self.writer._process.terminate()
-            self.stop_engine.clear()
-        else:
-            # stop the camera and set frame number back to 0
-            camera.stop()
-            camera.frame_number = 0
+        # stop the camera and set frame number back to 0
+        camera.stop()
+        camera.frame_number = 0
 
-            # wait for the writer to finish
-            writer.wait_to_finish()
+        # wait for the writer to finish
+        writer.wait_to_finish()
 
-            # stop the daq
-            self.log.info("stopping daq")
-            daq.stop()
+        # stop the daq
+        self.log.info("stopping daq")
+        daq.stop()
 
-            # disable scanning stage stepping
-            scanning_stage.mode = "off"  # turn off step and shoot mode
+        # disable scanning stage stepping
+        scanning_stage.mode = "off"  # turn off step and shoot mode
 
-            # log any statements in the writer log queue
-            while not writer._log_queue.empty():
-                self.log.info(writer._log_queue.get_nowait())
+        # log any statements in the writer log queue
+        while not writer._log_queue.empty():
+            self.log.info(writer._log_queue.get_nowait())
 
-            # wait for the processes to finish
-            for process in processes.values():
-                process.wait_to_finish()
+        # wait for the processes to finish
+        for process in processes.values():
+            process.wait_to_finish()
 
-            # clean up the image buffer
-            self.log.info("deallocating shared double buffer.")
-            img_buffer.close_and_unlink()
-            del img_buffer
-            for buffer in process_buffers.values():
-                buffer.close()
-                buffer.unlink()
-                del buffer
+        # clean up the image buffer
+        self.log.info("deallocating shared double buffer.")
+        img_buffer.close_and_unlink()
+        del img_buffer
+        for buffer in process_buffers.values():
+            buffer.close()
+            buffer.unlink()
+            del buffer
 
-    def stop_acquisition(self) -> None:
-        """
-        Stop acquisition.
-        """
-        self.log.info("stopping acquisition")
-        self.stop_engine.set()
-
-    def check_local_disk_space(self, writer: object, compression_ratio: float = 1) -> bool:
+    def check_local_disk_space(
+        self, writer: object, compression_ratio: float = 1
+    ) -> bool:
         """
         Check if there is enough local disk space for the next tile.
 
@@ -589,15 +555,21 @@ class ExASPIMAcquisition(Acquisition):
             drive = "/"
         self.log.info("checking local storage directory space for next tile")
         required_size_gb = writer.get_stack_size_mb() / compression_ratio / 1024
-        self.log.info(f"required disk space = {required_size_gb:.1f} [GB] on drive {drive}")
+        self.log.info(
+            f"required disk space = {required_size_gb:.1f} [GB] on drive {drive}"
+        )
         free_size_gb = shutil.disk_usage(drive).free / 1024**3
-        self.log.info(f"available disk space = {free_size_gb:.1f} [GB] on drive {drive}")
+        self.log.info(
+            f"available disk space = {free_size_gb:.1f} [GB] on drive {drive}"
+        )
         if required_size_gb >= free_size_gb:
             self.log.warning(f"only {free_size_gb:.1f} available on drive: {drive}")
             return False
         return True
 
-    def check_external_disk_space(self, writer: object, file_transfer: object, compression_ratio: float = 1) -> bool:
+    def check_external_disk_space(
+        self, writer: object, file_transfer: object, compression_ratio: float = 1
+    ) -> bool:
         """
         Check if there is enough external disk space for the next tile.
 
@@ -619,9 +591,13 @@ class ExASPIMAcquisition(Acquisition):
             drive = "/"
         self.log.info("checking external storage directory space for next tile")
         required_size_gb = writer.get_stack_size_mb() / compression_ratio / 1024
-        self.log.info(f"required disk space = {required_size_gb:.1f} [GB] on drive {drive}")
+        self.log.info(
+            f"required disk space = {required_size_gb:.1f} [GB] on drive {drive}"
+        )
         free_size_gb = shutil.disk_usage(drive).free / 1024**3
-        self.log.info(f"available disk space = {free_size_gb:.1f} [GB] on drive {drive}")
+        self.log.info(
+            f"available disk space = {free_size_gb:.1f} [GB] on drive {drive}"
+        )
         if required_size_gb >= free_size_gb:
             self.log.warning(f"only {free_size_gb:.1f} available on drive: {drive}")
             return False
@@ -637,7 +613,9 @@ class ExASPIMAcquisition(Acquisition):
         """
         self.log.info("checking available system memory")
         # factor of 2 for concurrent chunks being written/read
-        required_memory_gb = 2 * writer.chunk_count_px * writer.get_frame_size_mb() / 1024
+        required_memory_gb = (
+            2 * writer.chunk_count_px * writer.get_frame_size_mb() / 1024
+        )
         self.log.info(f"required RAM = {required_memory_gb:.2f} [GB]")
         free_memory_gb = virtual_memory()[1] / 1024**3
         self.log.info(f"available RAM = {free_memory_gb:.2f} [GB]")
@@ -702,8 +680,12 @@ class ExASPIMAcquisition(Acquisition):
         acquisition_rate_hz = 1.0 / daq.co_frequency_hz
         camera_speed_mb_s = writer.get_frame_size_mb() / acquisition_rate_hz
         required_write_speed_mb_s = camera_speed_mb_s / compression_ratio
-        self.log.info(f"required write speed = {required_write_speed_mb_s:.1f} [MB/sec] to directory {local_drive}")
-        test_filename = str(Path(f"{writer.path}/{writer.acquisition_name}/iotest").absolute())
+        self.log.info(
+            f"required write speed = {required_write_speed_mb_s:.1f} [MB/sec] to directory {local_drive}"
+        )
+        test_filename = str(
+            Path(f"{writer.path}/{writer.acquisition_name}/iotest").absolute()
+        )
         f = open(test_filename, "a")  # Create empty file to check reading/writing speed
         f.close()
         try:
@@ -716,7 +698,8 @@ class ExASPIMAcquisition(Acquisition):
             out = str(output)
             # converting MiB to MB = (1024**2/2**20)
             available_write_speed_mb_s = round(
-                float(out[out.find("BW=") + len("BW=") : out.find("MiB/s")]) / (1024**2 / 2**20)
+                float(out[out.find("BW=") + len("BW=") : out.find("MiB/s")])
+                / (1024**2 / 2**20)
             )
             self.log.info(
                 f"available write speed = {available_write_speed_mb_s:.1f} [MB/sec] to directory {local_drive}"
@@ -724,7 +707,9 @@ class ExASPIMAcquisition(Acquisition):
             if available_write_speed_mb_s < required_write_speed_mb_s:
                 raise ValueError(f"write speed too slow on drive {local_drive}")
         except subprocess.CalledProcessError:
-            self.log.warning("fio not installed on computer. Cannot verify read/write speed")
+            self.log.warning(
+                "fio not installed on computer. Cannot verify read/write speed"
+            )
         finally:
             # Delete test file
             os.remove(test_filename)
@@ -733,9 +718,13 @@ class ExASPIMAcquisition(Acquisition):
                 f"required write speed = {required_write_speed_mb_s:.1f} [MB/sec] to directory {external_drive}"
             )
             test_filename = str(
-                Path(f"{file_transfer.external_path}/{file_transfer.acquisition_name}/iotest").absolute()
+                Path(
+                    f"{file_transfer.external_path}/{file_transfer.acquisition_name}/iotest"
+                ).absolute()
             )
-            f = open(test_filename, "a")  # Create empty file to check reading/writing speed
+            f = open(
+                test_filename, "a"
+            )  # Create empty file to check reading/writing speed
             f.close()
             try:
                 output = subprocess.check_output(
@@ -747,7 +736,8 @@ class ExASPIMAcquisition(Acquisition):
                 out = str(output)
                 # converting MiB to MB = (1024**2/2**20)
                 available_write_speed_mb_s = round(
-                    float(out[out.find("BW=") + len("BW=") : out.find("MiB/s")]) / (1024**2 / 2**20)
+                    float(out[out.find("BW=") + len("BW=") : out.find("MiB/s")])
+                    / (1024**2 / 2**20)
                 )
                 self.log.info(
                     f"available write speed = {available_write_speed_mb_s:.1f} [MB/sec] to directory {external_drive}"
@@ -755,7 +745,9 @@ class ExASPIMAcquisition(Acquisition):
                 if available_write_speed_mb_s < required_write_speed_mb_s:
                     raise ValueError(f"write speed too slow on drive {external_drive}")
             except subprocess.CalledProcessError:
-                self.log.warning("fio not installed on computer. Cannot verify read/write speed")
+                self.log.warning(
+                    "fio not installed on computer. Cannot verify read/write speed"
+                )
             finally:
                 # Delete test file
                 os.remove(test_filename)
@@ -806,7 +798,8 @@ class ExASPIMAcquisition(Acquisition):
             chunk_size = writer.chunk_count_px
             chunk_lock = threading.Lock()
             img_buffer = SharedDoubleBuffer(
-                (chunk_size, camera.image_height_px, camera.image_width_px), dtype=writer.data_type
+                (chunk_size, camera.image_height_px, camera.image_width_px),
+                dtype=writer.data_type,
             )
 
             # set up and start writer and camera
@@ -842,7 +835,9 @@ class ExASPIMAcquisition(Acquisition):
             del img_buffer
 
             # check the compressed file size
-            filepath = str(Path(writer.path / writer.acquisition_name / writer.filename).absolute())
+            filepath = str(
+                Path(writer.path / writer.acquisition_name / writer.filename).absolute()
+            )
             compressed_file_size_mb = os.stat(filepath).st_size / (1024**2)
             # calculate the raw file size
             raw_file_size_mb = writer.get_stack_size_mb()
@@ -893,7 +888,9 @@ class ExASPIMAcquisition(Acquisition):
         Sets the acquisition name for all operations.
         """
         self.acquisition_name = self.metadata.acquisition_name
-        for device_name, operation_dict in self.config["acquisition"]["operations"].items():
+        for device_name, operation_dict in self.config["acquisition"][
+            "operations"
+        ].items():
             for op_name, op_specs in operation_dict.items():
                 op_type = inflection.pluralize(op_specs["type"])
                 operation = getattr(self, op_type)[device_name][op_name]
@@ -916,7 +913,9 @@ class ExASPIMAcquisition(Acquisition):
         if self.file_transfers:
             for file_transfer_dictionary in self.file_transfers.values():
                 for file_transfer in file_transfer_dictionary.values():
-                    external_path = Path(file_transfer.external_path, self.acquisition_name)
+                    external_path = Path(
+                        file_transfer.external_path, self.acquisition_name
+                    )
                     if not os.path.isdir(external_path):
                         os.makedirs(external_path)
 
@@ -935,7 +934,9 @@ class ExASPIMAcquisition(Acquisition):
         # check that there is an associated writer for each camera
         for camera_id, camera in self.instrument.cameras.items():
             if camera_id not in self.writers.keys():
-                raise ValueError(f"no writer found for camera {camera_id}. check yaml files.")
+                raise ValueError(
+                    f"no writer found for camera {camera_id}. check yaml files."
+                )
 
         # check that files won't be overwritten if multiple writers/transfers per device
         for device_name, writers in self.writers.items():
@@ -947,7 +948,9 @@ class ExASPIMAcquisition(Acquisition):
                 )
         # check that files won't be overwritten if multiple writers/transfers per device
         for device_name, transfers in getattr(self, "transfers", {}).items():
-            external_directories = [transfer.external_path for transfer in transfers.values()]
+            external_directories = [
+                transfer.external_path for transfer in transfers.values()
+            ]
             if len(external_directories) != len(set(external_directories)):
                 raise ValueError(
                     f"More than one operation for device {device_name} is transferring to the same folder."
@@ -960,4 +963,6 @@ class ExASPIMAcquisition(Acquisition):
                 raise ValueError("not all stage axes are defined for tile positions")
             tile_channel = tile["channel"]
             if tile_channel not in self.instrument.channels:
-                raise ValueError(f"channel {tile_channel} is not in {self.instrument.channels}")
+                raise ValueError(
+                    f"channel {tile_channel} is not in {self.instrument.channels}"
+                )

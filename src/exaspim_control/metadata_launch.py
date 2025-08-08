@@ -5,22 +5,23 @@ from datetime import datetime
 from pathlib import Path
 
 import numpy as np
+import json
 from aind_data_schema.core import acquisition
 from exaspim_control.exa_spim_acquisition import ExASPIMAcquisition
 from exaspim_control.exa_spim_instrument import ExASPIM
 from exaspim_control.exa_spim_view import ExASPIMAcquisitionView, ExASPIMInstrumentView
 
-X_ANATOMICAL_DIRECTIONS = {
+X_ANATOMICAL_DIRECTIONS = {"Left to Right": "Right_to_left", "Right to Left": "Left_to_right"}
+
+Y_ANATOMICAL_DIRECTIONS = {
     "Anterior_to_Posterior": "Anterior_to_posterior",
     "Posterior to Anterior": "Posterior_to_anterior",
 }
 
-Y_ANATOMICAL_DIRECTIONS = {
+Z_ANATOMICAL_DIRECTIONS = {
     "Inferior to Superior": "Inferior_to_superior",
     "Superior to Inferior": "Superior_to_inferior",
 }
-
-Z_ANATOMICAL_DIRECTIONS = {"Left to Right": "Left_to_right", "Right to Left": "Right_to_left"}
 
 
 class MetadataLaunch:
@@ -86,6 +87,18 @@ class MetadataLaunch:
                         self.log_filename,
                         str(Path(save_to, self.log_filename)),
                     )
+            # create and save processing_manifest.json
+            status = "pending"
+            status_time = datetime.now()
+            processing_manifest = {
+                "dataset_status": {
+                    "status": status,
+                    "status_date": f"{status_time.year:02d}-{status_time.month:02d}-{status_time.day:02d}",
+                    "status_time": f"{status_time.hour:02d}-{status_time.minute:02d}-{status_time.second:02d}"
+                }
+            }
+            with open(Path(save_to, "processing_manifest.json"), "w", encoding="utf-8") as f:
+                json.dump(processing_manifest, f, indent=4, ensure_ascii=False)
             # re-arrange external directory
             os.makedirs(Path(save_to, "exaSPIM"))
             os.makedirs(Path(save_to, "derivatives"))
@@ -148,12 +161,12 @@ class MetadataLaunch:
                 {
                     "name": "X",
                     "dimension": 2,
-                    "direction": getattr(self.acquisition.metadata, "x_anatomical_direction", None),
+                    "direction": getattr(self.acquisition.metadata, "y_anatomical_direction", None),
                 },
                 {
                     "name": "Y",
                     "dimension": 1,
-                    "direction": getattr(self.acquisition.metadata, "y_anatomical_direction", None),
+                    "direction": getattr(self.acquisition.metadata, "x_anatomical_direction", None),
                 },
                 {
                     "name": "Z",
@@ -161,6 +174,7 @@ class MetadataLaunch:
                     "direction": getattr(self.acquisition.metadata, "z_anatomical_direction", None),
                 },
             ],
+            "notes": getattr(self.acquisition.metadata, "notes", None),
         }
         tiles = []
         channels = self.instrument.config["instrument"]["channels"]
@@ -168,9 +182,10 @@ class MetadataLaunch:
             tile_ch = tile["channel"]
             laser = channels[tile_ch]["lasers"][0]
             excitation_wavelength = self.instrument.lasers[laser].wavelength
-            camera = self.instrument.cameras[channels[tile_ch]["cameras"][0]]
-            voxel_size_x_um = camera.sampling_um_px
-            voxel_size_y_um = camera.sampling_um_px
+            camera_name = channels[tile_ch]["cameras"][0]
+            camera = self.instrument.cameras[camera_name]
+            voxel_size_x_um = camera.um_px * tile[camera_name]["binning"]
+            voxel_size_y_um = camera.um_px * tile[camera_name]["binning"]
             voxel_size_z_um = tile["step_size"]
             tile_position_x_mm = tile["position_mm"]["x"]
             tile_position_y_mm = tile["position_mm"]["y"]
