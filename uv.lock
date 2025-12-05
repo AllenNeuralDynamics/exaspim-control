@@ -6,6 +6,12 @@ resolution-markers = [
     "python_full_version < '3.11'",
 ]
 
+[manifest]
+members = [
+    "exaspim-control",
+    "voxel",
+]
+
 [[package]]
 name = "accessible-pygments"
 version = "0.0.5"
@@ -610,7 +616,7 @@ requires-dist = [
     { name = "flake8", marker = "extra == 'dev'" },
     { name = "isort", marker = "extra == 'dev'" },
     { name = "view", git = "https://github.com/AllenNeuralDynamics/view.git" },
-    { name = "voxel", extras = ["all"], git = "https://github.com/AllenNeuralDynamics/voxel.git?rev=classic" },
+    { name = "voxel", extras = ["all"], editable = "voxel" },
 ]
 provides-extras = ["dev"]
 
@@ -3469,8 +3475,7 @@ dependencies = [
 
 [[package]]
 name = "voxel"
-version = "0.1.0"
-source = { git = "https://github.com/AllenNeuralDynamics/voxel.git?rev=classic#02035389b10e866bd9a747d2233ae3289da3b7b6" }
+source = { editable = "voxel" }
 dependencies = [
     { name = "fast-histogram" },
     { name = "gputools" },
@@ -3499,6 +3504,9 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
+acquire-zarr-writer = [
+    { name = "acquire-zarr" },
+]
 all = [
     { name = "acquire-zarr" },
     { name = "black" },
@@ -3524,6 +3532,119 @@ all = [
     { name = "vortran-laser" },
     { name = "ximea-python" },
 ]
+coherent-laser = [
+    { name = "coherent-lasers" },
+]
+dev = [
+    { name = "black" },
+    { name = "coverage" },
+    { name = "flake8" },
+    { name = "furo" },
+    { name = "interrogate" },
+    { name = "isort" },
+    { name = "pytest" },
+    { name = "sphinx", version = "8.1.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "sphinx", version = "8.2.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+]
+egrabber-camera = [
+    { name = "egrabber" },
+]
+imaris-writer = [
+    { name = "pyimariswriter" },
+]
+obis-laser = [
+    { name = "obis-laser" },
+]
+oxxius-laser = [
+    { name = "oxxius-laser" },
+]
+pco-camera = [
+    { name = "pco" },
+]
+pycobolt-laser = [
+    { name = "pycobolt" },
+]
+scikit-tensor = [
+    { name = "scikit-tensor-py3" },
+]
+tifffile-writer = [
+    { name = "tifffile", version = "2025.5.10", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "tifffile", version = "2025.6.11", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+]
+tigerasi-controller = [
+    { name = "tigerasi" },
+]
+vortran-laser = [
+    { name = "vortran-laser" },
+]
+ximea-camera = [
+    { name = "ximea-python" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "acquire-zarr", marker = "extra == 'acquire-zarr-writer'", specifier = ">=0.0.5" },
+    { name = "black", marker = "extra == 'dev'" },
+    { name = "coherent-lasers", marker = "extra == 'coherent-laser'", url = "https://github.com/AllenNeuralDynamics/coherent-lasers/releases/download/v0.1.0/coherent_lasers-0.1.0-py3-none-any.whl" },
+    { name = "coverage", marker = "extra == 'dev'" },
+    { name = "egrabber", marker = "extra == 'egrabber-camera'", url = "https://github.com/adamkglaser/egrabber-python/releases/download/v24.09.0.5/egrabber-24.09.0.5-py2.py3-none-any.whl" },
+    { name = "fast-histogram", specifier = ">=0.14" },
+    { name = "flake8", marker = "extra == 'dev'" },
+    { name = "furo", marker = "extra == 'dev'" },
+    { name = "gputools", specifier = ">0.2.14" },
+    { name = "h5py", specifier = ">=3.0.0" },
+    { name = "imohash", specifier = ">=1.0.5" },
+    { name = "inflection", specifier = ">=0.5.1" },
+    { name = "interrogate", marker = "extra == 'dev'" },
+    { name = "isort", marker = "extra == 'dev'" },
+    { name = "matplotlib", specifier = ">=3.8.2" },
+    { name = "nidaqmx", specifier = "==1.0.0" },
+    { name = "numpy", specifier = ">2.0.0" },
+    { name = "numpy", specifier = ">=2.1" },
+    { name = "obis-laser", marker = "extra == 'obis-laser'", git = "https://github.com/AllenNeuralDynamics/obis-laser.git" },
+    { name = "oxxius-laser", marker = "extra == 'oxxius-laser'", git = "https://github.com/AllenNeuralDynamics/oxxius_laser.git" },
+    { name = "pco", marker = "extra == 'pco-camera'" },
+    { name = "psutil", specifier = ">=5.9.8" },
+    { name = "pyclesperanto", specifier = ">=0.8.2" },
+    { name = "pycobolt", marker = "extra == 'pycobolt-laser'", git = "https://github.com/cobolt-lasers/pycobolt.git" },
+    { name = "pydantic", specifier = ">=2.7.3" },
+    { name = "pyimariswriter", marker = "extra == 'imaris-writer'", specifier = ">=0.7.0" },
+    { name = "pylablib", specifier = ">=1.4.2" },
+    { name = "pyserial", specifier = ">=3.5" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.2.1" },
+    { name = "pyusb", specifier = ">=1.2.1" },
+    { name = "pyvisa", specifier = ">=1.14.1" },
+    { name = "pyvisa-py", specifier = ">=0.7.2" },
+    { name = "ruamel-yaml", specifier = ">=0.18.5" },
+    { name = "scikit-image", specifier = ">=0.20.0" },
+    { name = "scikit-tensor-py3", marker = "extra == 'scikit-tensor'", url = "https://github.com/adamkglaser/scikit-tensor-py3/releases/download/v0.1.0/scikit_tensor_py3-0.4.1-py3-none-any.whl" },
+    { name = "scipy", specifier = ">=1.12.0" },
+    { name = "siphash24", specifier = ">=1.7" },
+    { name = "sphinx", marker = "extra == 'dev'" },
+    { name = "sympy", specifier = ">=1.12.1" },
+    { name = "tensorstore", specifier = ">=0.1.56" },
+    { name = "tifffile", marker = "extra == 'tifffile-writer'", specifier = ">=2024.1.30" },
+    { name = "tigerasi", marker = "extra == 'tigerasi-controller'" },
+    { name = "vortran-laser", marker = "extra == 'vortran-laser'", git = "https://github.com/AllenNeuralDynamics/vortran_laser.git" },
+    { name = "voxel", extras = ["acquire-zarr-writer"], marker = "extra == 'all'", editable = "voxel" },
+    { name = "voxel", extras = ["coherent-laser"], marker = "extra == 'all'", editable = "voxel" },
+    { name = "voxel", extras = ["dev"], marker = "extra == 'all'", editable = "voxel" },
+    { name = "voxel", extras = ["egrabber-camera"], marker = "extra == 'all'", editable = "voxel" },
+    { name = "voxel", extras = ["imaris-writer"], marker = "extra == 'all'", editable = "voxel" },
+    { name = "voxel", extras = ["obis-laser"], marker = "extra == 'all'", editable = "voxel" },
+    { name = "voxel", extras = ["optoicc-etl"], marker = "extra == 'all'", editable = "voxel" },
+    { name = "voxel", extras = ["optokummenberg-etl"], marker = "extra == 'all'", editable = "voxel" },
+    { name = "voxel", extras = ["oxxius-laser"], marker = "extra == 'all'", editable = "voxel" },
+    { name = "voxel", extras = ["pco-camera"], marker = "extra == 'all'", editable = "voxel" },
+    { name = "voxel", extras = ["pycobolt-laser"], marker = "extra == 'all'", editable = "voxel" },
+    { name = "voxel", extras = ["scikit-tensor"], marker = "extra == 'all'", editable = "voxel" },
+    { name = "voxel", extras = ["tifffile-writer"], marker = "extra == 'all'", editable = "voxel" },
+    { name = "voxel", extras = ["tigerasi-controller"], marker = "extra == 'all'", editable = "voxel" },
+    { name = "voxel", extras = ["vortran-laser"], marker = "extra == 'all'", editable = "voxel" },
+    { name = "voxel", extras = ["ximea-camera"], marker = "extra == 'all'", editable = "voxel" },
+    { name = "ximea-python", marker = "extra == 'ximea-camera'", url = "https://github.com/adamkglaser/ximea-python/releases/download/v4.29.10/ximea_python-4.29.10-py3-none-any.whl" },
+]
+provides-extras = ["imaris-writer", "tifffile-writer", "acquire-zarr-writer", "pycobolt-laser", "coherent-laser", "vortran-laser", "oxxius-laser", "obis-laser", "egrabber-camera", "pco-camera", "ximea-camera", "tigerasi-controller", "scikit-tensor", "dev", "all"]
 
 [[package]]
 name = "wcwidth"

@@ -36,6 +36,9 @@ dependencies = [
 [project.optional-dependencies]
 "dev" = ["black", "isort", "flake8"]
 
+[tool.uv.sources]
+"voxel" = {workspace = true}
+
 [project.urls]
 "Homepage" = "https://github.com/AllenNeuralDynamics/exaspim-control"
 
@@ -79,3 +82,8 @@ exclude = '''
 [tool.isort]
 line_length = 120
 profile = "black"
+
+[tool.uv.workspace]
+members = [
+    "voxel",
+]
