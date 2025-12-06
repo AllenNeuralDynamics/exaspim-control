@@ -4,7 +4,6 @@
 
 - [Overview](#overview)
 - [Getting Started](#getting-started)
-  - [Prerequisites](#prerequisites)
   - [Installation](#installation)
   - [Finding Device IDs](#finding-device-ids)
   - [Recommended Hardware](#recommended-hardware)
@@ -19,57 +18,31 @@ This repository provides acquisition software for the expansion-assisted selecti
 
 > [!NOTE]
 > **Expansion-assisted selective plane illumination microscopy for nanoscale imaging of centimeter-scale tissues.** eLife **12**:RP91979
-*https://doi.org/10.7554/eLife.91979.2*
+*<https://doi.org/10.7554/eLife.91979.2>*
 
 ## Getting Started
 
-### Prerequisites
-
-- **Python: >=3.10, <=3.11** (tested)
-- We using a virtual environment:
-  - [venv](https://docs.python.org/3.11/library/venv.html)
-  - Conda: [Anaconda](https://www.anaconda.com/products/individual) or [Miniconda](https://docs.conda.io/en/latest/miniconda.html)
-
-This control software can optionally check I/O bandwidth to a local and externally networked drive location. This requires [fio](https://github.com/axboe/fio) to be installed. For Windows, please install the correct [binary files](https://github.com/axboe/fio/releases).
+Requires **Python: >=3.12, <=3.13** (tested)
 
 ### Installation
 
-1. Create a virtual environment and activate it:
-    On Windows:
+```bash
+uv sync --all-packages --all-extras
+```
 
-    ```bash
-    conda create -n exaspim-control
-    conda activate exaspim-control
-    ```
-
-    or
-
-    ```bash
-    python -m venv exaspim-control
-    .\exaspim-control\Scripts\activate
-    ```
-
-2. Clone the repository:
-
-    ```bash
-    git clone https://github.com/AllenNeuralDynamics/exaspim-control.git && cd exaspim-control
-    ```
-
-3. To use the software, in the root directory, run:
-
-    ```bash
-    pip install -e .
-    ```
-     This should install two repositories that this repository builds upon:
+This should install two repositories that this repository builds upon:
      - [voxel](https://github.com/AllenNeuralDynamics/voxel) - core drivers, microscope, and acquisition codebase
      - [view](https://github.com/AllenNeuralDynamics/view) - core GUI codebase
 
+#### Additional hardware drivers that need to be installed manually
 
-4. For the Vieworks VP-151MX camera you will need to install the **egrabber** drivers. This is available for both Windows and Linux [eGrabber for CoaxLink and GigELink](https://www.euresys.com/en/Support/Download-area?Series=105d06c5-6ad9-42ff-b7ce-622585ce607f).
+1. For the Vieworks VP-151MX camera you will need to install the **egrabber** drivers. This is available for both Windows and Linux [eGrabber for CoaxLink and GigELink](https://www.euresys.com/en/Support/Download-area?Series=105d06c5-6ad9-42ff-b7ce-622585ce607f).
 
-5. NI-DAQmx is required. Visit [ni.com/downloads](ni.com/downloads) to download the latest version of NI-DAQmx. None of the recommended additional items are required for nidaqmx to function, and they can be removed to minimize installation size. It is recommended you continue to install the NI Certificates package to allow your Operating System to trust NI built binaries, improving your software and hardware installation experience.
+2. NI-DAQmx is required. Visit [ni.com/downloads](ni.com/downloads) to download the latest version of NI-DAQmx. None of the recommended additional items are required for nidaqmx to function, and they can be removed to minimize installation size. It is recommended you continue to install the NI Certificates package to allow your Operating System to trust NI built binaries, improving your software and hardware installation experience.
 
-6. To communicate with the ASI stages, the [USB driver](https://www.asiimaging.com/support/downloads/usb-support-on-ms-2000-wk-controllers/) must be installed.
+3. To communicate with the ASI stages, the [USB driver](https://www.asiimaging.com/support/downloads/usb-support-on-ms-2000-wk-controllers/) must be installed.
+
+4. This control software can optionally check I/O bandwidth to a local and externally networked drive location. This requires [fio](https://github.com/axboe/fio) to be installed. For Windows, please install the correct [binary files](https://github.com/axboe/fio/releases).
 
 ### Finding Device IDs
 
@@ -123,7 +96,7 @@ This control software can optionally check I/O bandwidth to a local and external
 
 ### Documentation
 
-- _(coming soon)_
+- *(coming soon)*
 
 ### Usage
 

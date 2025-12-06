@@ -25,19 +25,22 @@ keywords = [
     "microscope",
     "imaging",
 ]
-dynamic = ["version"]
+version = "0.1.0"
 
 dependencies = [
     "voxel[all]",
-    "view @ git+https://github.com/AllenNeuralDynamics/view.git",
     "aind_data_schema >= 0.26.7",
+    "view @ git+https://github.com/AllenNeuralDynamics/view.git",
+    "rich>=14.2.0",
+    "pyqt6>=6.10.0",
 ]
 
 [project.optional-dependencies]
 "dev" = ["black", "isort", "flake8"]
 
+
 [tool.uv.sources]
-"voxel" = {workspace = true}
+"voxel" = { workspace = true }
 
 [project.urls]
 "Homepage" = "https://github.com/AllenNeuralDynamics/exaspim-control"
@@ -46,15 +49,8 @@ dependencies = [
 "exaspim" = "exaspim_control.app:cli"
 
 [build-system]
-requires = ["setuptools", "setuptools-scm"]
-build-backend = "setuptools.build_meta"
-
-[tool.setuptools]
-package-dir = { "" = "src" }
-packages = ["exaspim_control"]
-
-[tool.setuptools.dynamic]
-version = { attr = "exaspim_control.__version__" }
+requires = ["uv_build>=0.8.2,<0.9.0"]
+build-backend = "uv_build"
 
 [tool.black]
 line-length = 120
@@ -84,6 +80,4 @@ line_length = 120
 profile = "black"
 
 [tool.uv.workspace]
-members = [
-    "voxel",
-]
+members = ["voxel"]

@@ -1,11 +1,12 @@
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Iterator
-import ruamel
-import numpy as np
+from typing import Iterator, Literal
+
 import inflection
-from napari.qt.threading import thread_worker, create_worker
+import numpy as np
+import ruamel
+from napari.qt.threading import create_worker, thread_worker
 from napari.utils.events import Event
 from qtpy.QtCore import Qt, Signal
 from qtpy.QtWidgets import (
@@ -21,13 +22,13 @@ from qtpy.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-
 from view.acquisition_view import AcquisitionView
 from view.instrument_view import InstrumentView
 from view.widgets.acquisition_widgets.channel_plan_widget import ChannelPlanWidget
 from view.widgets.acquisition_widgets.volume_model import VolumeModel
 from view.widgets.acquisition_widgets.volume_plan_widget import VolumePlanWidget
 from view.widgets.base_device_widget import create_widget, disable_button
+
 from voxel.processes.downsample.gpu.gputools.rank_downsample_2d import GPUToolsRankDownSample2D
 
 
@@ -51,7 +52,17 @@ class NonAliasingRTRepresenter(ruamel.yaml.RoundTripRepresenter):
 class ExASPIMInstrumentView(InstrumentView):
     """Class for handling ExASPIM instrument view."""
 
-    def __init__(self, instrument: object, config_path: Path, log_level: str = "INFO"):
+    @property
+    def qt_camera(self):
+        """Get the Qt viewer camera, handling API changes between napari versions."""
+        try:
+            # Try newer napari API first (canvas.camera)
+            return self.viewer.window.qt_viewer.canvas.camera
+        except AttributeError:
+            # Fall back to older API (view.camera)
+            return self.viewer.window.qt_viewer.view.camera
+
+    def __init__(self, instrument: object, config_path: Path, log_level: Literal["DEBUG", "INFO"] = "INFO"):
         """
         Initialize the ExASPIMInstrumentView object.
 
@@ -92,8 +103,13 @@ class ExASPIMInstrumentView(InstrumentView):
         self.downsampler = GPUToolsRankDownSample2D(binning=2, rank=-2, data_type="uint16")
 
         # setup and connect viewer camera events
-        self.viewer.window.qt_viewer.view.camera.reset()
-        self.viewer_state = self.viewer.window.qt_viewer.view.camera.get_state()
+        # Initialize viewer state (camera state management for napari API compatibility)
+        try:
+            self.viewer_state = self.qt_camera.get_state()
+        except AttributeError:
+            # Newer napari versions may not have get_state/set_state
+            self.viewer_state = None
+
         self.previous_layer = None
         self.viewer.camera.events.zoom.connect(self.camera_zoom)
         self.viewer.camera.events.center.connect(self.camera_position)
@@ -108,7 +124,6 @@ class ExASPIMInstrumentView(InstrumentView):
         Set up camera widgets.
         """
         for camera_name, camera_widget in self.camera_widgets.items():
-
             # Add functionality to snapshot button
             self.snapshot_button = getattr(camera_widget, "snapshot_button", QPushButton())
             self.snapshot_button.pressed.connect(
@@ -263,12 +278,18 @@ class ExASPIMInstrumentView(InstrumentView):
     def camera_position(self, event: Event):
         # store viewer state anytime camera moves and there is a layer
         if self.previous_layer in self.viewer.layers:
-            self.viewer_state = self.viewer.window.qt_viewer.view.camera.get_state()
+            try:
+                self.viewer_state = self.qt_camera.get_state()
+            except AttributeError:
+                pass  # Camera state not supported in this napari version
 
     def camera_zoom(self, event: Event):
         # store viewer state anytime camera zooms and there is a layer
         if self.previous_layer in self.viewer.layers:
-            self.viewer_state = self.viewer.window.qt_viewer.view.camera.get_state()
+            try:
+                self.viewer_state = self.qt_camera.get_state()
+            except AttributeError:
+                pass  # Camera state not supported in this napari version
 
     def viewer_contrast_limits(self, event: Event):
         # store viewer contrast limits anytime contrast limits change
@@ -314,8 +335,11 @@ class ExASPIMInstrumentView(InstrumentView):
                     # connect contrast limits event
                     layer.events.contrast_limits.connect(self.viewer_contrast_limits)
                     # only reset state if there is a previous layer, otherwise pass
-                    if self.previous_layer:
-                        self.viewer_state = self.viewer.window.qt_viewer.view.camera.set_state(self.viewer_state)
+                    if self.previous_layer and self.viewer_state is not None:
+                        try:
+                            self.viewer_state = self.qt_camera.set_state(self.viewer_state)
+                        except AttributeError:
+                            pass  # Camera state not supported in this napari version
                     # update previous layer name
                     self.previous_layer = layer_name
                     layer.mouse_drag_callbacks.append(self.save_image)
@@ -643,7 +667,7 @@ class ExASPIMAcquisitionView(AcquisitionView):
 
         # create volume plan
         self.volume_plan = VolumePlanWidget(
-            instrument=self.instrument,
+            # instrument=self.instrument,
             limits=limits,
             fov_dimensions=fov_dimensions,
             coordinate_plane=self.coordinate_plane,
@@ -749,7 +773,6 @@ class ExASPIMAcquisitionView(AcquisitionView):
         """
 
         if image is not None:
-
             # for binning in range(0, self.binning_levels):
             #     image = self.instrument_view.downsampler.run(image)
 
@@ -758,7 +781,7 @@ class ExASPIMAcquisitionView(AcquisitionView):
             y_center_um = image.shape[0] // 2 * pixel_size_um
             x_center_um = image.shape[1] // 2 * pixel_size_um
 
-            layer_name = f"acquisition"
+            layer_name = "acquisition"
             if layer_name in self.instrument_view.viewer.layers:
                 layer = self.instrument_view.viewer.layers[layer_name]
                 layer.data = image

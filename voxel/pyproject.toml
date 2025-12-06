@@ -16,13 +16,8 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 readme = "README.md"
-keywords = [
-    "microscopy",
-    "microscope",
-    "acquisition",
-    "imaging",
-]
-dynamic = ["version"]
+keywords = ["microscopy", "microscope", "acquisition", "imaging"]
+version = "0.1.0"
 
 dependencies = [
     "ruamel-yaml>=0.18.5",
@@ -36,7 +31,7 @@ dependencies = [
     "psutil>=5.9.8",
     "PyVISA>=1.14.1",
     "PyVISA-py>=0.7.2",
-    "pylablib>=1.4.2",
+    "pylablib-lightweight>=1.4.3",
     "nidaqmx==1.0.0",
     # data handling dependencies
     "h5py>=3.0.0",
@@ -58,18 +53,34 @@ dependencies = [
 imaris-writer = ["PyImarisWriter>=0.7.0"]
 tifffile-writer = ["tifffile>=2024.1.30"]
 acquire-zarr-writer = ["acquire-zarr>=0.0.5"]
-pycobolt-laser = ["pycobolt @ git+https://github.com/cobolt-lasers/pycobolt.git"]
-coherent-laser = ["coherent-lasers @ https://github.com/AllenNeuralDynamics/coherent-lasers/releases/download/v0.1.0/coherent_lasers-0.1.0-py3-none-any.whl"]
-vortran-laser = ["vortran_laser @ git+https://github.com/AllenNeuralDynamics/vortran_laser.git"]
-oxxius-laser = ["oxxius_laser @ git+https://github.com/AllenNeuralDynamics/oxxius_laser.git"]
-obis-laser = ["obis_laser @ git+https://github.com/AllenNeuralDynamics/obis-laser.git"]
-egrabber-camera = ["egrabber @ https://github.com/adamkglaser/egrabber-python/releases/download/v24.09.0.5/egrabber-24.09.0.5-py2.py3-none-any.whl"]
+pycobolt-laser = [
+    "pycobolt @ git+https://github.com/cobolt-lasers/pycobolt.git",
+]
+coherent-laser = [
+    "coherent-lasers @ https://github.com/AllenNeuralDynamics/coherent-lasers/releases/download/v0.1.0/coherent_lasers-0.1.0-py3-none-any.whl",
+]
+vortran-laser = [
+    "vortran_laser @ git+https://github.com/AllenNeuralDynamics/vortran_laser.git",
+]
+oxxius-laser = [
+    "oxxius_laser @ git+https://github.com/AllenNeuralDynamics/oxxius_laser.git",
+]
+obis-laser = [
+    "obis_laser @ git+https://github.com/AllenNeuralDynamics/obis-laser.git",
+]
+egrabber-camera = [
+    "egrabber @ https://github.com/adamkglaser/egrabber-python/releases/download/v24.09.0.5/egrabber-24.09.0.5-py2.py3-none-any.whl",
+]
 pco-camera = ["pco"]
-ximea-camera = ["ximea-python @ https://github.com/adamkglaser/ximea-python/releases/download/v4.29.10/ximea_python-4.29.10-py3-none-any.whl"]
+ximea-camera = [
+    "ximea-python @ https://github.com/adamkglaser/ximea-python/releases/download/v4.29.10/ximea_python-4.29.10-py3-none-any.whl",
+]
 # optokummenberg-etl = ["optokummenberg @https://github.com/adamkglaser/optotune-icc4c/releases/download/v2.0.4922/optoKummenberg-1.0.4894-py3-none-any.whl"]
 # optoicc-etl = ["optoicc @https://github.com/adamkglaser/optotune-icc4c/releases/download/v2.0.4922/optoICC-2.0.4922-py3-none-any.whl"]
 tigerasi-controller = ["tigerasi"]
-scikit-tensor = ["scikit-tensor-py3 @ https://github.com/adamkglaser/scikit-tensor-py3/releases/download/v0.1.0/scikit_tensor_py3-0.4.1-py3-none-any.whl"]
+scikit-tensor = [
+    "scikit-tensor-py3 @ https://github.com/adamkglaser/scikit-tensor-py3/releases/download/v0.1.0/scikit_tensor_py3-0.4.1-py3-none-any.whl",
+]
 
 dev = [
     "pytest>=8.2.1",
@@ -105,15 +116,9 @@ all = [
 "Issues" = "https://github.com/AllenNeuralDynamics/voxel/issues"
 
 [build-system]
-requires = ["setuptools", "setuptools-scm"]
-build-backend = "setuptools.build_meta"
+requires = ["uv_build>=0.8.2,<0.9.0"]
+build-backend = "uv_build"
 
-[tool.setuptools]
-package-dir = { "" = "src" }
-packages = ["voxel"]
-
-[tool.setuptools.dynamic]
-version = { attr = "voxel.__version__" }
 
 [tool.black]
 line-length = 120
