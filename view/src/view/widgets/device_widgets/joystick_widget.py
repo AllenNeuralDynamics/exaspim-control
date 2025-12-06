@@ -29,9 +29,7 @@ class JoystickWidget(BaseDeviceWidget):
 
         joystick_widgets = [QLabel("Joystick Mapping"), QLabel()]
         for joystick_axis, specs in self.joystick_mapping.items():
-            unused = list(
-                set(self.stage_axes) - {axis["instrument_axis"] for axis in self.joystick_mapping.values()}
-            )
+            unused = list(set(self.stage_axes) - {axis["instrument_axis"] for axis in self.joystick_mapping.values()})
             unused.append(specs["instrument_axis"])
             old_widget = getattr(self, f"joystick_mapping.{joystick_axis}.instrument_axis_widget")
             new_widget = self.create_combo_box(f"joystick_mapping.{joystick_axis}.instrument_axis", unused)

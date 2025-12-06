@@ -2,8 +2,7 @@ import logging
 from pathlib import Path
 
 from ruyaml import YAML
-
-from voxel.instruments.instrument import Instrument
+from voxel.instrument import Instrument
 
 DIRECTORY = Path(__file__).parent.resolve()
 

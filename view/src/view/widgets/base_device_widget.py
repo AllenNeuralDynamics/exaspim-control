@@ -23,7 +23,6 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 from schema import Schema, SchemaError
-
 from view.widgets.miscellaneous_widgets.q_scrollable_float_slider import (
     QScrollableFloatSlider,
 )

@@ -2,7 +2,6 @@ import logging
 
 from obis_laser import ObisLX, OperationalCmd, OperationalQuery
 from serial import Serial
-
 from voxel.descriptors.deliminated_property import DeliminatedProperty
 
 from ..base import BaseLaser

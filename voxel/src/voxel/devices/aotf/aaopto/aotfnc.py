@@ -2,7 +2,6 @@ import logging
 
 from aaopto_aotf import MPDS
 from aaopto_aotf.device_codes import BlankingMode, InputMode
-
 from voxel.devices.aotf.base import BaseAOTF
 from voxel.devices.utils.singleton import Singleton
 

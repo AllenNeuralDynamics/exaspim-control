@@ -2,7 +2,6 @@ import logging
 import struct
 
 import serial
-
 from voxel.devices.tunable_lens.base import BaseTunableLens
 
 # constants for Optotune EL-E-4i controller

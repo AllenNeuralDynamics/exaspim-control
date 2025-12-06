@@ -16,7 +16,6 @@ from PyQt6.QtWidgets import (
     QToolButton,
     QWidget,
 )
-
 from view.widgets.base_device_widget import label_maker
 from view.widgets.miscellaneous_widgets.q_item_delegates import (
     QComboItemDelegate,

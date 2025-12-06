@@ -3,7 +3,7 @@ show-fixes = true
 
 target-version = 'py311'
 
-exclude = ["**/sdks/**", "**/sdk/**"]
+exclude = ["**/sdks/**", "**/sdk/**", "vendor/**"]
 
 [format]
 docstring-code-format = true

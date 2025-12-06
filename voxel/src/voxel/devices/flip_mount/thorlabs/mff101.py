@@ -1,7 +1,6 @@
 from time import sleep
 
 from pylablib.devices import Thorlabs
-
 from voxel.descriptors.deliminated_property import DeliminatedProperty
 from voxel.devices.flip_mount.base import BaseFlipMount
 

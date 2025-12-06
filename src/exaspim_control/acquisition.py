@@ -15,9 +15,8 @@ import numpy as np
 from gputools import get_device
 from psutil import virtual_memory
 from ruyaml import YAML
-
-from voxel.acquisition.acquisition import Acquisition
-from voxel.instruments.instrument import Instrument
+from voxel.acquisition import Acquisition
+from voxel.instrument import Instrument
 from voxel.writers.data_structures.shared_double_buffer import SharedDoubleBuffer
 
 DIRECTORY = Path(__file__).parent.resolve()

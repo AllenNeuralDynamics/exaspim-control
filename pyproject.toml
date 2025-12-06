@@ -56,6 +56,10 @@ build-backend = "uv_build"
 [tool.uv.workspace]
 members = ["voxel", "view"]
 
+[tool.pyright]
+typeCheckingMode = "standard"
+ignore = ["**/sdks/**", "**/sdk/**", "vendor/**"]
+
 [tool.coverage.run]
 omit = ["*__init__*"]
 source = ["voxel", "tests"]

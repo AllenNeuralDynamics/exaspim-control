@@ -259,9 +259,7 @@ class BaseMaxProjection:
         :type filename: str
         """
         self._filename = (
-            filename.replace(".tiff", "").replace(".tif", "")
-            if filename.endswith((".tiff", ".tif"))
-            else f"{filename}"
+            filename.replace(".tiff", "").replace(".tif", "") if filename.endswith((".tiff", ".tif")) else f"{filename}"
         )
         self.log.info(f"setting filename to: {filename}")
 

@@ -3,7 +3,6 @@ from datetime import datetime
 from typing import Any
 
 import inflection
-
 from voxel.metadata.base import BaseMetadata
 
 DATE_FORMATS = {

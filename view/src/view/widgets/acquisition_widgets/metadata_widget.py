@@ -1,7 +1,6 @@
 from collections.abc import Callable
 
 from PyQt6.QtWidgets import QWidget
-
 from view.widgets.base_device_widget import BaseDeviceWidget, scan_for_properties
 
 

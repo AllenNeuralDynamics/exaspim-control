@@ -1,6 +1,5 @@
 from vortran_laser import BoolVal
 from vortran_laser import StradusLaser as StradusVortran
-
 from voxel.descriptors.deliminated_property import DeliminatedProperty
 from voxel.devices.laser.base import BaseLaser
 

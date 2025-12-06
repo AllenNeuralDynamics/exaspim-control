@@ -2,7 +2,6 @@ import logging
 
 from tigerasi.device_codes import JoystickInput, JoystickPolarity
 from tigerasi.tiger_controller import TigerController
-
 from voxel.devices.joystick.base import BaseJoystick
 
 JOYSTICK_AXES = {

@@ -32,13 +32,9 @@ class SimulatedFlipMount(BaseFlipMount):
         self._inst: Literal[0, 1] = None
         for key, value in positions.items():
             if value not in VALID_POSITIONS:
-                msg = (
-                    f"Invalid position {key} for Thorlabs flip mount.\
+                msg = f"Invalid position {key} for Thorlabs flip mount.\
                     Valid positions are {VALID_POSITIONS}"
-                )
-                raise ValueError(
-                    msg
-                )
+                raise ValueError(msg)
             POSITIONS[key] = value
         self._connect()
 

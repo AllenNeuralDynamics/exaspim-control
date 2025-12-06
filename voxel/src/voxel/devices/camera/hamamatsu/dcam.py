@@ -3,7 +3,6 @@ import time
 from typing import Any
 
 import numpy as np
-
 from voxel.descriptors.deliminated_property import DeliminatedProperty
 from voxel.devices.camera.base import BaseCamera
 from voxel.devices.camera.sdks.dcam.dcam import (

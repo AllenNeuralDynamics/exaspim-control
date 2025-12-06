@@ -16,7 +16,6 @@ from PyQt6.QtWidgets import (
 from pyqtgraph import makeRGBA
 from pyqtgraph.opengl import GLImageItem
 from scipy import spatial
-
 from view.widgets.miscellaneous_widgets.gl_ortho_view_widget import GLOrthoViewWidget
 from view.widgets.miscellaneous_widgets.gl_path_item import GLPathItem
 from view.widgets.miscellaneous_widgets.gl_shaded_box_item import GLShadedBoxItem

@@ -213,7 +213,7 @@ An instrument can be invoked by loading the YAML file with and the loaded device
 can be accessed with. The above example uses all simulated device classes.
 
 ```python
-from voxel.instruments.instrument import Instrument
+from voxel.instrument import Instrument
 
 instrument = Instrument(config_path='example.yaml')
 instrument.cameras['vp-151mx camera']

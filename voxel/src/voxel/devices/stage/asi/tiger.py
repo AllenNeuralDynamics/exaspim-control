@@ -9,7 +9,6 @@ from tigerasi.device_codes import (
     TTLIn0Mode,
     TTLOut0Mode,
 )
-
 from voxel.devices.controller.asi.tiger import TigerController
 from voxel.devices.stage.base import BaseStage
 

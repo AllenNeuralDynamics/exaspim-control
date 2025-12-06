@@ -22,7 +22,6 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 from ruyaml import RoundTripRepresenter
-
 from view.acquisition_view import AcquisitionView
 from view.instrument_view import InstrumentView
 from view.widgets.acquisition_widgets.channel_plan_widget import ChannelPlanWidget

@@ -9,7 +9,6 @@ from nidaqmx.constants import AcquisitionType as AcqType
 from nidaqmx.constants import AOIdleOutputBehavior, Edge, FrequencyUnits, Level, Slope
 from nidaqmx.errors import DaqError
 from scipy import interpolate, signal
-
 from voxel.devices.daq.base import BaseDAQ
 
 DO_WAVEFORMS = ["square wave"]

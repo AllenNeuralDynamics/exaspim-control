@@ -1,6 +1,5 @@
 from obis_laser import ObisLS
 from serial import Serial
-
 from voxel.descriptors.deliminated_property import DeliminatedProperty
 
 from ..base import BaseLaser

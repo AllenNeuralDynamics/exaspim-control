@@ -6,7 +6,7 @@ from pathlib import Path
 import inflection
 from ruyaml import YAML
 
-from voxel.instruments.instrument import Instrument
+from voxel.instrument import Instrument
 
 
 class Acquisition:

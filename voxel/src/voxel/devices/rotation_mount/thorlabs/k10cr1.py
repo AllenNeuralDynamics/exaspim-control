@@ -1,7 +1,6 @@
 import logging
 
 from pylablib.devices import Thorlabs
-
 from voxel.devices.rotation_mount.base import BaseRotationMount
 
 MIN_POSITION_DEG = 0

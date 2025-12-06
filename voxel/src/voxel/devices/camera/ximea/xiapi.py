@@ -2,6 +2,9 @@ import logging
 import re
 
 import numpy as np
+from voxel.descriptors.deliminated_property import DeliminatedProperty
+from voxel.devices.camera.base import BaseCamera
+from voxel.processes.downsample.gpu.gputools.downsample_2d import GPUToolsDownSample2D
 from ximea import xiapi
 from ximea.xidefs import (
     XI_BIT_DEPTH,
@@ -10,10 +13,6 @@ from ximea.xidefs import (
     XI_TRG_SELECTOR,
     XI_TRG_SOURCE,
 )
-
-from voxel.descriptors.deliminated_property import DeliminatedProperty
-from voxel.devices.camera.base import BaseCamera
-from voxel.processes.downsample.gpu.gputools.downsample_2d import GPUToolsDownSample2D
 
 BUFFER_SIZE_MB = 2400
 

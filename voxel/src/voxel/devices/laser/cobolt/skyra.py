@@ -3,7 +3,6 @@ from enum import StrEnum
 
 from pycobolt import CoboltLaser
 from sympy import Expr, solve, symbols
-
 from voxel.descriptors.deliminated_property import DeliminatedProperty
 from voxel.devices.laser.base import BaseLaser
 

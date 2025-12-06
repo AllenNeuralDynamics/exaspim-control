@@ -1,5 +1,4 @@
 from sympy import Expr, solve, symbols
-
 from voxel.descriptors.deliminated_property import DeliminatedProperty
 from voxel.devices.controller.oxxius.lxcc import BoolVal, Cmd, OxxiusController, Query
 from voxel.devices.laser.base import BaseLaser

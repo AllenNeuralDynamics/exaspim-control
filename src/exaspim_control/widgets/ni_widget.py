@@ -600,4 +600,3 @@ def triangle_wave(
         offset_volts,
         cutoff_frequency_hz,
     )
-

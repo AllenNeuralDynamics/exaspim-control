@@ -18,7 +18,6 @@ from egrabber import (
     GenTLException,
     query,
 )
-
 from voxel.descriptors.deliminated_property import DeliminatedProperty
 from voxel.devices.camera.base import BaseCamera
 from voxel.devices.utils.singleton import thread_safe_singleton
