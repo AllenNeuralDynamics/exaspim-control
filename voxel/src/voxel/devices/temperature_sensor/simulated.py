@@ -1,7 +1,6 @@
 import logging
 
-import numpy
-
+import numpy as np
 from voxel.devices.temperature_sensor.base import BaseTemperatureSensor
 
 
@@ -26,7 +25,6 @@ class SimulatedTemperatureSensor(BaseTemperatureSensor):
         Reset the temperature sensor.
         """
         self.log.info("reseting temperature sensor")
-        pass
 
     @property
     def channel(self) -> str:
@@ -56,7 +54,7 @@ class SimulatedTemperatureSensor(BaseTemperatureSensor):
         :return: Relative humidity percentage
         :rtype: float
         """
-        return 40.0 + numpy.random.normal(0, 1)
+        return 40.0 + np.random.normal(0, 1)
 
     @property
     def temperature_c(self) -> float:
@@ -66,11 +64,10 @@ class SimulatedTemperatureSensor(BaseTemperatureSensor):
         :return: Temperature in Celsius
         :rtype: float
         """
-        return 23.0 + numpy.random.normal(0, 1)
+        return 23.0 + np.random.normal(0, 1)
 
     def close(self) -> None:
         """
         Close the temperature sensor.
         """
         self.log.info("closing temperature sensor")
-        pass

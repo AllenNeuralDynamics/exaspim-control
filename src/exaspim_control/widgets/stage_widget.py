@@ -1,8 +1,7 @@
 import importlib
 
-from qtpy.QtGui import QDoubleValidator, QIntValidator
-from qtpy.QtWidgets import QLabel
-
+from PyQt6.QtGui import QDoubleValidator, QIntValidator
+from PyQt6.QtWidgets import QLabel
 from view.widgets.base_device_widget import BaseDeviceWidget, scan_for_properties
 from view.widgets.miscellaneous_widgets.q_scrollable_line_edit import QScrollableLineEdit
 
@@ -50,9 +49,9 @@ class StageWidget(BaseDeviceWidget):
         """
         Create a text box for the given property.
 
-        :param name: Property name
+        :param name: pyqtProperty name
         :type name: str
-        :param value: Property value
+        :param value: pyqtProperty value
         :type value: object
         :return: Text box widget
         :rtype: QScrollableLineEdit

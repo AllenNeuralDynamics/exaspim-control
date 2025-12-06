@@ -1,10 +1,8 @@
 import logging
 import random
 
-import numpy
+import numpy as np
 from serial import Serial
-from typing import Dict, List
-
 from voxel.descriptors.deliminated_property import DeliminatedProperty
 from voxel.devices.laser.base import BaseLaser
 
@@ -46,19 +44,17 @@ class SimulatedLaser(BaseLaser):
         self._modulation_mode = "digital"
         self._temperature = 20.0
         self._cdrh = "ON"
-        self._status: List[str] = []
+        self._status: list[str] = []
 
     def enable(self) -> None:
         """
         Enable the laser.
         """
-        pass
 
     def disable(self) -> None:
         """
         Disable the laser.
         """
-        pass
 
     @DeliminatedProperty(minimum=0, maximum=MAX_POWER_MW)
     def power_setpoint_mw(self) -> float:
@@ -109,7 +105,7 @@ class SimulatedLaser(BaseLaser):
         :type value: str
         :raises ValueError: If the modulation mode is not valid
         """
-        if value not in MODULATION_MODES.keys():
+        if value not in MODULATION_MODES:
             raise ValueError("mode must be one of %r." % MODULATION_MODES.keys())
         for attribute, state in MODULATION_MODES[value].items():
             setattr(self, attribute, state)
@@ -123,9 +119,9 @@ class SimulatedLaser(BaseLaser):
         :return: Temperature in Celsius
         :rtype: float
         """
-        return self._temperature + numpy.random.normal(0, 1)
+        return self._temperature + np.random.normal(0, 1)
 
-    def status(self) -> List[str]:
+    def status(self) -> list[str]:
         """
         Get the status of the laser.
 
@@ -168,4 +164,3 @@ class SimulatedLaser(BaseLaser):
         """
         Close the laser connection.
         """
-        pass

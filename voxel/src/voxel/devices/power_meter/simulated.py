@@ -38,7 +38,8 @@ class SimulatedPowerMeter(BasePowerMeter):
         :raises Exception: If the power meter is not connected
         """
         if not self._is_connected:
-            raise Exception(f"Device {self.id} is not connected")
+            msg = f"Device {self.id} is not connected"
+            raise Exception(msg)
 
     @property
     def power_mw(self) -> float:

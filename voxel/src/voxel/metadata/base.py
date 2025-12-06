@@ -15,5 +15,3 @@ class BaseMetadata:
         :return: The acquisition name.
         :rtype: str
         """
-
-        pass

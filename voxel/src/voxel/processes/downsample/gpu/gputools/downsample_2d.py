@@ -1,6 +1,5 @@
 import numpy as np
 from gputools import OCLArray, OCLProgram
-
 from voxel.processes.downsample.base import BaseDownSample
 
 
@@ -52,7 +51,8 @@ class GPUToolsDownSample2D(BaseDownSample):
             }
             """
         else:
-            raise ValueError(f"invalid mode: {mode}, mode must be 'average' or 'sum'")
+            msg = f"invalid mode: {mode}, mode must be 'average' or 'sum'"
+            raise ValueError(msg)
 
         self._prog = OCLProgram(src_str=self._kernel, build_options=["-D", f"BLOCK={self._binning}"])
 

@@ -4,6 +4,7 @@ import os
 import platform
 from ctypes import c_int, c_ubyte, c_ushort
 from enum import IntEnum
+
 from voxel.devices.indicator_light.base import BaseIndicatorLight
 
 
@@ -166,26 +167,25 @@ class TL50IndicatorLight(BaseIndicatorLight):
 
         # check if windows or linux
         if platform.system() == "Linux":
-            self.log.warning('not yet supported on linux')
+            self.log.warning("not yet supported on linux")
+        # Assuming Windows, load the DLL accordingly
+        elif platform.architecture()[0] == "32bit":
+            self.log.info("loading 32-bit DLL")
+            if not os.path.exists(f"{DIR}\\Tl50UsbLibraryWin32.dll"):
+                raise FileNotFoundError("Tl50UsbLibrary.dll not found in the expected directory.")
+            self.tl50 = ctypes.CDLL(f"{DIR}\\win32\\Tl50UsbLibraryx64.dll")
         else:
-            # Assuming Windows, load the DLL accordingly
-            if platform.architecture()[0] == "32bit":
-                self.log.info("loading 32-bit DLL")
-                if not os.path.exists(f"{DIR}\\Tl50UsbLibraryWin32.dll"):
-                    raise FileNotFoundError("Tl50UsbLibrary.dll not found in the expected directory.")
-                self.tl50 = ctypes.CDLL(f"{DIR}\\win32\\Tl50UsbLibraryx64.dll")
-            else:
-                self.log.info("loading 64-bit DLL")
-                if not os.path.exists(f"{DIR}\\win64\\Tl50UsbLibraryx64.dll"):
-                    raise FileNotFoundError("Tl50UsbLibraryx64.dll not found in the expected directory.")
-                self.tl50 = ctypes.CDLL(f"{DIR}\\win64\\Tl50UsbLibraryx64.dll")
+            self.log.info("loading 64-bit DLL")
+            if not os.path.exists(f"{DIR}\\win64\\Tl50UsbLibraryx64.dll"):
+                raise FileNotFoundError("Tl50UsbLibraryx64.dll not found in the expected directory.")
+            self.tl50 = ctypes.CDLL(f"{DIR}\\win64\\Tl50UsbLibraryx64.dll")
 
         # initialize the device with the specified COM port
         self.log.info(f"initializing device on port {com_port}")
         self.tl50.InitByPort(int("".join(filter(lambda char: not char.isalpha(), com_port))))
 
         # initialize cached settings
-        self._settings = dict()
+        self._settings = {}
 
         # set up function argument and return types
         self.tl50.InitByPort.argtypes = [c_int]
@@ -259,7 +259,7 @@ class TL50IndicatorLight(BaseIndicatorLight):
         """
         Get the DLL version as a (major, minor) tuple.
 
-        :return: Tuple of (major, minor) version numbers.
+        :return: tuple of (major, minor) version numbers.
         :rtype: tuple[int, int]
         """
         version = self.tl50.GetDllVersion()
@@ -426,21 +426,29 @@ class TL50IndicatorLight(BaseIndicatorLight):
         direction = settings["direction"]
 
         if color1 not in COLORS:
-            raise ValueError(f"Invalid color1: {color1} must be one of {list(COLORS.keys())}")
+            msg = f"Invalid color1: {color1} must be one of {list(COLORS.keys())}"
+            raise ValueError(msg)
         if intensity1 not in INTENSITIES:
-            raise ValueError(f"Invalid intensity1: {intensity1} must be one of {list(INTENSITIES.keys())}")
+            msg = f"Invalid intensity1: {intensity1} must be one of {list(INTENSITIES.keys())}"
+            raise ValueError(msg)
         if animation not in ANIMATIONS:
-            raise ValueError(f"Invalid animation: {animation} must be one of {list(ANIMATIONS.keys())}")
+            msg = f"Invalid animation: {animation} must be one of {list(ANIMATIONS.keys())}"
+            raise ValueError(msg)
         if speed not in SPEEDS:
-            raise ValueError(f"Invalid speed: {speed} must be one of {list(SPEEDS.keys())}")
+            msg = f"Invalid speed: {speed} must be one of {list(SPEEDS.keys())}"
+            raise ValueError(msg)
         if flash_pattern not in FLASH_PATTERNS:
-            raise ValueError(f"Invalid flash_pattern: {flash_pattern} must be one of {list(FLASH_PATTERNS.keys())}")
+            msg = f"Invalid flash_pattern: {flash_pattern} must be one of {list(FLASH_PATTERNS.keys())}"
+            raise ValueError(msg)
         if color2 not in COLORS:
-            raise ValueError(f"Invalid color2: {color2} must be one of {list(COLORS.keys())}")
+            msg = f"Invalid color2: {color2} must be one of {list(COLORS.keys())}"
+            raise ValueError(msg)
         if intensity2 not in INTENSITIES:
-            raise ValueError(f"Invalid intensity2: {intensity2} must be one of {list(INTENSITIES.keys())}")
+            msg = f"Invalid intensity2: {intensity2} must be one of {list(INTENSITIES.keys())}"
+            raise ValueError(msg)
         if direction not in DIRECTIONS:
-            raise ValueError(f"Invalid direction: {direction} must be one of {list(DIRECTIONS.keys())}")
+            msg = f"Invalid direction: {direction} must be one of {list(DIRECTIONS.keys())}"
+            raise ValueError(msg)
 
         self._settings["color1"] = color1
         self._settings["intensity1"] = intensity1

@@ -1,6 +1,5 @@
-import numpy
+import numpy as np
 import pyclesperanto as cle
-
 from voxel.processes.downsample.base import BaseDownSample
 
 
@@ -21,7 +20,7 @@ class CLEDownSample2D(BaseDownSample):
         # get gpu device
         self._device = cle.select_device()
 
-    def run(self, image: numpy.ndarray) -> numpy.ndarray:
+    def run(self, image: np.ndarray) -> np.ndarray:
         """
         Run function for image downsampling.
 

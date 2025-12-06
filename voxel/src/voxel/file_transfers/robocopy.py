@@ -43,7 +43,7 @@ class RobocopyFileTransfer(BaseFileTransfer):
         transfer_complete = False
         retry_num = 0
         # loop over number of attempts in the event that a file transfer fails
-        while transfer_complete == False and retry_num <= self._max_retry - 1:
+        while not transfer_complete and retry_num <= self._max_retry - 1:
             # generate a list of subdirs and files in the parent local dir to delete at the end
             delete_list = []
             for name in os.listdir(local_directory.absolute()):
@@ -54,7 +54,7 @@ class RobocopyFileTransfer(BaseFileTransfer):
             # subdirs is any tile specific subdir i.e. zarr store
             # files are any tile specific files
             # file list generation if  not zarr
-            file_list = dict()
+            file_list = {}
             # check if subdir for valid zarr store
             for item in os.listdir(local_directory.absolute()):
                 if os.path.isdir(os.path.join(local_directory, item)):
@@ -82,7 +82,7 @@ class RobocopyFileTransfer(BaseFileTransfer):
             # if not, try to initiate transfer again
             else:
                 num_files = len(sorted_file_list)
-                self.log.info(f"attempt {retry_num+1}/{self._max_retry}, tranferring {num_files} files.")
+                self.log.info(f"attempt {retry_num + 1}/{self._max_retry}, tranferring {num_files} files.")
                 for file_path, file_size_mb in sorted_file_list.items():
                     # transfer just one file and iterate
                     # split filename and path
@@ -116,7 +116,7 @@ class RobocopyFileTransfer(BaseFileTransfer):
                         while file_progress < 100:
                             start_time_s = time.time()
                             # open log file
-                            with open(log_path, "r") as f:
+                            with open(log_path) as f:
                                 # read the last line
                                 line = f.readlines()[-1]
                             # try to find if there is a % in the last line
@@ -180,7 +180,6 @@ class RobocopyFileTransfer(BaseFileTransfer):
                                     # remove external file, try again
                                     self.log.info(f"hashes did not match, deleting {external_file_path}")
                                     os.remove(external_file_path)
-                                    pass
                             except FileNotFoundError:
                                 self.log.warning(f"no external file exists at {external_file_path}")
                         else:
@@ -188,7 +187,8 @@ class RobocopyFileTransfer(BaseFileTransfer):
                             self.log.info(f"deleting {local_file_path}")
                             os.remove(local_file_path)
                     else:
-                        raise ValueError(f"{local_file_path} is not a file or directory.")
+                        msg = f"{local_file_path} is not a file or directory."
+                        raise ValueError(msg)
                 end_time = time.time()
                 total_time = end_time - start_time
                 self.log.info(f"{self.filename} transfer complete, total time: {total_time:.2f} [s]")

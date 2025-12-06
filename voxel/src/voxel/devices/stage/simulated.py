@@ -1,6 +1,5 @@
 import logging
 import time
-from typing import Tuple, Dict
 
 from voxel.devices.stage.base import BaseStage
 
@@ -105,10 +104,9 @@ class SimulatedStage(BaseStage):
         """
         Halt the stage.
         """
-        pass
 
     @property
-    def limits_mm(self) -> Tuple[int, int]:
+    def limits_mm(self) -> tuple[int, int]:
         """
         Get the limits of the stage in millimeters.
 
@@ -179,12 +177,12 @@ class SimulatedStage(BaseStage):
         self.log.info(f"set backlash to: {backlash} mm.")
 
     @property
-    def acceleration_ms(self) -> Dict[str, float]:
+    def acceleration_ms(self) -> dict[str, float]:
         """
         Get the acceleration of the stage in millimeters per second squared.
 
         :return: Acceleration in millimeters per second squared
-        :rtype: Dict[str, float]
+        :rtype: dict[str, float]
         """
         return {self.instrument_axis.lower(): self._acceleration_ms}
 
@@ -251,10 +249,7 @@ class SimulatedStage(BaseStage):
         :return: True if the axis is moving, False otherwise
         :rtype: bool
         """
-        if time.time() < self.move_end_time_s:
-            return True
-        else:
-            return False
+        return time.time() < self.move_end_time_s
 
     def zero_in_place(self) -> None:
         """
@@ -268,14 +263,12 @@ class SimulatedStage(BaseStage):
         Close the stage.
         """
         self.log.info("closing simulated stage.")
-        pass
 
     def start(self) -> None:
         """
         Start the stage.
         """
         self.log.info("starting simulated stage.")
-        pass
 
     def setup_step_shoot_scan(self, step_size_um: float) -> None:
         """
@@ -285,4 +278,3 @@ class SimulatedStage(BaseStage):
         :type step_size_um: float
         """
         self.log.info(f"setup step shoot scan with step size: {step_size_um} um.")
-        pass

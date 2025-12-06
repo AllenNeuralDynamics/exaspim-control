@@ -1,9 +1,8 @@
 import importlib
 
-from qtpy.QtCore import Qt
-from qtpy.QtGui import QDoubleValidator, QIntValidator, QColor
-from qtpy.QtWidgets import QSizePolicy
-
+from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QColor, QDoubleValidator, QIntValidator
+from PyQt6.QtWidgets import QSizePolicy
 from view.widgets.base_device_widget import BaseDeviceWidget, create_widget, scan_for_properties
 from view.widgets.miscellaneous_widgets.q_scrollable_float_slider import QScrollableFloatSlider
 
@@ -45,10 +44,10 @@ class LaserWidget(BaseDeviceWidget):
         power = self.power_mw_widget
         temperature = self.property_widgets["temperature_c"].layout().itemAt(1).widget()
 
-        if type(setpoint.validator()) == QDoubleValidator:
+        if isinstance(setpoint.validator(), QDoubleValidator):
             setpoint.validator().setRange(0.0, self.max_power_mw, decimals=2)
             power.validator().setRange(0.0, self.max_power_mw, decimals=2)
-        elif type(setpoint.validator()) == QIntValidator:
+        elif isinstance(setpoint.validator(), QIntValidator):
             setpoint.validator().setRange(0, self.max_power_mw)
             power.validator().setRange(0.0, self.max_power_mw)
 

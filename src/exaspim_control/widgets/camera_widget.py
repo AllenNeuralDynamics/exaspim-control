@@ -1,6 +1,5 @@
-from qtpy.QtCore import Qt
-from qtpy.QtWidgets import QPushButton, QSizePolicy, QStyle, QVBoxLayout, QWidget
-
+from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import QPushButton, QSizePolicy, QStyle, QVBoxLayout, QWidget
 from view.widgets.base_device_widget import BaseDeviceWidget, create_widget, scan_for_properties
 
 

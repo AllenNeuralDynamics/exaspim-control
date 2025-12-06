@@ -1,7 +1,6 @@
 import cupy
-import numpy
+import numpy as np
 from cucim.skimage.transform import downscale_local_mean
-
 from voxel.processes.downsample.base import BaseDownSample
 
 
@@ -20,7 +19,7 @@ class CucimDownSample2D(BaseDownSample):
         """
         super().__init__(binning)
 
-    def run(self, image: numpy.array) -> numpy.ndarray:
+    def run(self, image: np.array) -> np.ndarray:
         """
         Run function for image downsampling.
 
@@ -31,5 +30,4 @@ class CucimDownSample2D(BaseDownSample):
         """
         # convert numpy to cupy array
         image = cupy.asarray(image)
-        downsampled_image = downscale_local_mean(image, factors=(self._binning, self._binning))
-        return downsampled_image
+        return downscale_local_mean(image, factors=(self._binning, self._binning))

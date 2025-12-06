@@ -1,11 +1,9 @@
 import logging
 
 import matplotlib.pyplot as plt
-import numpy
+import numpy as np
 from matplotlib.ticker import AutoMinorLocator
-from scipy import signal, interpolate
-from typing import Dict, Optional
-
+from scipy import interpolate, signal
 from voxel.devices.daq.base import BaseDAQ
 
 # lets just simulate the PCIe-6738
@@ -72,17 +70,17 @@ class SimulatedDAQ(BaseDAQ):
         :param dev: Device name
         :type dev: str
         """
-        self.do_task: Optional[dict] = None
-        self.ao_task: Optional[dict] = None
-        self.co_task: Optional[dict] = None
-        self._tasks: Optional[Dict[str, dict]] = None
+        self.do_task: dict | None = None
+        self.ao_task: dict | None = None
+        self.co_task: dict | None = None
+        self._tasks: dict[str, dict] | None = None
 
         self.log = logging.getLogger(__name__ + "." + self.__class__.__name__)
         self.id = dev
-        self.ao_physical_chans = list()
-        self.co_physical_chans = list()
-        self.do_physical_chans = list()
-        self.dio_ports = list()
+        self.ao_physical_chans = []
+        self.co_physical_chans = []
+        self.do_physical_chans = []
+        self.dio_ports = []
         for channel in AO_PHYSICAL_CHANS:
             self.ao_physical_chans.append(f"{self.id}/{channel}")
         for channel in CO_PHYSICAL_CHANS:
@@ -97,12 +95,12 @@ class SimulatedDAQ(BaseDAQ):
         self.max_ao_volts = MAX_AO_VOLTS
         self.min_ao_volts = MIN_AO_VOLTS
         self.log.info("resetting nidaq")
-        self.task_time_s = dict()
-        self.ao_waveforms = dict()
-        self.do_waveforms = dict()
+        self.task_time_s = {}
+        self.ao_waveforms = {}
+        self.do_waveforms = {}
 
     @property
-    def tasks(self) -> Optional[Dict[str, dict]]:
+    def tasks(self) -> dict[str, dict] | None:
         """
         Get the tasks dictionary.
 
@@ -112,7 +110,7 @@ class SimulatedDAQ(BaseDAQ):
         return self._tasks
 
     @tasks.setter
-    def tasks(self, tasks_dict: Dict[str, dict]) -> None:
+    def tasks(self, tasks_dict: dict[str, dict]) -> None:
         """
         Set the tasks dictionary.
 
@@ -121,7 +119,7 @@ class SimulatedDAQ(BaseDAQ):
         """
         self._tasks = tasks_dict
 
-    def add_task(self, task_type: str, pulse_count: Optional[int] = None) -> None:
+    def add_task(self, task_type: str, pulse_count: int | None = None) -> None:
         """
         Add a task to the DAQ.
 
@@ -133,7 +131,8 @@ class SimulatedDAQ(BaseDAQ):
         """
         # check task type
         if task_type not in ["ao", "co", "do"]:
-            raise ValueError(f"{task_type} must be one of {['ao', 'co', 'do']}")
+            msg = f"{task_type} must be one of {['ao', 'co', 'do']}"
+            raise ValueError(msg)
 
         task = self.tasks[f"{task_type}_task"]
 
@@ -144,20 +143,22 @@ class SimulatedDAQ(BaseDAQ):
 
         for k, v in timing.items():
             global_var = globals().get(k.upper(), {})
-            valid = list(global_var.keys()) if type(global_var) == dict else global_var
+            valid = list(global_var.keys()) if isinstance(global_var, dict) else global_var
             if v not in valid and valid != []:
-                raise ValueError(f"{k} must be one of {valid}")
+                msg = f"{k} must be one of {valid}"
+                raise ValueError(msg)
 
         channel_options = {"ao": self.ao_physical_chans, "do": self.do_physical_chans, "co": self.co_physical_chans}
 
         if task_type in ["ao", "do"]:
             self._timing_checks(task_type)
 
-            for port, specs in task["ports"].items():
+            for specs in task["ports"].values():
                 # add channel to task
                 channel_port = specs["port"]
                 if f"{self.id}/{channel_port}" not in channel_options[task_type]:
-                    raise ValueError(f"{task_type} number must be one of {channel_options[task_type]}")
+                    msg = f"{task_type} number must be one of {channel_options[task_type]}"
+                    raise ValueError(msg)
 
             total_time_ms = timing["period_time_ms"] + timing["rest_time_ms"]
 
@@ -170,9 +171,8 @@ class SimulatedDAQ(BaseDAQ):
             self.task_time_s[task["name"]] = total_time_ms / 1000
 
         else:  # co channel
-
             if timing["frequency_hz"] < 0:
-                raise ValueError(f"frequency must be >0 Hz")
+                raise ValueError("frequency must be >0 Hz")
 
             for channel_number in task["counters"]:
                 if f"{self.id}/{channel_number}" not in self.co_physical_chans:
@@ -211,10 +211,9 @@ class SimulatedDAQ(BaseDAQ):
         if sampling_frequency_hz < getattr(self, f"min_{task_type}_rate", 0) or sampling_frequency_hz > getattr(
             self, f"max_{task_type}_rate"
         ):
-            raise ValueError(
-                f"Sampling frequency must be > {getattr(self, f'{task_type}_min_rate', 0)} Hz and \
+            msg = f"Sampling frequency must be > {getattr(self, f'{task_type}_min_rate', 0)} Hz and \
                                          <{getattr(self, f'{task_type}_max_rate')} Hz!"
-            )
+            raise ValueError(msg)
 
     def generate_waveforms(self, task_type: str, wavelength: str) -> None:
         """
@@ -228,7 +227,8 @@ class SimulatedDAQ(BaseDAQ):
         """
         # check task type
         if task_type not in ["ao", "do"]:
-            raise ValueError(f"{task_type} must be one of {['ao', 'do']}")
+            msg = f"{task_type} must be one of {['ao', 'do']}"
+            raise ValueError(msg)
         task = self.tasks[f"{task_type}_task"]
         self._timing_checks(task_type)
 
@@ -257,10 +257,12 @@ class SimulatedDAQ(BaseDAQ):
                 try:
                     max_volts = channel["parameters"]["max_volts"]["channels"][wavelength] if task_type == "ao" else 5
                     if max_volts > self.max_ao_volts:
-                        raise ValueError(f"max volts must be < {self.max_ao_volts} volts")
+                        msg = f"max volts must be < {self.max_ao_volts} volts"
+                        raise ValueError(msg)
                     min_volts = channel["parameters"]["min_volts"]["channels"][wavelength] if task_type == "ao" else 0
                     if min_volts < self.min_ao_volts:
-                        raise ValueError(f"min volts must be > {self.min_ao_volts} volts")
+                        msg = f"min volts must be > {self.min_ao_volts} volts"
+                        raise ValueError(msg)
                 except AttributeError:
                     raise ValueError("missing input parameter for square wave")
                 voltages = self.square_wave(
@@ -273,19 +275,19 @@ class SimulatedDAQ(BaseDAQ):
                     min_volts,
                 )
 
-            if waveform == "sawtooth" or waveform == "triangle wave":  # setup is same for both waves, only be ao task
+            if waveform in {"sawtooth", "triangle wave"}:  # setup is same for both waves, only be ao task
                 try:
                     amplitude_volts = channel["parameters"]["amplitude_volts"]["channels"][wavelength]
                     offset_volts = channel["parameters"]["offset_volts"]["channels"][wavelength]
                     if offset_volts < self.min_ao_volts or offset_volts > self.max_ao_volts:
-                        raise ValueError(
-                            f"min volts must be > {self.min_ao_volts} volts and < {self.max_ao_volts} volts"
-                        )
+                        msg = f"min volts must be > {self.min_ao_volts} volts and < {self.max_ao_volts} volts"
+                        raise ValueError(msg)
                     cutoff_frequency_hz = channel["parameters"]["cutoff_frequency_hz"]["channels"][wavelength]
                     if cutoff_frequency_hz < 0:
                         raise ValueError("cutoff frequnecy must be > 0 Hz")
                 except AttributeError:
-                    raise ValueError(f"missing input parameter for {waveform}")
+                    msg = f"missing input parameter for {waveform}"
+                    raise ValueError(msg)
 
                 waveform_function = getattr(self, waveform.replace(" ", "_"))
                 voltages = waveform_function(
@@ -307,11 +309,11 @@ class SimulatedDAQ(BaseDAQ):
                     t50_offset_volts = channel["parameters"]["offset_volts"]["channels"][wavelength]
                     t100_offset_volts = channel["parameters"]["offset_volts"]["channels"][wavelength]
                     if offset_volts < self.min_ao_volts or offset_volts > self.max_ao_volts:
-                        raise ValueError(
-                            f"min volts must be > {self.min_ao_volts} volts and < {self.max_ao_volts} volts"
-                        )
+                        msg = f"min volts must be > {self.min_ao_volts} volts and < {self.max_ao_volts} volts"
+                        raise ValueError(msg)
                 except AttributeError:
-                    raise ValueError(f"missing input parameter for {waveform}")
+                    msg = f"missing input parameter for {waveform}"
+                    raise ValueError(msg)
 
                 waveform_function = getattr(self, waveform.replace(" ", "_"))
                 print(waveform_function)
@@ -331,12 +333,14 @@ class SimulatedDAQ(BaseDAQ):
             # sanity check voltages for ni card range
             max = getattr(self, "max_ao_volts", 5)
             min = getattr(self, "min_ao_volts", 0)
-            if numpy.max(voltages[:]) > max or numpy.min(voltages[:]) < min:
-                raise ValueError(f"voltages are out of ni card range [{max}, {min}] volts")
+            if np.max(voltages[:]) > max or np.min(voltages[:]) < min:
+                msg = f"voltages are out of ni card range [{max}, {min}] volts"
+                raise ValueError(msg)
 
             # sanity check voltages for device range
-            if numpy.max(voltages[:]) > device_max_volts or numpy.min(voltages[:]) < device_min_volts:
-                raise ValueError(f"voltages are out of device range [{device_min_volts}, {device_max_volts}] volts")
+            if np.max(voltages[:]) > device_max_volts or np.min(voltages[:]) < device_min_volts:
+                msg = f"voltages are out of device range [{device_min_volts}, {device_max_volts}] volts"
+                raise ValueError(msg)
 
             # store 1d voltage array into 2d waveform array
             waveform_attribute[f"{port}: {name}"] = voltages
@@ -375,7 +379,7 @@ class SimulatedDAQ(BaseDAQ):
         amplitude_volts: float,
         offset_volts: float,
         cutoff_frequency_hz: float,
-    ) -> numpy.ndarray:
+    ) -> np.ndarray:
         """
         Generate a sawtooth waveform.
 
@@ -398,8 +402,8 @@ class SimulatedDAQ(BaseDAQ):
         :return: Generated waveform
         :rtype: numpy.ndarray
         """
-        time_samples_ms = numpy.linspace(
-            0, 2 * numpy.pi, int(((period_time_ms - start_time_ms) / 1000) * sampling_frequency_hz)
+        time_samples_ms = np.linspace(
+            0, 2 * np.pi, int(((period_time_ms - start_time_ms) / 1000) * sampling_frequency_hz)
         )
         waveform = offset_volts + amplitude_volts * signal.sawtooth(
             t=time_samples_ms, width=end_time_ms / period_time_ms
@@ -407,7 +411,7 @@ class SimulatedDAQ(BaseDAQ):
 
         # add in delay
         delay_samples = int((start_time_ms / 1000) * sampling_frequency_hz)
-        waveform = numpy.pad(
+        waveform = np.pad(
             array=waveform,
             pad_width=(delay_samples, 0),
             mode="constant",
@@ -416,7 +420,7 @@ class SimulatedDAQ(BaseDAQ):
 
         # add in rest
         rest_samples = int((rest_time_ms / 1000) * sampling_frequency_hz)
-        waveform = numpy.pad(
+        waveform = np.pad(
             array=waveform,
             pad_width=(0, rest_samples),
             mode="constant",
@@ -430,7 +434,7 @@ class SimulatedDAQ(BaseDAQ):
         padding = int(2 / (cutoff_frequency_hz / (sampling_frequency_hz)))
         if padding > 0:
             # waveform = numpy.hstack([waveform[:padding], waveform, waveform[-padding:]])
-            waveform = numpy.pad(
+            waveform = np.pad(
                 array=waveform,
                 pad_width=(padding, padding),
                 mode="constant",
@@ -457,7 +461,7 @@ class SimulatedDAQ(BaseDAQ):
         t0_offset_volts: float,
         t50_offset_volts: float,
         t100_offset_volts: float,
-    ) -> numpy.ndarray:
+    ) -> np.ndarray:
         """
         Generate a sawtooth waveform.
 
@@ -485,8 +489,8 @@ class SimulatedDAQ(BaseDAQ):
         :rtype: numpy.ndarray
         """
 
-        time_samples_ms = numpy.linspace(
-            0, 2 * numpy.pi, int(((period_time_ms - start_time_ms) / 1000) * sampling_frequency_hz)
+        time_samples_ms = np.linspace(
+            0, 2 * np.pi, int(((period_time_ms - start_time_ms) / 1000) * sampling_frequency_hz)
         )
         waveform = offset_volts + amplitude_volts * signal.sawtooth(
             t=time_samples_ms, width=end_time_ms / period_time_ms
@@ -507,12 +511,12 @@ class SimulatedDAQ(BaseDAQ):
         v0 = v0 + t0_offset_volts
         v50 = v50 + t50_offset_volts
         v100 = v100 + t100_offset_volts
-        f = interpolate.interp1d([t0, t25, t50, t75, t100], [v0, v25, v50, v75, v100], kind='quadratic')
+        f = interpolate.interp1d([t0, t25, t50, t75, t100], [v0, v25, v50, v75, v100], kind="quadratic")
         waveform = f(time_samples_ms)
 
         # add in delay
         delay_samples = int((start_time_ms / 1000) * sampling_frequency_hz)
-        waveform = numpy.pad(
+        waveform = np.pad(
             array=waveform,
             pad_width=(delay_samples, 0),
             mode="constant",
@@ -521,14 +525,12 @@ class SimulatedDAQ(BaseDAQ):
 
         # add in rest
         rest_samples = int((rest_time_ms / 1000) * sampling_frequency_hz)
-        waveform = numpy.pad(
+        return np.pad(
             array=waveform,
             pad_width=(0, rest_samples),
             mode="constant",
             constant_values=(offset_volts - amplitude_volts + t0_offset_volts),
         )
-
-        return waveform
 
     def square_wave(
         self,
@@ -539,7 +541,7 @@ class SimulatedDAQ(BaseDAQ):
         rest_time_ms: float,
         max_volts: float,
         min_volts: float,
-    ) -> numpy.ndarray:
+    ) -> np.ndarray:
         """
         Generate a square waveform.
 
@@ -563,7 +565,7 @@ class SimulatedDAQ(BaseDAQ):
         time_samples = int(((period_time_ms + rest_time_ms) / 1000) * sampling_frequency_hz)
         start_sample = int((start_time_ms / 1000) * sampling_frequency_hz)
         end_sample = int((end_time_ms / 1000) * sampling_frequency_hz)
-        waveform = numpy.zeros(time_samples) + min_volts
+        waveform = np.zeros(time_samples) + min_volts
         waveform[start_sample:end_sample] = max_volts
 
         return waveform
@@ -578,7 +580,7 @@ class SimulatedDAQ(BaseDAQ):
         amplitude_volts: float,
         offset_volts: float,
         cutoff_frequency_hz: float,
-    ) -> numpy.ndarray:
+    ) -> np.ndarray:
         """
         Generate a triangle waveform.
 
@@ -602,7 +604,7 @@ class SimulatedDAQ(BaseDAQ):
         :rtype: numpy.ndarray
         """
         # sawtooth with end time in center of waveform
-        waveform = self.sawtooth(
+        return self.sawtooth(
             sampling_frequency_hz,
             period_time_ms,
             start_time_ms,
@@ -612,8 +614,6 @@ class SimulatedDAQ(BaseDAQ):
             offset_volts,
             cutoff_frequency_hz,
         )
-
-        return waveform
 
     def plot_waveforms_to_pdf(self, save: bool = False) -> None:
         """
@@ -631,19 +631,19 @@ class SimulatedDAQ(BaseDAQ):
         ax = plt.axes()
 
         if self.ao_waveforms:
-            time_ms = numpy.linspace(
+            time_ms = np.linspace(
                 0, self.ao_total_time_ms, int(self.ao_total_time_ms / 1000 * self.ao_sampling_frequency_hz)
             )
             for waveform in self.ao_waveforms:
                 plt.plot(time_ms, self.ao_waveforms[waveform], label=waveform)
         if self.do_waveforms:
-            time_ms = numpy.linspace(
+            time_ms = np.linspace(
                 0, self.do_total_time_ms, int(self.do_total_time_ms / 1000 * self.do_sampling_frequency_hz)
             )
             for waveform in self.do_waveforms:
                 plt.plot(time_ms, self.do_waveforms[waveform], label=waveform)
 
-        plt.axis([0, numpy.max([self.ao_total_time_ms, self.do_total_time_ms]), -0.2, 5.2])
+        plt.axis([0, np.max([self.ao_total_time_ms, self.do_total_time_ms]), -0.2, 5.2])
         ax.xaxis.set_minor_locator(AutoMinorLocator())
         ax.yaxis.set_minor_locator(AutoMinorLocator())
         ax.spines[["right", "top"]].set_visible(False)
@@ -662,7 +662,6 @@ class SimulatedDAQ(BaseDAQ):
         :param buf_len: Length of the buffer
         :type buf_len: int
         """
-        pass
 
     def start(self) -> None:
         """
@@ -723,24 +722,20 @@ class SimulatedDAQ(BaseDAQ):
 
 
 class SimulatedTask:
-
     def start(self) -> None:
         """
         Start the task.
         """
-        pass
 
     def stop(self) -> None:
         """
         Stop the task.
         """
-        pass
 
     def close(self) -> None:
         """
         Close the task.
         """
-        pass
 
     def restart(self) -> None:
         """

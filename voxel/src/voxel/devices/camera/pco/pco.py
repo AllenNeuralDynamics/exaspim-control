@@ -1,8 +1,7 @@
 import logging
+
 import numpy as np
-
 from sdks import pco
-
 from voxel.descriptors.deliminated_property import DeliminatedProperty
 from voxel.devices.camera.base import BaseCamera
 from voxel.devices.utils.singleton import Singleton
@@ -15,9 +14,9 @@ BINNING = [1, 2, 4]
 # only uint16 easily supported for pco sdk
 
 # generate modes by querying pco sdk
-TRIGGERS = {"modes": dict(), "sources": {"internal": "auto", "external": "external"}, "polarity": None}
+TRIGGERS = {"modes": {}, "sources": {"internal": "auto", "external": "external"}, "polarity": None}
 
-READOUT_MODES = dict()
+READOUT_MODES = {}
 
 
 # singleton wrapper around pco
@@ -35,7 +34,7 @@ class pcoSingleton(pco, metaclass=Singleton):
         """
         Initialize the pcoSingleton instance.
         """
-        super(pcoSingleton, self).__init__()
+        super().__init__()
 
 
 class PCOCamera(BaseCamera):
@@ -151,8 +150,7 @@ class PCOCamera(BaseCamera):
         :rtype: int
         """
         roi = self.pco.sdk.get_roi()
-        height_px = roi["y1"] - roi["y0"] + 1
-        return height_px
+        return roi["y1"] - roi["y0"] + 1
 
     @height_px.setter
     def height_px(self, value: int) -> None:
@@ -217,8 +215,7 @@ class PCOCamera(BaseCamera):
         """
         if "light sheet" in self.readout_mode:
             return (self.line_interval_us * self.height_px) / 1000 + self.exposure_time_ms
-        else:
-            return (self.line_interval_us * self.height_px / 2) / 1000 + self.exposure_time_ms
+        return (self.line_interval_us * self.height_px / 2) / 1000 + self.exposure_time_ms
 
     @property
     def trigger(self) -> dict:
@@ -278,8 +275,7 @@ class PCOCamera(BaseCamera):
         :rtype: int
         """
         # pco binning can be different in x, y. take x value.
-        binning = self.pco.sdk.get_binning()["binning x"]
-        return binning
+        return self.pco.sdk.get_binning()["binning x"]
 
     @binning.setter
     def binning(self, binning: int) -> None:
@@ -326,8 +322,7 @@ class PCOCamera(BaseCamera):
         :return: Mainboard temperature in degrees Celsius
         :rtype: float
         """
-        temperature = self.pco.sdk.get_temperature()["camera temperature"]
-        return temperature
+        return self.pco.sdk.get_temperature()["camera temperature"]
 
     @property
     def sensor_temperature_c(self) -> float:
@@ -337,8 +332,7 @@ class PCOCamera(BaseCamera):
         :return: Sensor temperature in degrees Celsius
         :rtype: float
         """
-        temperature = self.pco.sdk.get_temperature()["sensor temperature"]
-        return temperature
+        return self.pco.sdk.get_temperature()["sensor temperature"]
 
     @property
     def readout_mode(self) -> str:
@@ -386,7 +380,7 @@ class PCOCamera(BaseCamera):
         """
         # pco api prepares buffer and autostarts. api call is in start()
         # pco only 16-bit A/D
-        self.log.info(f"preparing camera")
+        self.log.info("preparing camera")
         bit_to_byte = 2
         frame_size_mb = self.width_px * self.height_px / self.binning**2 * bit_to_byte / 1024**2
         self.buffer_size_frames = round(BUFFER_SIZE_MB / frame_size_mb)
@@ -399,7 +393,7 @@ class PCOCamera(BaseCamera):
         """
         Start the camera acquisition.
         """
-        self.log.info(f"starting camera")
+        self.log.info("starting camera")
         self.pre_frame_time = 0
         self.pre_frame_count_px = 0
         self.pco.start()
@@ -408,14 +402,14 @@ class PCOCamera(BaseCamera):
         """
         Stop the camera acquisition.
         """
-        self.log.info(f"stopping camera")
+        self.log.info("stopping camera")
         self.pco.stop()
 
     def close(self) -> None:
         """
         Close the camera connection.
         """
-        self.log.info(f"closing camera")
+        self.log.info("closing camera")
         self.pco.close()
 
     def grab_frame(self) -> np.ndarray:
@@ -430,9 +424,9 @@ class PCOCamera(BaseCamera):
         try:
             self.pco.wait_for_new_image(delay=True, timeout=timeout_s)
             # always use 0 index for ring buffer buffer
-            image, metadata = self.pco.image(image_index=0)
+            image, _metadata = self.pco.image(image_index=0)
         except Exception:
-            self.log.error('grab frame failed')
+            self.log.exception("grab frame failed")
             image = np.zeros(shape=(self.image_height_px, self.image_width_px), dtype=np.uint16)
         # do software binning if != 1 and not a string for setting in egrabber
         if self._binning > 1 and isinstance(self._binning, int):

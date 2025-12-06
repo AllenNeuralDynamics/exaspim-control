@@ -17,7 +17,6 @@ class BaseTunableLens(VoxelDevice):
         :return: Mode of the tunable lens
         :rtype: str
         """
-        pass
 
     @mode.setter
     @abstractmethod
@@ -28,7 +27,6 @@ class BaseTunableLens(VoxelDevice):
         :param mode: Mode of the tunable lens
         :type mode: str
         """
-        pass
 
     @property
     @abstractmethod
@@ -39,18 +37,15 @@ class BaseTunableLens(VoxelDevice):
         :return: Temperature in Celsius
         :rtype: float
         """
-        pass
 
     @abstractmethod
     def log_metadata(self) -> None:
         """
         Log metadata for the tunable lens.
         """
-        pass
 
     @abstractmethod
     def close(self) -> None:
         """
         Close the tunable lens device.
         """
-        pass

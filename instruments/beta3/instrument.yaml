@@ -322,10 +322,6 @@ instrument:
                     channels:
                       "488": 0.0
                       "639": 0.0
-                  peak_time_ms:
-                    channels:
-                      "488": 544.0
-                      "639": 544.0
                   end_time_ms:
                     channels:
                       "488": 544.0
@@ -385,10 +381,6 @@ instrument:
                     channels:
                       "488": 0.0
                       "639": 0.0
-                  peak_time_ms:
-                    channels:
-                      "488": 544.0
-                      "639": 544.0
                   end_time_ms:
                     channels:
                       "488": 544.0

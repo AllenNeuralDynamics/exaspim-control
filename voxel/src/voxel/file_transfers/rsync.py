@@ -2,9 +2,10 @@ import os
 import shutil
 import sys
 import time
+from collections.abc import Iterable
 from pathlib import Path
 from subprocess import Popen
-from typing import Any, Iterable, List
+from typing import Any
 
 from voxel.file_transfers.base import BaseFileTransfer
 
@@ -57,7 +58,7 @@ class RsyncFileTransfer(BaseFileTransfer):
         # loop over number of attempts in the event that a file transfer fails
         while transfer_complete is False and retry_num <= self._max_retry - 1:
             # generate a list of subdirs and files in the parent local dir to delete at the end
-            delete_list: List[str] = []
+            delete_list: list[str] = []
             for name in os.listdir(local_directory.absolute()):
                 if self.filename in name:
                     delete_list.append(name)
@@ -65,7 +66,7 @@ class RsyncFileTransfer(BaseFileTransfer):
             # path is the entire experiment path
             # subdirs is any tile specific subdir i.e. zarr store
             # files are any tile specific files
-            file_list = dict()
+            file_list = {}
             # check if subdir for valid zarr store
             for item in os.listdir(local_directory.absolute()):
                 if os.path.isdir(os.path.join(local_directory, item)):
@@ -92,7 +93,7 @@ class RsyncFileTransfer(BaseFileTransfer):
                 transfer_complete = True
             # if not, try to initiate transfer again
             else:
-                self.log.info(f"starting file transfer attempt {retry_num+1}/{self._max_retry}")
+                self.log.info(f"starting file transfer attempt {retry_num + 1}/{self._max_retry}")
                 for file_path, file_size_mb in sorted_file_list.items():
                     # transfer just one file and iterate
                     # split filename and path
@@ -117,7 +118,7 @@ class RsyncFileTransfer(BaseFileTransfer):
                         external_dir = external_dir.replace("\\", "/").replace(":", "")
                         external_dir = "/cygdrive/" + external_dir + "/" + filename
                         cmd_with_args = self._flatten([self._protocol, self._flags, file_path, external_dir])
-                    elif sys.platform == "darwin" or "linux" or "linux2":
+                    elif True:
                         # linux or darwin, paths defined as below
                         cmd_with_args = self._flatten(
                             [
@@ -167,7 +168,7 @@ class RsyncFileTransfer(BaseFileTransfer):
                                     # strip and convert to float
                                     file_progress = float(value.rstrip())
                             # no lines in the file yet
-                            except Exception:
+                            except (ValueError, IndexError):
                                 file_progress = 0
                             # sum to transferred amount to track progress
                             self.progress = (
@@ -224,7 +225,6 @@ class RsyncFileTransfer(BaseFileTransfer):
                                     # remove external file, try again
                                     self.log.info(f"hashes did not match, deleting {external_file_path}")
                                     os.remove(external_file_path)
-                                    pass
                             except external_file_path.DoesNotExist:
                                 self.log.warning(f"no external file exists at {external_file_path}")
                         else:
@@ -239,18 +239,17 @@ class RsyncFileTransfer(BaseFileTransfer):
                 subprocess.kill()
                 retry_num += 1
 
-    def _flatten(self, lst: List[Any]) -> Iterable[Any]:
+    def _flatten(self, lst: list[Any]) -> Iterable[Any]:
         """
         Flatten a list using generators comprehensions.
 
         :param lst: The list to flatten.
-        :type lst: List[Any]
+        :type lst: list[Any]
         :return: A flattened version of list lst.
         :rtype: Iterable[Any]
         """
         for sublist in lst:
             if isinstance(sublist, list):
-                for item in sublist:
-                    yield item
+                yield from sublist
             else:
                 yield sublist

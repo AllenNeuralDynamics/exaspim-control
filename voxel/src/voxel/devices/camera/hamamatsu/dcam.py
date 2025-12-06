@@ -1,12 +1,20 @@
 import logging
 import time
-from typing import Any, Dict
+from typing import Any
 
 import numpy as np
 
 from voxel.descriptors.deliminated_property import DeliminatedProperty
 from voxel.devices.camera.base import BaseCamera
-from voxel.devices.camera.sdks.dcam.dcam import *
+from voxel.devices.camera.sdks.dcam.dcam import (
+    DCAM_IDSTR,
+    DCAMCAP_TRANSFERINFO,
+    DCAMERR,
+    Dcam,
+    Dcamapi,
+    byref,
+    dcamcap_transferinfo,
+)
 from voxel.devices.utils.singleton import Singleton
 
 BUFFER_SIZE_MB = 2400
@@ -43,7 +51,7 @@ PROPERTIES = {
 #  "mono12": DCAM_PIXELTYPE.MONO12,
 #  "mono16": DCAM_PIXELTYPE.MONO16 ...
 # }
-PIXEL_TYPES = dict()
+PIXEL_TYPES = {}
 
 # generate valid binning by querying dcam
 # should be of the form
@@ -51,7 +59,7 @@ PIXEL_TYPES = dict()
 #  "2x2": 2,
 #  "4x4": 4 ...
 # }
-BINNING = dict()
+BINNING = {}
 
 # full dcam trigger modes mapping
 # NORMAL = 1
@@ -89,7 +97,7 @@ BINNING = dict()
 # LEVEL = 2
 # SYNCREADOUT = 3
 # POINT = 4
-TRIGGERS = {"mode": dict(), "source": dict(), "polarity": dict()}
+TRIGGERS = {"mode": {}, "source": {}, "polarity": {}}
 
 # generate valid sensor modes by querying dcam
 # full dcam sensor modes mapping
@@ -102,7 +110,7 @@ TRIGGERS = {"mode": dict(), "source": dict(), "polarity": dict()}
 # DUALLIGHTSHEET = 16
 # PHOTONNUMBERRESOLVING = 18
 # WHOLELINES = 19
-SENSOR_MODES = dict()
+SENSOR_MODES = {}
 
 # generate valid readout directions by querying dcam
 # full dcam readout directions  mapping
@@ -112,7 +120,7 @@ SENSOR_MODES = dict()
 # DIVERGE = 5
 # FORWARDBIDIRECTION = 6
 # REVERSEBIDIRECTION = 7
-READOUT_DIRECTIONS = dict()
+READOUT_DIRECTIONS = {}
 
 
 class DcamapiSingleton(Dcamapi, metaclass=Singleton):
@@ -126,7 +134,7 @@ class DcamapiSingleton(Dcamapi, metaclass=Singleton):
 
     def __init__(self) -> None:
         """Initialize the DcamapiSingleton instance."""
-        super(DcamapiSingleton, self).__init__()
+        super().__init__()
 
 
 class DCAMCamera(BaseCamera):
@@ -147,7 +155,7 @@ class DCAMCamera(BaseCamera):
 
         if DcamapiSingleton.init() is not False:
             num_cams = DcamapiSingleton.get_devicecount()
-            for cam in range(0, num_cams):
+            for cam in range(num_cams):
                 dcam = Dcam(cam)
                 cam_id = dcam.dev_getstring(DCAM_IDSTR.CAMERAID)
                 if cam_id.replace("S/N: ", "") == self.id:
@@ -157,14 +165,12 @@ class DCAMCamera(BaseCamera):
                     # open camera
                     self.dcam.dev_open()
                     break
-                else:
-                    self.log.error(f"no camera found for S/N: {self.id}")
-                    raise ValueError(f"no camera found for S/N: {self.id}")
+                self.log.error(f"no camera found for S/N: {self.id}")
+                msg = f"no camera found for S/N: {self.id}"
+                raise ValueError(msg)
             del dcam
         else:
-            self.log.error(
-                "DcamapiSingleton.init() fails with error {}".format(DCAMERR(DcamapiSingleton.lasterr()).name)
-            )
+            self.log.error(f"DcamapiSingleton.init() fails with error {DCAMERR(DcamapiSingleton.lasterr()).name}")
         # initialize parameter values
         self._update_parameters()
 
@@ -323,11 +329,10 @@ class DCAMCamera(BaseCamera):
         """
         if "light sheet" in self.readout_mode:
             return (self.line_interval_us * self.height_px) / 1000 + self.exposure_time_ms
-        else:
-            return (self.line_interval_us * self.height_px / 2) / 1000 + self.exposure_time_ms
+        return (self.line_interval_us * self.height_px / 2) / 1000 + self.exposure_time_ms
 
     @property
-    def trigger(self) -> Dict[str, str]:
+    def trigger(self) -> dict[str, str]:
         """Get the trigger settings.
 
         :return: Trigger settings
@@ -343,7 +348,7 @@ class DCAMCamera(BaseCamera):
         }
 
     @trigger.setter
-    def trigger(self, trigger: Dict[str, str]) -> None:
+    def trigger(self, trigger: dict[str, str]) -> None:
         """Set the trigger settings.
 
         :param trigger: Trigger settings
@@ -382,8 +387,7 @@ class DCAMCamera(BaseCamera):
         :return: Binning setting
         :rtype: int
         """
-        binning = self.dcam.prop_getvalue(PROPERTIES["binning"])
-        return binning
+        return self.dcam.prop_getvalue(PROPERTIES["binning"])
 
     @binning.setter
     def binning(self, binning: str) -> None:
@@ -395,11 +399,10 @@ class DCAMCamera(BaseCamera):
         """
         if binning not in BINNING:
             raise ValueError("binning must be one of %r." % BINNING)
-        else:
-            self.dcam.prop_setvalue(PROPERTIES["binning"], binning)
-            self.log.info(f"binning set to: {binning}")
-            # refresh parameter values
-            self._update_parameters()
+        self.dcam.prop_setvalue(PROPERTIES["binning"], binning)
+        self.log.info(f"binning set to: {binning}")
+        # refresh parameter values
+        self._update_parameters()
 
     @property
     def sensor_width_px(self) -> int:
@@ -426,8 +429,7 @@ class DCAMCamera(BaseCamera):
         :return: Sensor temperature in degrees Celsius
         :rtype: float
         """
-        temperature = self.dcam.prop_getvalue(PROPERTIES["sensor_temperature"])
-        return temperature
+        return self.dcam.prop_getvalue(PROPERTIES["sensor_temperature"])
 
     @property
     def readout_mode(self) -> str:
@@ -450,8 +452,7 @@ class DCAMCamera(BaseCamera):
         valid_mode = list(SENSOR_MODES.keys())
         if readout_mode not in valid_mode:
             raise ValueError("readout_mode must be one of %r." % valid_mode)
-        else:
-            self.dcam.prop_setvalue(PROPERTIES["sensor_mode"], SENSOR_MODES[readout_mode])
+        self.dcam.prop_setvalue(PROPERTIES["sensor_mode"], SENSOR_MODES[readout_mode])
         self.log.info(f"sensor mode set to: {readout_mode}")
         # refresh parameter values
         self._update_parameters()
@@ -477,20 +478,16 @@ class DCAMCamera(BaseCamera):
         valid_direction = list(READOUT_DIRECTIONS.keys())
         if readout_direction not in valid_direction:
             raise ValueError("readout_direction must be one of %r." % valid_direction)
-        else:
-            self.dcam.prop_setvalue(PROPERTIES["readout_direction"], READOUT_DIRECTIONS[readout_direction])
+        self.dcam.prop_setvalue(PROPERTIES["readout_direction"], READOUT_DIRECTIONS[readout_direction])
         self.log.info(f"readout direction set to: {readout_direction}")
         # refresh parameter values
         self._update_parameters()
 
     def prepare(self) -> None:
         """Prepare the camera for acquisition."""
-        self.log.info(f"preparing camera")
+        self.log.info("preparing camera")
         # determine bits to bytes
-        if self.pixel_type == "mono8":
-            bit_to_byte = 1
-        else:
-            bit_to_byte = 2
+        bit_to_byte = 1 if self.pixel_type == "mono8" else 2
         frame_size_mb = self.width_px * self.height_px / self.binning**2 * bit_to_byte / 1024**2
         self.buffer_size_frames = round(BUFFER_SIZE_MB / frame_size_mb)
         # realloc buffers appears to be allocating ram on the pc side, not camera side.
@@ -500,7 +497,7 @@ class DCAMCamera(BaseCamera):
     def start(self) -> None:
         """Start the camera acquisition."""
         # initialize variables for acquisition run
-        self.log.info(f"starting camera")
+        self.log.info("starting camera")
         self.dropped_frames = 0
         self.pre_frame_time = 0
         self.pre_frame_count_px = 0
@@ -512,20 +509,20 @@ class DCAMCamera(BaseCamera):
 
     def stop(self) -> None:
         """Stop the camera acquisition."""
-        self.log.info(f"stopping camera")
+        self.log.info("stopping camera")
         self.dcam.buf_release()
         self.dcam.cap_stop()
 
     def close(self) -> None:
         """Close the camera connection."""
-        self.log.info(f"closing camera")
+        self.log.info("closing camera")
         if self.dcam.is_opened():
             self.dcam.dev_close()
             DcamapiSingleton.uninit()
 
     def reset(self) -> None:
         """Reset the camera instance."""
-        self.log.info(f"resetting camera")
+        self.log.info("resetting camera")
         if self.dcam.is_opened():
             self.dcam.dev_close()
             DcamapiSingleton.uninit()
@@ -545,7 +542,7 @@ class DCAMCamera(BaseCamera):
             if self.dcam.wait_capevent_frameready(timeout_ms) is not False:
                 image = self._latest_frame = self.dcam.buf_getlastframedata()
         except Exception:
-            self.log.error('grab frame failed')
+            self.log.exception("grab frame failed")
             image = np.zeros(shape=(self.image_height_px, self.image_width_px), dtype=np.uint16)
         # do software binning if != 1 and not a string for setting in egrabber
         if self._binning > 1 and isinstance(self._binning, int):
@@ -562,7 +559,7 @@ class DCAMCamera(BaseCamera):
         """
         return self._latest_frame
 
-    def acquisition_state(self) -> Dict[str, Any]:
+    def acquisition_state(self) -> dict[str, Any]:
         """Return a dict with the state of the acquisition buffers.
 
         :return: State of the acquisition buffers
@@ -580,10 +577,7 @@ class DCAMCamera(BaseCamera):
             self.dropped_frames += new_dropped_frames
         frame_rate = out_buffer_size / (self.post_frame_time - self.pre_frame_time)
         # determine bits to bytes
-        if self.pixel_type == "mono8":
-            bit_to_byte = 1
-        else:
-            bit_to_byte = 2
+        bit_to_byte = 1 if self.pixel_type == "mono8" else 2
         data_rate = frame_rate * self.width_px * self.height_px / self.binning**2 * bit_to_byte / 1024**2
         state = {}
         state["Frame Index"] = frame_index

@@ -2,7 +2,6 @@ import logging
 
 from coherent_lasers.genesis_mx.commands import OperationModes
 from coherent_lasers.genesis_mx.driver import GenesisMX
-
 from voxel.descriptors.deliminated_property import DeliminatedProperty
 from voxel.devices.laser.base import BaseLaser
 
@@ -31,7 +30,8 @@ class GenesisMXLaser(BaseLaser):
             assert self._inst.head.serial == id
             self._inst.mode = OperationModes.PHOTO
         except AssertionError:
-            raise ValueError(f"Error initializing laser {self._conn}, serial number mismatch")
+            msg = f"Error initializing laser {self._conn}, serial number mismatch"
+            raise ValueError(msg)
         self.enable()
         self.power_setpoint_mw = INIT_POWER_MW
         type(self).power_setpoint_mw.maximum = maximum_power_mw

@@ -16,7 +16,7 @@
   - [Documentation](#documentation)
   - [Usage](#usage)
 - [Appendix](#appendix)
-  - [Device List](#device-list)
+  - [Device list](#device-list)
   - [Writers](#writers)
   - [File Transfers](#file-transfers)
   - [Processes](#processes)
@@ -227,7 +227,7 @@ instrument.scanning_stages['x axis stage']
 
 ## Appendix
 
-### Device List
+### Device list
 
 Currently supported device types and models are listed below.
 

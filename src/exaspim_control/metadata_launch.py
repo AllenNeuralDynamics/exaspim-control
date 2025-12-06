@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 import shutil
@@ -5,11 +6,11 @@ from datetime import datetime
 from pathlib import Path
 
 import numpy as np
-import json
 from aind_data_schema.core import acquisition
-from exaspim_control.exa_spim_acquisition import ExASPIMAcquisition
-from exaspim_control.exa_spim_instrument import ExASPIM
-from exaspim_control.exa_spim_view import ExASPIMAcquisitionView, ExASPIMInstrumentView
+
+from exaspim_control.acquisition import ExASPIMAcquisition
+from exaspim_control.instrument import ExASPIM
+from exaspim_control.view import ExASPIMAcquisitionView, ExASPIMInstrumentView
 
 X_ANATOMICAL_DIRECTIONS = {"Left to Right": "Right_to_left", "Right to Left": "Left_to_right"}
 
@@ -33,7 +34,7 @@ class MetadataLaunch:
         acquisition: ExASPIMAcquisition,
         instrument_view: ExASPIMInstrumentView,
         acquisition_view: ExASPIMAcquisitionView,
-        log_filename: str = None,
+        log_filename: str | None = None,
     ):
         """
         Initialize the MetadataLaunch object.
@@ -61,8 +62,8 @@ class MetadataLaunch:
         # log filename
         self.log_filename = log_filename
         # start and finish the acquisition
-        self.acquisition_start_time = None  # variable will be filled when acquisitionStarted signal is emitted
-        self.acquisition_end_time = None  # variable will be filled when acquisitionStarted signal is emitted
+        self.acquisition_start_time = None  # variable will be filled when acquisitionStarted pyqtSignal is emitted
+        self.acquisition_end_time = None  # variable will be filled when acquisitionStarted pyqtSignal is emitted
         self.acquisition_view.acquisitionStarted.connect(lambda value: setattr(self, "acquisition_start_time", value))
         self.acquisition_view.acquisitionEnded.connect(lambda: setattr(self, "acquisition_end_time", datetime.now()))
         self.acquisition_view.acquisitionEnded.connect(self.finalize_acquisition)
@@ -74,7 +75,7 @@ class MetadataLaunch:
         self.log.info("Finalizing acquisition")
         # create and save acquisition.json
         if getattr(self.acquisition, "file_transfers", {}) != {}:  # save to external paths
-            for device_name, transfer_dict in getattr(self.acquisition, "file_transfers", {}).items():
+            for transfer_dict in getattr(self.acquisition, "file_transfers", {}).values():
                 for transfer in transfer_dict.values():
                     save_to = str(Path(transfer.external_path, transfer.acquisition_name))
                     acquisition_model = self.parse_metadata(
@@ -94,7 +95,7 @@ class MetadataLaunch:
                 "dataset_status": {
                     "status": status,
                     "status_date": f"{status_time.year:02d}-{status_time.month:02d}-{status_time.day:02d}",
-                    "status_time": f"{status_time.hour:02d}-{status_time.minute:02d}-{status_time.second:02d}"
+                    "status_time": f"{status_time.hour:02d}-{status_time.minute:02d}-{status_time.second:02d}",
                 }
             }
             with open(Path(save_to, "processing_manifest.json"), "w", encoding="utf-8") as f:
@@ -103,15 +104,15 @@ class MetadataLaunch:
             os.makedirs(Path(save_to, "exaSPIM"))
             os.makedirs(Path(save_to, "derivatives"))
             for file in os.listdir(save_to):
-                if file.endswith(".ims") or file.endswith(".zarr"):
+                if file.endswith((".ims", ".zarr")):
                     os.rename(str(Path(save_to, file)), str(Path(save_to, "exaSPIM", file)))
-                if file.endswith(".tiff") or file.endswith(".log") or file.endswith(".yaml"):
+                if file.endswith((".tiff", ".log", ".yaml")):
                     os.rename(str(Path(save_to, file)), str(Path(save_to, "derivatives", file)))
             # delete local directory
-            self.log.info(f"deleting {str(Path(transfer.local_path, transfer.acquisition_name))}")
+            self.log.info(f"deleting {Path(transfer.local_path, transfer.acquisition_name)!s}")
             shutil.rmtree(str(Path(transfer.local_path, transfer.acquisition_name)))
         else:  # no transfers so save locally
-            for device_name, writer_dict in self.acquisition.writers.items():
+            for writer_dict in self.acquisition.writers.values():
                 for writer in writer_dict.values():
                     save_to = str(Path(writer.path, writer.acquisition_name))
                     acquisition_model = self.parse_metadata(external_drive=save_to, local_drive=save_to)
@@ -126,9 +127,9 @@ class MetadataLaunch:
             os.makedirs(Path(save_to, "exaSPIM"))
             os.makedirs(Path(save_to, "derivatives"))
             for file in os.listdir(save_to):
-                if file.endswith(".ims") or file.endswith(".zarr"):
+                if file.endswith((".ims", ".zarr")):
                     os.rename(str(Path(save_to, file)), str(Path(save_to, "exaSPIM", file)))
-                if file.endswith(".tiff") or file.endswith(".log") or file.endswith(".yaml"):
+                if file.endswith((".tiff", ".log", ".yaml")):
                     os.rename(str(Path(save_to, file)), str(Path(save_to, "derivatives", file)))
 
     def parse_metadata(self, external_drive: str, local_drive: str) -> acquisition.Acquisition:

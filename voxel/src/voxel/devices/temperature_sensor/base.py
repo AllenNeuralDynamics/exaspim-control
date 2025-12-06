@@ -22,7 +22,6 @@ class BaseTemperatureSensor(VoxelDevice):
         """
         Reset the temperature sensor.
         """
-        pass
 
     @property
     @abstractmethod
@@ -33,7 +32,6 @@ class BaseTemperatureSensor(VoxelDevice):
         :return: Current channel
         :rtype: str
         """
-        pass
 
     @channel.setter
     @abstractmethod
@@ -44,7 +42,6 @@ class BaseTemperatureSensor(VoxelDevice):
         :param channel: Channel to set
         :type channel: str
         """
-        pass
 
     @property
     @abstractmethod
@@ -55,7 +52,6 @@ class BaseTemperatureSensor(VoxelDevice):
         :return: Relative humidity percentage
         :rtype: float
         """
-        pass
 
     @property
     @abstractmethod
@@ -66,10 +62,8 @@ class BaseTemperatureSensor(VoxelDevice):
         :return: Temperature in Celsius
         :rtype: float
         """
-        pass
 
     def close(self) -> None:
         """
         Close the temperature sensor.
         """
-        pass

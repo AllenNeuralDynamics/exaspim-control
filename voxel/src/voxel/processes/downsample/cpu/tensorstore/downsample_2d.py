@@ -1,6 +1,5 @@
-import numpy
+import numpy as np
 import tensorstore as ts
-
 from voxel.processes.downsample.base import BaseDownSample
 
 
@@ -19,7 +18,7 @@ class TSDownSample2D(BaseDownSample):
         """
         super().__init__(binning)
 
-    def run(self, image: numpy.ndarray) -> numpy.ndarray:
+    def run(self, image: np.ndarray) -> np.ndarray:
         """
         Run function for image downsampling.
 
@@ -28,7 +27,7 @@ class TSDownSample2D(BaseDownSample):
         :return: Downsampled image
         :rtype: numpy.ndarray
         """
-        downsampled_image = (
+        return (
             ts.downsample(
                 ts.array(image),
                 downsample_factors=[self._binning, self._binning],
@@ -37,4 +36,3 @@ class TSDownSample2D(BaseDownSample):
             .read()
             .result()
         )
-        return downsampled_image

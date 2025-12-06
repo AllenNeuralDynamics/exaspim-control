@@ -1,5 +1,4 @@
 from abc import abstractmethod
-from typing import Dict
 
 from voxel.devices.base import VoxelDevice
 
@@ -14,58 +13,52 @@ class BaseAOTF(VoxelDevice):
         """
         Enable all channels of the AOTF.
         """
-        pass
 
     @abstractmethod
     def disable_all(self) -> None:
         """
         Disable all channels of the AOTF.
         """
-        pass
 
     @property
     @abstractmethod
-    def frequency_hz(self) -> Dict[int, float]:
+    def frequency_hz(self) -> dict[int, float]:
         """
         Get the frequency in Hz for the AOTF.
 
         :return: The frequency in Hz.
         :rtype: dict
         """
-        pass
 
     @frequency_hz.setter
     @abstractmethod
-    def frequency_hz(self, frequency_hz: Dict[int, float]) -> None:
+    def frequency_hz(self, frequency_hz: dict[int, float]) -> None:
         """
         Set the frequency in Hz for a specific channel of the AOTF.
 
         :param frequency_hz: The frequency in Hz.
         :type frequency_hz: dict
         """
-        pass
 
     @property
     @abstractmethod
-    def power_dbm(self) -> Dict[int, float]:
+    def power_dbm(self) -> dict[int, float]:
         """
         Get the power in dBm for the AOTF.
 
         :return: The power in dBm.
         :rtype: dict
         """
-        pass
 
     @power_dbm.setter
     @abstractmethod
-    def power_dbm(self, power_dbm: Dict[int, float]) -> None:
+    def power_dbm(self, power_dbm: dict[int, float]) -> None:
         """
         Set the power in dBm for a specific channel of the AOTF.
 
         :param power_dbm: The power in dBm.
         :type power_dbm: dict
         """
-        pass
 
     @property
     @abstractmethod
@@ -76,7 +69,6 @@ class BaseAOTF(VoxelDevice):
         :return: The blanking mode.
         :rtype: str
         """
-        pass
 
     @blanking_mode.setter
     @abstractmethod
@@ -87,26 +79,23 @@ class BaseAOTF(VoxelDevice):
         :param mode: The blanking mode.
         :type mode: str
         """
-        pass
 
     @property
     @abstractmethod
-    def input_mode(self) -> Dict[int, str]:
+    def input_mode(self) -> dict[int, str]:
         """
         Get the input mode of the AOTF.
 
         :return: The input mode.
         :rtype: dict
         """
-        pass
 
     @input_mode.setter
     @abstractmethod
-    def input_mode(self, modes: Dict[int, str]) -> None:
+    def input_mode(self, modes: dict[int, str]) -> None:
         """
         Set the input mode of the AOTF.
 
         :param modes: The input modes.
         :type modes: dict
         """
-        pass

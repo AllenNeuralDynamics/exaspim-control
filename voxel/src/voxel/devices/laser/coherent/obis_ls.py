@@ -1,6 +1,5 @@
 from obis_laser import ObisLS
 from serial import Serial
-from typing import Union, Dict
 
 from voxel.descriptors.deliminated_property import DeliminatedProperty
 
@@ -15,7 +14,7 @@ class ObisLSLaser(BaseLaser):
     ObisLSLaser class for handling Coherent Obis LS laser devices.
     """
 
-    def __init__(self, id: str, wavelength: int, port: Union[Serial, str], prefix: str = None) -> None:
+    def __init__(self, id: str, wavelength: int, port: Serial | str, prefix: str | None = None) -> None:
         """
         Initialize the ObisLSLaser object.
 
@@ -73,7 +72,7 @@ class ObisLSLaser(BaseLaser):
         return self._inst.power_setpoint
 
     @power_setpoint_mw.setter
-    def power_setpoint_mw(self, value: Union[float, int]) -> None:
+    def power_setpoint_mw(self, value: float) -> None:
         """
         Set the power setpoint in milliwatts.
 
@@ -123,7 +122,7 @@ class ObisLSLaser(BaseLaser):
         return self._inst.temperature
 
     @property
-    def status(self) -> Dict[str, Union[str, float]]:
+    def status(self) -> dict[str, str | float]:
         """
         Get the status of the laser.
 

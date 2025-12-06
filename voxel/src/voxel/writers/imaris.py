@@ -10,12 +10,10 @@ from multiprocessing import Array, Process
 from multiprocessing.shared_memory import SharedMemory
 from pathlib import Path
 from time import perf_counter, sleep
-from typing import Dict, List, Tuple
 
 import numpy as np
 from matplotlib.colors import hex2color
 from PyImarisWriter import PyImarisWriter as pw
-
 from voxel.writers.base import BaseWriter
 
 CHUNK_COUNT_PX = 64
@@ -260,20 +258,20 @@ class ImarisWriter(BaseWriter):
 
     def _run(
         self,
-        chunk_dim_order: Tuple[str, str, str],
-        shm_shape: List[int],
+        chunk_dim_order: tuple[str, str, str],
+        shm_shape: list[int],
         shm_nbytes: int,
         image_size: pw.ImageSize,
         block_size: pw.ImageSize,
         sample_size: pw.ImageSize,
         image_extents: pw.ImageExtents,
         dimension_sequence: pw.DimensionSequence,
-        dim_map: Dict[str, int],
+        dim_map: dict[str, int],
         parameters: pw.Parameters,
         opts: pw.Options,
-        color_infos: List[pw.ColorInfo],
+        color_infos: list[pw.ColorInfo],
         adjust_color_range: bool,
-        time_infos: List[datetime],
+        time_infos: list[datetime],
         shared_progress: multiprocessing.Value,
         shared_log_queue: multiprocessing.Queue,
     ) -> None:
@@ -348,14 +346,14 @@ class ImarisWriter(BaseWriter):
             shm = SharedMemory(self.shm_name, create=False, size=shm_nbytes)
             frames = np.ndarray(shm_shape, self._data_type, buffer=shm.buf)
             shared_log_queue.put(
-                f"{self._filename}: writing chunk " f"{chunk_num + 1}/{chunk_total} of size {frames.shape}."
+                f"{self._filename}: writing chunk {chunk_num + 1}/{chunk_total} of size {frames.shape}."
             )
             start_time = perf_counter()
             dim_order = [dim_map[x] for x in chunk_dim_order]
             # Put the frames back into x, y, z, c, t order.
             converter.CopyBlock(frames.transpose(dim_order), block_index)
             frames = None
-            shared_log_queue.put(f"{self._filename}: writing chunk took " f"{perf_counter() - start_time:.2f} [s]")
+            shared_log_queue.put(f"{self._filename}: writing chunk took {perf_counter() - start_time:.2f} [s]")
             shm.close()
             self.done_reading.set()
             # update shared value progress range 0-1

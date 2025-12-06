@@ -1,14 +1,14 @@
 import logging
 import math
+
 import matplotlib.pyplot as plt
 import nidaqmx
 import numpy as np
-import time
 from matplotlib.ticker import AutoMinorLocator
 from nidaqmx.constants import AcquisitionType as AcqType
-from nidaqmx.constants import Edge, FrequencyUnits, Level, Slope, AOIdleOutputBehavior
-from scipy import signal, interpolate
-from typing import Dict, Optional
+from nidaqmx.constants import AOIdleOutputBehavior, Edge, FrequencyUnits, Level, Slope
+from nidaqmx.errors import DaqError
+from scipy import interpolate, signal
 
 from voxel.devices.daq.base import BaseDAQ
 
@@ -41,13 +41,13 @@ class NIDAQ(BaseDAQ):
         :type dev: str
         :raises ValueError: If the device name is not found in the system
         """
-        self.do_task: Optional[nidaqmx.Task] = None
-        self.ao_task: Optional[nidaqmx.Task] = None
-        self.co_task: Optional[nidaqmx.Task] = None
-        self._tasks: Optional[Dict[str, dict]] = None
+        self.do_task: nidaqmx.Task | None = None
+        self.ao_task: nidaqmx.Task | None = None
+        self.co_task: nidaqmx.Task | None = None
+        self._tasks: dict[str, dict] | None = None
 
         self.log = logging.getLogger(__name__ + "." + self.__class__.__name__)
-        self.devs = list()
+        self.devs = []
         for device in nidaqmx.system.System.local().devices:
             self.devs.append(device.name)
         if dev not in self.devs:
@@ -66,12 +66,12 @@ class NIDAQ(BaseDAQ):
         self.max_do_rate = self.dev.do_max_rate
         self.max_ao_volts = self.dev.ao_voltage_rngs[1]
         self.min_ao_volts = self.dev.ao_voltage_rngs[0]
-        self.task_time_s = dict()
-        self.ao_waveforms = dict()
-        self.do_waveforms = dict()
+        self.task_time_s = {}
+        self.ao_waveforms = {}
+        self.do_waveforms = {}
 
     @property
-    def tasks(self) -> Optional[Dict[str, dict]]:
+    def tasks(self) -> dict[str, dict] | None:
         """
         Get the tasks dictionary.
 
@@ -81,7 +81,7 @@ class NIDAQ(BaseDAQ):
         return self._tasks
 
     @tasks.setter
-    def tasks(self, tasks_dict: Dict[str, dict]) -> None:
+    def tasks(self, tasks_dict: dict[str, dict]) -> None:
         """
         Set the tasks dictionary.
 
@@ -102,7 +102,7 @@ class NIDAQ(BaseDAQ):
         #                         fset=lambda NIDAQ, value: {value}, fdel=lambda NIDAQ: None))"
         #                     )
 
-    def add_task(self, task_type: str, pulse_count: Optional[int] = None) -> None:
+    def add_task(self, task_type: str, pulse_count: int | None = None) -> None:
         """
         Add a task to the DAQ.
 
@@ -114,7 +114,8 @@ class NIDAQ(BaseDAQ):
         """
         # check task type
         if task_type not in ["ao", "co", "do"]:
-            raise ValueError(f"{task_type} must be one of {['ao', 'co', 'do']}")
+            msg = f"{task_type} must be one of {['ao', 'co', 'do']}"
+            raise ValueError(msg)
 
         task = self.tasks[f"{task_type}_task"]
 
@@ -126,9 +127,10 @@ class NIDAQ(BaseDAQ):
 
         for k, v in timing.items():
             global_var = globals().get(k.upper(), {})
-            valid = list(global_var.keys()) if type(global_var) == dict else global_var
+            valid = list(global_var.keys()) if isinstance(global_var, dict) else global_var
             if v not in valid and valid != []:
-                raise ValueError(f"{k} must be one of {valid}")
+                msg = f"{k} must be one of {valid}"
+                raise ValueError(msg)
 
         channel_options = {"ao": self.ao_physical_chans, "do": self.do_physical_chans, "co": self.co_physical_chans}
         add_task_options = {"ao": daq_task.ao_channels.add_ao_voltage_chan, "do": daq_task.do_channels.add_do_chan}
@@ -138,23 +140,23 @@ class NIDAQ(BaseDAQ):
 
             trigger_port = timing["trigger_port"]
 
-            for name, specs in task["ports"].items():
+            for specs in task["ports"].values():
                 # add channel to task
                 channel_port = specs["port"]
                 if f"{self.id}/{channel_port}" not in channel_options[task_type]:
-                    raise ValueError(f"{task_type} number must be one of {channel_options[task_type]}")
+                    msg = f"{task_type} number must be one of {channel_options[task_type]}"
+                    raise ValueError(msg)
                 physical_name = f"/{self.id}/{channel_port}"
                 channel = add_task_options[task_type](physical_name)
                 # maintain last voltage value
                 if task_type == "ao":
                     try:
                         channel.ao_idle_output_behavior = AOIdleOutputBehavior.ZERO_VOLTS
-                    except Exception as e:
+                    except (AttributeError, TypeError, ValueError, DaqError):
                         self.log.debug(
-                            "could not set AOIdleOutputBehavior to MAINTAIN_EXISTING_VALUE "
+                            "could not set AOIdleOutputBehavior to ZERO_VOLTS "
                             f"on channel {physical_name} for {channel}."
                         )
-
             total_time_ms = timing["period_time_ms"] + timing["rest_time_ms"]
             daq_samples = int(((total_time_ms) / 1000) * timing["sampling_frequency_hz"])
 
@@ -183,7 +185,6 @@ class NIDAQ(BaseDAQ):
             self.task_time_s[task["name"]] = total_time_ms / 1000
 
         else:  # co channel
-
             if timing["frequency_hz"] < 0:
                 raise ValueError("frequency must be >0 Hz")
 
@@ -194,7 +195,7 @@ class NIDAQ(BaseDAQ):
                 co_chan = daq_task.co_channels.add_co_pulse_chan_freq(
                     counter=physical_name, units=FrequencyUnits.HZ, freq=timing["frequency_hz"], duty_cycle=0.5
                 )
-                co_chan.co_pulse_term = f'/{self.id}/{timing["output_port"]}'
+                co_chan.co_pulse_term = f"/{self.id}/{timing['output_port']}"
                 pulse_count = (
                     {"sample_mode": AcqType.FINITE, "samps_per_chan": pulse_count}
                     if pulse_count is not None
@@ -203,7 +204,7 @@ class NIDAQ(BaseDAQ):
             if timing["trigger_mode"] == "off":
                 daq_task.timing.cfg_implicit_timing(**pulse_count)
             else:
-                raise ValueError(f"triggering not support for counter output tasks.")
+                raise ValueError("triggering not support for counter output tasks.")
 
             # store the total task time
             self.task_time_s[task["name"]] = 1 / timing["frequency_hz"]
@@ -234,10 +235,9 @@ class NIDAQ(BaseDAQ):
         if sampling_frequency_hz < getattr(self, f"min_{task_type}_rate", 0) or sampling_frequency_hz > getattr(
             self, f"max_{task_type}_rate"
         ):
-            raise ValueError(
-                f"Sampling frequency must be > {getattr(self, f'{task_type}_min_rate', 0)} Hz and \
+            msg = f"Sampling frequency must be > {getattr(self, f'{task_type}_min_rate', 0)} Hz and \
                                          <{getattr(self, f'{task_type}_max_rate')} Hz!"
-            )
+            raise ValueError(msg)
 
     def generate_waveforms(self, task_type: str, wavelength: str) -> None:
         """
@@ -251,7 +251,8 @@ class NIDAQ(BaseDAQ):
         """
         # check task type
         if task_type not in ["ao", "do"]:
-            raise ValueError(f"{task_type} must be one of {['ao', 'do']}")
+            msg = f"{task_type} must be one of {['ao', 'do']}"
+            raise ValueError(msg)
         task = self.tasks[f"{task_type}_task"]
         self._timing_checks(task_type)
 
@@ -265,25 +266,44 @@ class NIDAQ(BaseDAQ):
             device_max_volts = channel.get("device_max_volts", 5)
             waveform = channel["waveform"]
 
+            # Normalize waveform names: accept both "square" and "square wave" formats
+            if waveform in ["square", "triangle"]:
+                waveform = f"{waveform} wave"
+
             valid = globals().get(f"{task_type.upper()}_WAVEFORMS")
             if waveform not in valid:
-                raise ValueError("waveform must be one of %r." % valid)
+                msg = f"waveform must be one of {valid} (shortened forms like 'square' or 'triangle' are also accepted)"
+                raise ValueError(msg)
 
-            start_time_ms = channel["parameters"]["start_time_ms"]["channels"][wavelength]
+            # Support both naming conventions: delay_time_ms (Beta3) or start_time_ms (Beta1)
+            params = channel["parameters"]
+            if "delay_time_ms" in params:
+                start_time_ms = params["delay_time_ms"]["channels"][wavelength]
+            else:
+                start_time_ms = params["start_time_ms"]["channels"][wavelength]
+
             if start_time_ms > timing["period_time_ms"]:
-                raise ValueError("start time must be < period time")
-            end_time_ms = channel["parameters"]["end_time_ms"]["channels"][wavelength]
+                raise ValueError("start/delay time must be < period time")
+
+            # For square waves, support fall_time_ms (Beta3) as an alias for end_time_ms
+            if waveform == "square wave" and "fall_time_ms" in params:
+                end_time_ms = params["fall_time_ms"]["channels"][wavelength]
+            else:
+                end_time_ms = params["end_time_ms"]["channels"][wavelength]
+
             if end_time_ms > timing["period_time_ms"] + timing["rest_time_ms"] or end_time_ms < start_time_ms:
-                raise ValueError("end time must be < period time and > start time")
+                raise ValueError("end/fall time must be < period time and > start/delay time")
 
             if waveform == "square wave":
                 try:
                     max_volts = channel["parameters"]["max_volts"]["channels"][wavelength] if task_type == "ao" else 5
                     if max_volts > self.max_ao_volts:
-                        raise ValueError(f"max volts must be < {self.max_ao_volts} volts")
+                        msg = f"max volts must be < {self.max_ao_volts} volts"
+                        raise ValueError(msg)
                     min_volts = channel["parameters"]["min_volts"]["channels"][wavelength] if task_type == "ao" else 0
                     if min_volts < self.min_ao_volts:
-                        raise ValueError(f"min volts must be > {self.min_ao_volts} volts")
+                        msg = f"min volts must be > {self.min_ao_volts} volts"
+                        raise ValueError(msg)
                 except AttributeError:
                     raise ValueError("missing input parameter for square wave")
                 voltages = self.square_wave(
@@ -296,19 +316,19 @@ class NIDAQ(BaseDAQ):
                     min_volts,
                 )
 
-            if waveform == "sawtooth" or waveform == "triangle wave":  # setup is same for both waves, only be ao task
+            if waveform in {"sawtooth", "triangle wave"}:  # setup is same for both waves, only be ao task
                 try:
                     amplitude_volts = channel["parameters"]["amplitude_volts"]["channels"][wavelength]
                     offset_volts = channel["parameters"]["offset_volts"]["channels"][wavelength]
                     if offset_volts < self.min_ao_volts or offset_volts > self.max_ao_volts:
-                        raise ValueError(
-                            f"min volts must be > {self.min_ao_volts} volts and < {self.max_ao_volts} volts"
-                        )
+                        msg = f"min volts must be > {self.min_ao_volts} volts and < {self.max_ao_volts} volts"
+                        raise ValueError(msg)
                     cutoff_frequency_hz = channel["parameters"]["cutoff_frequency_hz"]["channels"][wavelength]
                     if cutoff_frequency_hz < 0:
                         raise ValueError("cutoff frequnecy must be > 0 Hz")
                 except AttributeError:
-                    raise ValueError(f"missing input parameter for {waveform}")
+                    msg = f"missing input parameter for {waveform}"
+                    raise ValueError(msg)
 
                 waveform_function = getattr(self, waveform.replace(" ", "_"))
                 voltages = waveform_function(
@@ -330,11 +350,11 @@ class NIDAQ(BaseDAQ):
                     t50_offset_volts = channel["parameters"]["t50_offset_volts"]["channels"][wavelength]
                     t100_offset_volts = channel["parameters"]["t100_offset_volts"]["channels"][wavelength]
                     if offset_volts < self.min_ao_volts or offset_volts > self.max_ao_volts:
-                        raise ValueError(
-                            f"min volts must be > {self.min_ao_volts} volts and < {self.max_ao_volts} volts"
-                        )
+                        msg = f"min volts must be > {self.min_ao_volts} volts and < {self.max_ao_volts} volts"
+                        raise ValueError(msg)
                 except AttributeError:
-                    raise ValueError(f"missing input parameter for {waveform}")
+                    msg = f"missing input parameter for {waveform}"
+                    raise ValueError(msg)
 
                 waveform_function = getattr(self, waveform.replace(" ", "_"))
                 voltages = waveform_function(
@@ -353,13 +373,13 @@ class NIDAQ(BaseDAQ):
             max = getattr(self, "max_ao_volts", 5)
             min = getattr(self, "min_ao_volts", 0)
             if np.max(voltages[:]) > max or np.min(voltages[:]) < min:
-                raise ValueError(f"voltages are out of ni card range [{max}, {min}] volts")
+                msg = f"voltages are out of ni card range [{max}, {min}] volts"
+                raise ValueError(msg)
 
             # sanity check voltages for device range
             if np.max(voltages[:]) > device_max_volts or np.min(voltages[:]) < device_min_volts:
-                raise ValueError(
-                    f"voltages are out of device range [{device_min_volts}, {device_max_volts}] volts for {name} and {channel}"
-                )
+                msg = f"voltages are out of device range [{device_min_volts}, {device_max_volts}] volts for {name} and {channel}"
+                raise ValueError(msg)
 
             # store 1d voltage array into 2d waveform array
 
@@ -452,26 +472,28 @@ class NIDAQ(BaseDAQ):
             constant_values=(offset_volts - amplitude_volts),
         )
 
-        # bessel filter order 6, cutoff frequency is normalied from 0-1 by nyquist frequency
-        b, a = signal.bessel(6, cutoff_frequency_hz / (sampling_frequency_hz / 2), btype="low")
+        # Apply bessel filter only if cutoff frequency is greater than 0
+        if cutoff_frequency_hz > 0:
+            # bessel filter order 6, cutoff frequency is normalized from 0-1 by nyquist frequency
+            b, a = signal.bessel(6, cutoff_frequency_hz / (sampling_frequency_hz / 2), btype="low")
 
-        # pad before filtering with last value
-        padding = math.ceil(2 / (cutoff_frequency_hz / (sampling_frequency_hz)))
+            # pad before filtering with last value
+            padding = math.ceil(2 / (cutoff_frequency_hz / (sampling_frequency_hz)))
 
-        if padding > 0:
-            # waveform = numpy.hstack([waveform[:padding], waveform, waveform[-padding:]])
-            waveform = np.pad(
-                array=waveform,
-                pad_width=(padding, padding),
-                mode="constant",
-                constant_values=(offset_volts - amplitude_volts),
-            )
+            if padding > 0:
+                # waveform = numpy.hstack([waveform[:padding], waveform, waveform[-padding:]])
+                waveform = np.pad(
+                    array=waveform,
+                    pad_width=(padding, padding),
+                    mode="constant",
+                    constant_values=(offset_volts - amplitude_volts),
+                )
 
-        # bi-directional filtering
-        waveform = signal.lfilter(b, a, signal.lfilter(b, a, waveform)[::-1])[::-1]
+            # bi-directional filtering
+            waveform = signal.lfilter(b, a, signal.lfilter(b, a, waveform)[::-1])[::-1]
 
-        if padding > 0:
-            waveform = waveform[padding : padding + waveform_length_samples]
+            if padding > 0:
+                waveform = waveform[padding : padding + waveform_length_samples]
 
         return waveform
 
@@ -559,9 +581,7 @@ class NIDAQ(BaseDAQ):
             constant_values=(offset_volts - amplitude_volts + t0_offset_volts),
         )
 
-        waveform = waveform[0:waveform_length_samples]
-
-        return waveform
+        return waveform[0:waveform_length_samples]
 
     def square_wave(
         self,
@@ -635,7 +655,7 @@ class NIDAQ(BaseDAQ):
         :rtype: numpy.ndarray
         """
         # sawtooth with end time in center of waveform
-        waveform = self.sawtooth(
+        return self.sawtooth(
             sampling_frequency_hz,
             period_time_ms,
             start_time_ms,
@@ -645,8 +665,6 @@ class NIDAQ(BaseDAQ):
             offset_volts,
             cutoff_frequency_hz,
         )
-
-        return waveform
 
     def plot_waveforms_to_pdf(self, save: bool = False) -> None:
         """

@@ -1,6 +1,5 @@
 import numpy as np
 from gputools import OCLArray, OCLProgram
-
 from voxel.processes.downsample.base import BaseDownSample
 
 
@@ -28,9 +27,9 @@ class GPUToolsDownSample3D(BaseDownSample):
           int Nx = get_global_size(0);
           int Ny = get_global_size(1);
           int Nz = get_global_size(2);
-          int res = 0; 
+          int res = 0;
 
-          for (int m = 0; m < BLOCK; ++m) 
+          for (int m = 0; m < BLOCK; ++m)
              for (int n = 0; n < BLOCK; ++n)
                 for (int o = 0; o < BLOCK; ++o)
                     res+=input[BLOCK*Nx*Ny*(BLOCK*k+n)+BLOCK*Nx*(BLOCK*j+m)+BLOCK*i+n];

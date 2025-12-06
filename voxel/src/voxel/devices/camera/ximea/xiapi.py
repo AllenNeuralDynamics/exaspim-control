@@ -18,18 +18,18 @@ from voxel.processes.downsample.gpu.gputools.downsample_2d import GPUToolsDownSa
 BUFFER_SIZE_MB = 2400
 
 # generate valid binning by querying xiapi
-BINNINGS = dict()
+BINNINGS = {}
 
 # generate valid pixel types by querying xiapi
-PIXEL_TYPES = list()
+PIXEL_TYPES = []
 
 # generate bit packing modes by querying xiapi
-BIT_PACKING_MODES = list()
+BIT_PACKING_MODES = []
 
 # generate triggers by querying xiapi
-MODES = list()
-SOURCES = list()
-POLARITIES = list()
+MODES = []
+SOURCES = []
+POLARITIES = []
 
 
 class XIAPICamera(BaseCamera):
@@ -232,8 +232,7 @@ class XIAPICamera(BaseCamera):
         :return: Line interval in microseconds
         :rtype: float
         """
-        line_interval_us = self.camera.get_sensor_line_period()
-        return line_interval_us
+        return self.camera.get_sensor_line_period()
 
     @line_interval_us.setter
     def line_interval_us(self, line_interval_us: float) -> None:
@@ -244,7 +243,7 @@ class XIAPICamera(BaseCamera):
         :type line_interval_us: float
         """
         line_interval_us = self.camera.set_sensor_line_period(line_interval_us)
-    
+
     @property
     def frame_time_ms(self) -> float:
         """
@@ -268,8 +267,7 @@ class XIAPICamera(BaseCamera):
             bit_to_byte = 1
         else:
             bit_to_byte = 2
-        frame_size_mb = self.width_px * self.height_px * bit_to_byte / 1024**2
-        return frame_size_mb
+        return self.width_px * self.height_px * bit_to_byte / 1024**2
 
     @property
     def trigger(self) -> dict:
@@ -384,8 +382,7 @@ class XIAPICamera(BaseCamera):
         :rtype: float
         """
         self.camera.set_temp_selector("XI_TEMP_INTERFACE_BOARD")
-        temperature = self.camera.get_temp()
-        return temperature
+        return self.camera.get_temp()
 
     @property
     def sensor_temperature_c(self) -> float:
@@ -396,8 +393,7 @@ class XIAPICamera(BaseCamera):
         :rtype: float
         """
         self.camera.set_temp_selector("XI_TEMP_SENSOR_BOARD")
-        temperature = self.camera.get_temp()
-        return temperature
+        return self.camera.get_temp()
 
     def prepare(self) -> None:
         """
@@ -408,21 +404,21 @@ class XIAPICamera(BaseCamera):
         self.camera.set_acq_buffer_size(int(self.buffer_size_frames * self.frame_size_mb))
         self.log.info(f"buffer set to: {self.buffer_size_frames} frames")
 
-    def start(self, frame_count: int = None) -> None:
+    def start(self, frame_count: int | None = None) -> None:
         """
         Start the camera acquisition.
 
         :param frame_count: Number of frames to acquire, defaults to None
         :type frame_count: int, optional
         """
-        self.log.info(f"starting camera")
+        self.log.info("starting camera")
         self.camera.start_acquisition()
 
     def stop(self) -> None:
         """
         Stop the camera acquisition.
         """
-        self.log.info(f"stopping camera")
+        self.log.info("stopping camera")
         self.camera.stop_acquisition()
 
     def abort(self) -> None:
@@ -435,14 +431,14 @@ class XIAPICamera(BaseCamera):
         """
         Close the camera connection.
         """
-        self.log.info(f"closing camera")
+        self.log.info("closing camera")
         self.camera.close_device()
 
     def reset(self) -> None:
         """
         Reset the camera.
         """
-        self.log.info(f"resetting camera")
+        self.log.info("resetting camera")
         self.camera.set_device_reset()
 
     def grab_frame(self) -> np.ndarray:
@@ -456,8 +452,8 @@ class XIAPICamera(BaseCamera):
             self.camera.get_image(self.image)
             image = self.image.get_image_data_numpy()
         except Exception:
-            self.log.error('grab frame failed')
-            if self.pixel_type == 'XI_MONO8':
+            self.log.exception("grab frame failed")
+            if self.pixel_type == "XI_MONO8":
                 image = np.zeros(shape=(self.image_height_px, self.image_width_px), dtype=np.uint8)
             else:
                 image = np.zeros(shape=(self.image_height_px, self.image_width_px), dtype=np.uint16)
@@ -515,7 +511,6 @@ class XIAPICamera(BaseCamera):
         """
         Log the camera metadata.
         """
-        pass
 
     def _update_parameters(self) -> None:
         """
@@ -545,7 +540,7 @@ class XIAPICamera(BaseCamera):
             self.min_exposure_time_ms = self.camera.get_exposure_minimum() / 1e3
             type(self).exposure_time_ms.minimum = self.min_exposure_time_ms
             self.log.debug(f"min exposure time is: {self.min_exposure_time_ms} ms")
-        except Exception:
+        except (AttributeError, TypeError, ValueError):
             self.log.debug(f"min exposure time not available for camera {self.id}")
         # maximum exposure time
         # convert from us to ms
@@ -553,63 +548,63 @@ class XIAPICamera(BaseCamera):
             self.max_exposure_time_ms = self.camera.get_exposure_maximum() / 1e3
             type(self).exposure_time_ms.maximum = self.max_exposure_time_ms
             self.log.debug(f"max exposure time is: {self.max_exposure_time_ms} ms")
-        except Exception:
+        except (AttributeError, TypeError, ValueError):
             self.log.debug(f"max exposure time not available for camera {self.id}")
         # minimum width
         try:
             self.min_width_px = self.camera.get_width_minimum()
             type(self).width_px.minimum = self.min_width_px
             self.log.debug(f"min width is: {self.min_width_px} px")
-        except Exception:
+        except (AttributeError, TypeError, ValueError):
             self.log.debug(f"min width not available for camera {self.id}")
         # maximum width
         try:
             self.max_width_px = self.camera.get_width_maximum()
             type(self).width_px.maximum = self.max_width_px
             self.log.debug(f"max width is: {self.max_width_px} px")
-        except Exception:
+        except (AttributeError, TypeError, ValueError):
             self.log.debug(f"max width not available for camera {self.id}")
         # minimum height
         try:
             self.min_height_px = self.camera.get_height_minimum()
             type(self).height_px.minimum = self.min_height_px
             self.log.debug(f"min height is: {self.min_height_px} px")
-        except Exception:
+        except (AttributeError, TypeError, ValueError):
             self.log.debug(f"min height not available for camera {self.id}")
         # maximum height
         try:
             self.max_height_px = self.camera.get_height_maximum()
             type(self).height_px.maximum = self.max_height_px
             self.log.debug(f"max height is: {self.max_height_px} px")
-        except Exception:
+        except (AttributeError, TypeError, ValueError):
             self.log.debug(f"max height not available for camera {self.id}")
         # minimum offset x
         try:
             self.min_offset_x_px = self.camera.get_offsetX_minimum()
             type(self).offset_x_px.minimum = self.min_offset_x_px
             self.log.debug(f"min offset x is: {self.min_offset_x_px} px")
-        except Exception:
+        except (AttributeError, TypeError, ValueError):
             self.log.debug(f"min offset x not available for camera {self.id}")
         # maximum offset x
         try:
             self.max_offset_x_px = self.camera.get_offsetX_maximum()
             type(self).offset_x_px.maximum = self.max_offset_x_px
             self.log.debug(f"max offset x is: {self.max_offset_x_px} px")
-        except Exception:
+        except (AttributeError, TypeError, ValueError):
             self.log.debug(f"max offset x not available for camera {self.id}")
         # minimum offset y
         try:
             self.min_offset_y_px = self.camera.get_offsetX_minimum()
             type(self).offset_y_px.minimum = self.min_offset_y_px
             self.log.debug(f"min offset y is: {self.min_offset_y_px} px")
-        except Exception:
+        except (AttributeError, TypeError, ValueError):
             self.log.debug(f"min offset y not available for camera {self.id}")
         # maximum offset y
         try:
             self.max_offset_y_px = self.camera.get_offsetX_maximum()
             type(self).offset_y_px.maximum = self.max_offset_y_px
             self.log.debug(f"max offset y is: {self.max_offset_y_px} px")
-        except Exception:
+        except (AttributeError, TypeError, ValueError):
             self.log.debug(f"max offset y not available for camera {self.id}")
         # step exposure time
         # convert from us to ms
@@ -617,56 +612,56 @@ class XIAPICamera(BaseCamera):
             self.step_exposure_time_ms = self.camera.get_exposure() / 1e3
             type(self).exposure_time_ms.step = self.step_exposure_time_ms
             self.log.debug(f"step exposure time is: {self.step_exposure_time_ms} ms")
-        except Exception:
+        except (AttributeError, TypeError, ValueError):
             self.log.debug(f"step exposure time not available for camera {self.id}")
         # step width
         try:
             self.step_width_px = self.camera.get_width_increment()
             type(self).width_px.step = self.step_width_px
             self.log.debug(f"step width is: {self.step_width_px} px")
-        except Exception:
+        except (AttributeError, TypeError, ValueError):
             self.log.debug(f"step width not available for camera {self.id}")
         # step height
         try:
             self.step_height_px = self.camera.get_height_increment()
             type(self).height_px.step = self.step_height_px
             self.log.debug(f"step height is: {self.step_height_px} px")
-        except Exception:
+        except (AttributeError, TypeError, ValueError):
             self.log.debug(f"step height not available for camera {self.id}")
         # step offset x
         try:
             self.step_offset_x_px = self.camera.get_offsetX_increment()
             type(self).offset_x_px.step = self.step_offset_x_px
             self.log.debug(f"step offset x is: {self.step_offset_x_px} px")
-        except Exception:
+        except (AttributeError, TypeError, ValueError):
             self.log.debug(f"step offset x not available for camera {self.id}")
         # step offset y
         try:
             self.step_offset_y_px = self.camera.get_offsetY_increment()
             type(self).offset_y_px.step = self.step_offset_y_px
             self.log.debug(f"step offset y is: {self.step_offset_y_px} px")
-        except Exception:
+        except (AttributeError, TypeError, ValueError):
             self.log.debug(f"step offset y not available for camera {self.id}")
         # minimum line interval
         try:
             self.min_line_interval_us = self.camera.get_sensor_line_period_minimum()
             type(self).line_interval_us.minimum = self.min_line_interval_us
             self.log.debug(f"min line interval is: {self.min_line_interval_us} [us]")
-        except Exception:
+        except (AttributeError, TypeError, ValueError):
             self.log.debug(f"min line interval is not available for camera {self.id}")
         # maximum line interval
         try:
             self.max_line_interval_us = self.camera.get_sensor_line_period_maximum()
             type(self).line_interval_us.maximum = self.max_line_interval_us
             self.log.debug(f"max line interval is: {self.max_line_interval_us} [us]")
-        except Exception:
+        except (AttributeError, TypeError, ValueError):
             self.log.debug(f"max line interval is not available for camera {self.id}")
         # step line interval
         try:
             self.step_line_interval_us = self.camera.get_sensor_line_period_increment()
             type(self).line_interval_us.step = self.step_line_interval_us
             self.log.debug(f"step line interval is: {self.step_line_interval_us} [us]")
-        except Exception:
+        except (AttributeError, TypeError, ValueError):
             self.log.debug(f"step line interval is not available for camera {self.id}")
 
     def _query_binning(self) -> None:
@@ -684,7 +679,7 @@ class XIAPICamera(BaseCamera):
                 matches = re.split("x", binning)
                 key = matches[-1]
                 BINNINGS[int(key)] = binning
-            except Exception:
+            except (AttributeError, TypeError, ValueError):
                 self.log.debug(f"{binning} not avaiable on this camera")
                 # only implement software binning for even numbers
                 if int(binning[-1]) % 2 == 0:
@@ -707,7 +702,7 @@ class XIAPICamera(BaseCamera):
                 self.camera.set_sensor_bit_depth(pixel_type)
                 # generate lowercase string key
                 PIXEL_TYPES.append(pixel_type)
-            except Exception:
+            except (AttributeError, TypeError, ValueError):
                 self.log.debug(f"{pixel_type} not avaiable on this camera")
         # reset to initial value
         self.camera.set_sensor_bit_depth(init_pixel_type)
@@ -724,7 +719,7 @@ class XIAPICamera(BaseCamera):
                 self.camera.set_output_bit_packing_type(bit_packing)
                 # generate lowercase string key
                 BIT_PACKING_MODES.append(bit_packing)
-            except Exception:
+            except (AttributeError, TypeError, ValueError):
                 self.log.debug(f"{bit_packing} not avaiable on this camera")
         # reset to initial value
         self.camera.set_output_bit_packing_type(init_bit_packing)
@@ -742,7 +737,7 @@ class XIAPICamera(BaseCamera):
                 self.camera.set_trigger_selector(trigger_mode)
                 # generate lowercase string key
                 MODES.append(trigger_mode)
-            except Exception:
+            except (AttributeError, TypeError, ValueError):
                 self.log.debug(f"{trigger_mode} not avaiable on this camera")
         # reset to initial value
         self.camera.set_trigger_selector(init_trigger_mode)
@@ -758,7 +753,7 @@ class XIAPICamera(BaseCamera):
                 self.camera.set_trigger_source(trigger_source)
                 # generate lowercase string key
                 SOURCES.append(trigger_source)
-            except Exception:
+            except (AttributeError, TypeError, ValueError):
                 self.log.debug(f"{trigger_source} not avaiable on this camera")
         # reset to initial value
         self.camera.set_trigger_source(init_trigger_source)

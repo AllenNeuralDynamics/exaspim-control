@@ -26,7 +26,6 @@ class BaseFlipMount(VoxelDevice):
         :return: Position of the flip mount
         :rtype: str | None
         """
-        pass
 
     @position.setter
     @abstractmethod
@@ -39,4 +38,3 @@ class BaseFlipMount(VoxelDevice):
         :param wait: Whether to wait for the flip mount to finish moving, defaults to False
         :type wait: bool, optional
         """
-        pass

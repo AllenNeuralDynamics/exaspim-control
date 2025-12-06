@@ -1,10 +1,11 @@
 import logging
 import threading
+from collections.abc import Callable
 from enum import IntEnum, StrEnum
-from time import perf_counter, sleep
-from typing import Any, Callable
+from time import perf_counter
+from typing import Any
 
-from serial import EIGHTBITS, PARITY_NONE, STOPBITS_ONE, Serial, SerialTimeoutException, SerialException
+from serial import EIGHTBITS, PARITY_NONE, STOPBITS_ONE, Serial, SerialTimeoutException
 
 
 class CombinerCmd(StrEnum):
@@ -157,7 +158,7 @@ class OxxiusController:
         :raises SerialTimeoutException: If the device does not respond.
         """
         self.log = logging.getLogger(__name__ + "." + self.__class__.__name__)
-        self.ser: Serial = Serial(port, **OXXIUS_COM_SETUP) if type(port) != Serial else port
+        self.ser: Serial = Serial(port, **OXXIUS_COM_SETUP) if not isinstance(port, Serial) else port
         self.ser.reset_input_buffer()
         # build laser dictionary
         self.laser_list: list[str] = []
@@ -180,7 +181,7 @@ class OxxiusController:
         """
         Get the list of current fault codes.
 
-        :return: List of fault code fields.
+        :return: list of fault code fields.
         :rtype: list[FaultCodeField]
         """
         faults: list[FaultCodeField] = []
@@ -194,7 +195,7 @@ class OxxiusController:
             return faults
 
     @thread_locked
-    def get(self, msg: Query | CombinerQuery, prefix: str = None) -> str:
+    def get(self, msg: Query | CombinerQuery, prefix: str | None = None) -> str:
         """
         Send a query command to the device.
 
@@ -205,13 +206,12 @@ class OxxiusController:
         :return: Device reply.
         :rtype: str
         """
-        if prefix == None:
+        if prefix is None:
             reply = self._send(msg.value)
+        elif type(msg) is Query:
+            reply = self._send(f"{prefix} {msg.value}")
         else:
-            if type(msg) is Query:
-                reply = self._send(f"{prefix} {msg.value}")
-            else:
-                reply = self._send(f"{msg.value}{prefix.upper().replace('L', '')}")
+            reply = self._send(f"{msg.value}{prefix.upper().replace('L', '')}")
         return reply
 
     @thread_locked
@@ -230,8 +230,7 @@ class OxxiusController:
         """
         if type(msg) is Cmd:
             return self._send(f"{prefix} {msg} {value}")
-        else:
-            return self._send(f"{msg}{prefix.upper().replace('L', '')} {value}")
+        return self._send(f"{msg}{prefix.upper().replace('L', '')} {value}")
 
     @thread_locked
     def close(self) -> None:

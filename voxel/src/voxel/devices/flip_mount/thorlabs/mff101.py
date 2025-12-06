@@ -1,5 +1,4 @@
 from time import sleep
-from typing import Dict, Optional
 
 from pylablib.devices import Thorlabs
 
@@ -8,7 +7,7 @@ from voxel.devices.flip_mount.base import BaseFlipMount
 
 VALID_POSITIONS = [0, 1]
 FLIP_TIME_RANGE_MS = (500, 2800, 100)
-POSITIONS = dict()
+POSITIONS = {}
 
 
 class MFF101FlipMount(BaseFlipMount):
@@ -16,7 +15,7 @@ class MFF101FlipMount(BaseFlipMount):
     ThorlabsFlipMount class for handling Thorlabs flip mount devices.
     """
 
-    def __init__(self, id: str, positions: Dict[str, int]) -> None:
+    def __init__(self, id: str, positions: dict[str, int]) -> None:
         """
         Initialize the ThorlabsFlipMount object.
 
@@ -27,14 +26,13 @@ class MFF101FlipMount(BaseFlipMount):
         :raises ValueError: If an invalid position is provided
         """
         super().__init__(id)
-        self._inst: Optional[Thorlabs.MFF] = None
+        self._inst: Thorlabs.MFF | None = None
         self._connect()
         for key, value in positions.items():
             if value not in VALID_POSITIONS:
-                raise ValueError(
-                    f"Invalid position {key} for Thorlabs flip mount.\
+                msg = f"Invalid position {key} for Thorlabs flip mount.\
                     Valid positions are {VALID_POSITIONS}"
-                )
+                raise ValueError(msg)
             POSITIONS[key] = value
         position_idx = self._inst.get_state()
         self._position = next((key for key, value in POSITIONS.items() if value == position_idx), "Unknown")
@@ -49,8 +47,8 @@ class MFF101FlipMount(BaseFlipMount):
             self._inst = Thorlabs.MFF(conn=self.id)
             self.flip_time_ms = FLIP_TIME_RANGE_MS[0]  # min flip time
         except Exception as e:
-            self.log.error(f"Could not connect to flip mount {self.id}: {e}")
-            raise e
+            self.log.exception(f"Could not connect to flip mount {self.id}: {e}")
+            raise
 
     def _disconnect(self) -> None:
         """
@@ -83,7 +81,7 @@ class MFF101FlipMount(BaseFlipMount):
             self.wait()
 
     @property
-    def position(self) -> Optional[str]:
+    def position(self) -> str | None:
         """
         Get the current position of the flip mount.
 
@@ -105,7 +103,8 @@ class MFF101FlipMount(BaseFlipMount):
         if self._inst is None:
             raise ValueError("Flip mount not connected")
         if position_name not in POSITIONS:
-            raise ValueError(f"Invalid position {position_name}. Valid positions are {list(POSITIONS.keys())}")
+            msg = f"Invalid position {position_name}. Valid positions are {list(POSITIONS.keys())}"
+            raise ValueError(msg)
         self._inst.move_to_state(POSITIONS[position_name])
         self._position = position_name
         self.log.info(f"Flip mount {self.id} moved to position {position_name}")
@@ -124,7 +123,7 @@ class MFF101FlipMount(BaseFlipMount):
         try:
             parameters = self._inst.get_flipper_parameters()
             flip_time_ms: int = int((parameters.transit_time) * 1e3)
-        except Exception:
+        except (AttributeError, TypeError, ValueError):
             raise ValueError("Could not get flip time")
         return flip_time_ms
 
@@ -145,10 +144,11 @@ class MFF101FlipMount(BaseFlipMount):
         try:
             self._inst.setup_flipper(transit_time=clamped_time_ms / 1000)
             self.log.info(f"Flip mount {self.id} switch time set to {clamped_time_ms} ms")
-        except Exception as e:
-            raise ValueError(f"Could not set flip time: {e}")
+        except (AttributeError, TypeError, ValueError) as e:
+            msg = f"Could not set flip time: {e}"
+            raise ValueError(msg)
 
     def close(self) -> None:
         """Close the flip mount connection."""
-        self.log.info(f"closing flip mount.")
+        self.log.info("closing flip mount.")
         self._disconnect()

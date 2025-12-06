@@ -1,7 +1,4 @@
-from typing import Optional
-
 import pyvisa as visa
-
 from voxel.devices.power_meter.base import BasePowerMeter
 
 
@@ -21,7 +18,7 @@ class ThorlabsPowerMeter(BasePowerMeter):
         """
         super().__init__(id)
         self._conn = conn
-        self._inst: Optional[visa.resources.Resource] = None
+        self._inst: visa.resources.Resource | None = None
         self._connect()
 
     def _connect(self) -> None:
@@ -33,10 +30,10 @@ class ThorlabsPowerMeter(BasePowerMeter):
             self._inst = rm.open_resource(self._conn)
             self.log.info(f"Connection to {self._conn} successful")
         except visa.VisaIOError as e:
-            self.log.error(f"Could not connect to {self._conn}: {e}")
+            self.log.exception(f"Could not connect to {self._conn}: {e}")
             raise
         except Exception as e:
-            self.log.error(f"Unknown error: {e}")
+            self.log.exception(f"Unknown error: {e}")
             raise
 
     def _check_connection(self) -> None:
@@ -46,7 +43,8 @@ class ThorlabsPowerMeter(BasePowerMeter):
         :raises Exception: If the power meter is not connected
         """
         if self._inst is None:
-            raise Exception(f"Device {self.id} is not connected")
+            msg = f"Device {self.id} is not connected"
+            raise Exception(msg)
 
     @property
     def power_mw(self) -> float:

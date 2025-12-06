@@ -1,14 +1,12 @@
-import time
 import logging
-from typing import Dict, Optional
+import time
 
 from voxel.devices.controller.asi.tiger import TigerController
-
 from voxel.devices.flip_mount.base import BaseFlipMount
 
 STEPS_PER_UM = 10
 
-POSITIONS = dict()
+POSITIONS = {}
 
 
 class TigerFlipMount(BaseFlipMount):
@@ -16,7 +14,7 @@ class TigerFlipMount(BaseFlipMount):
     ThorlabsFlipMount class for handling Thorlabs flip mount devices.
     """
 
-    def __init__(self, axis: str, tigerbox: TigerController, positions: Dict[str, int]) -> None:
+    def __init__(self, axis: str, tigerbox: TigerController, positions: dict[str, int]) -> None:
         """
         Initialize the ThorlabsFlipMount object.
 
@@ -39,7 +37,7 @@ class TigerFlipMount(BaseFlipMount):
         self._position = self.tigerbox.get_position_mm()[self.axis.upper()]
 
     @property
-    def position(self) -> Optional[str]:
+    def position(self) -> str | None:
         """
         Get the current position of the flip mount.
         :return: Current position of the flip mount
@@ -57,7 +55,8 @@ class TigerFlipMount(BaseFlipMount):
         :type position_name: str
         """
         if position_name not in POSITIONS:
-            raise ValueError(f"Invalid position {position_name}. Valid positions are {list(POSITIONS.keys())}")
+            msg = f"Invalid position {position_name}. Valid positions are {list(POSITIONS.keys())}"
+            raise ValueError(msg)
         self._position = POSITIONS[position_name]
         self.tigerbox.move_absolute(**{self.axis: POSITIONS[position_name]})
         end_position = POSITIONS[position_name]
@@ -79,16 +78,14 @@ class TigerFlipMount(BaseFlipMount):
         :rtype: int
         """
         speed_mm_s = self.tigerbox.get_speed(self.axis)
-        flip_time_ms = int(
-            abs(POSITIONS[list(POSITIONS.keys())[1]] - POSITIONS[list(POSITIONS.keys())[0]])
+        return int(
+            abs(POSITIONS[list(POSITIONS.keys())[1]] - POSITIONS[next(iter(POSITIONS.keys()))])
             / STEPS_PER_UM
             / speed_mm_s[self.axis.upper()]
         )
-        return flip_time_ms
 
     def close(self) -> None:
         """
         Close the stage.
         """
-        self.log.info(f"closing flip mount.")
-        pass
+        self.log.info("closing flip mount.")

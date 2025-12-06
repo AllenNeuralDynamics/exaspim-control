@@ -1,7 +1,7 @@
 import logging
 
 from aaopto_aotf import MPDS
-from aaopto_aotf.device_codes import *
+from aaopto_aotf.device_codes import BlankingMode, InputMode
 
 from voxel.devices.aotf.base import BaseAOTF
 from voxel.devices.utils.singleton import Singleton
@@ -30,7 +30,7 @@ class MPDSSingleton(MPDS, metaclass=Singleton):
         :param com_port: The COM port for the AOTF device.
         :type com_port: str
         """
-        super(MPDSSingleton, self).__init__(com_port)
+        super().__init__(com_port)
 
 
 class AAOptoAOTF(BaseAOTF):
@@ -71,7 +71,7 @@ class AAOptoAOTF(BaseAOTF):
         :return: A dictionary with channel numbers as keys and frequencies as values.
         :rtype: dict
         """
-        frequency_hz = dict()
+        frequency_hz = {}
         for channel in range(self.aotf.num_channels):
             frequency_hz[channel] = self.aotf.get_frequency(channel)
         return frequency_hz
@@ -96,7 +96,7 @@ class AAOptoAOTF(BaseAOTF):
         :return: A dictionary with channel numbers as keys and power levels as values.
         :rtype: dict
         """
-        power_dbm = dict()
+        power_dbm = {}
         for channel in range(self.aotf.num_channels):
             power_dbm[channel] = self.aotf.get_power_dbm(channel)
         return power_dbm
@@ -122,8 +122,7 @@ class AAOptoAOTF(BaseAOTF):
         :rtype: str
         """
         mode = self.aotf.get_blanking_mode()
-        converted_mode = next(key for key, enum in BLANKING_MODES.items() if enum.value == mode)
-        return converted_mode
+        return next(key for key, enum in BLANKING_MODES.items() if enum.value == mode)
 
     @blanking_mode.setter
     def blanking_mode(self, mode: str) -> None:
@@ -147,7 +146,7 @@ class AAOptoAOTF(BaseAOTF):
         :return: A dictionary with channel numbers as keys and input modes as values.
         :rtype: dict
         """
-        modes = dict()
+        modes = {}
         for channel in range(self.aotf.num_channels):
             modes[channel] = self.aotf.get_channel_input_mode(channel)
         return modes

@@ -1,5 +1,4 @@
 from abc import abstractmethod
-from typing import Tuple
 
 from voxel.devices.base import VoxelDevice
 
@@ -19,7 +18,6 @@ class BaseStage(VoxelDevice):
         :param wait: Whether to wait for the move to complete, defaults to True
         :type wait: bool, optional
         """
-        pass
 
     @abstractmethod
     def move_absolute_mm(self, position: float, wait: bool = True) -> None:
@@ -31,14 +29,12 @@ class BaseStage(VoxelDevice):
         :param wait: Whether to wait for the move to complete, defaults to True
         :type wait: bool, optional
         """
-        pass
 
     @abstractmethod
     def start(self) -> None:
         """
         Start the stage.
         """
-        pass
 
     @property
     @abstractmethod
@@ -49,18 +45,16 @@ class BaseStage(VoxelDevice):
         :return: Current position in millimeters
         :rtype: float
         """
-        pass
 
     @property
     @abstractmethod
-    def limits_mm(self) -> Tuple[float, float]:
+    def limits_mm(self) -> tuple[float, float]:
         """
         Get the limits of the stage in millimeters.
 
         :return: Limits in millimeters
         :rtype: tuple
         """
-        pass
 
     @property
     @abstractmethod
@@ -71,7 +65,6 @@ class BaseStage(VoxelDevice):
         :return: Backlash in millimeters
         :rtype: float
         """
-        pass
 
     @backlash_mm.setter
     @abstractmethod
@@ -82,7 +75,6 @@ class BaseStage(VoxelDevice):
         :param backlash: Backlash in millimeters
         :type backlash: float
         """
-        pass
 
     @property
     @abstractmethod
@@ -93,7 +85,6 @@ class BaseStage(VoxelDevice):
         :return: Speed in millimeters per second
         :rtype: float
         """
-        pass
 
     @speed_mm_s.setter
     @abstractmethod
@@ -104,7 +95,6 @@ class BaseStage(VoxelDevice):
         :param speed: Speed in millimeters per second
         :type speed: float
         """
-        pass
 
     @property
     @abstractmethod
@@ -115,7 +105,6 @@ class BaseStage(VoxelDevice):
         :return: Acceleration in millimeters per second squared
         :rtype: float
         """
-        pass
 
     @acceleration_ms.setter
     @abstractmethod
@@ -126,7 +115,6 @@ class BaseStage(VoxelDevice):
         :param acceleration: Acceleration in millimeters per second squared
         :type acceleration: float
         """
-        pass
 
     @property
     @abstractmethod
@@ -137,7 +125,6 @@ class BaseStage(VoxelDevice):
         :return: Mode of the stage
         :rtype: int
         """
-        pass
 
     @mode.setter
     @abstractmethod
@@ -148,7 +135,6 @@ class BaseStage(VoxelDevice):
         :param mode: Mode of the stage
         :type mode: int
         """
-        pass
 
     @abstractmethod
     def is_axis_moving(self) -> bool:
@@ -158,18 +144,15 @@ class BaseStage(VoxelDevice):
         :return: True if the axis is moving, False otherwise
         :rtype: bool
         """
-        pass
 
     @abstractmethod
     def zero_in_place(self) -> None:
         """
         Zero the stage in place.
         """
-        pass
 
     @abstractmethod
     def close(self) -> None:
         """
         Close the stage.
         """
-        pass

@@ -2,10 +2,9 @@ import logging
 import time
 
 from voxel.devices.controller.asi.tiger import TigerController
-
 from voxel.devices.filterwheel.base import BaseFilterWheel
 
-FILTERS = list()
+FILTERS = []
 
 SWITCH_TIME_S = 0.1  # estimated timing
 
@@ -53,7 +52,8 @@ class FW1000FilterWheel(BaseFilterWheel):
         :type filter_name: str
         """
         if filter_name not in FILTERS:
-            raise ValueError(f"Filter {filter_name} not in filter list: {FILTERS}")
+            msg = f"Filter {filter_name} not in filter list: {FILTERS}"
+            raise ValueError(msg)
         self._filter = filter_name
         cmd_str = f"MP {self.filters[filter_name]}\r\n"
         self.log.info(f"setting filter to {filter_name}")
@@ -68,4 +68,3 @@ class FW1000FilterWheel(BaseFilterWheel):
         Close the filter wheel device.
         """
         self.log.info("closing filter wheel.")
-        pass

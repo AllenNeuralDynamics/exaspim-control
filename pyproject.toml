@@ -1,7 +1,7 @@
 [project]
 name = "exaspim-control"
 description = "Control software for the ExaSPIM microscope"
-requires-python = ">=3.10, <3.12"
+requires-python = ">=3.12, <3.13"
 authors = [
     { name = "Micah Woodard", email = "micah.woodard@alleninstitute.org" },
     { name = "Adam Glaser", email = "adam.glaser@alleninstitute.org" },
@@ -28,56 +28,47 @@ keywords = [
 version = "0.1.0"
 
 dependencies = [
-    "voxel[all]",
     "aind_data_schema >= 0.26.7",
-    "view @ git+https://github.com/AllenNeuralDynamics/view.git",
     "rich>=14.2.0",
-    "pyqt6>=6.10.0",
+    "voxel[all]",
+    "view",
+    "ruyaml>=0.91.0",
 ]
 
-[project.optional-dependencies]
-"dev" = ["black", "isort", "flake8"]
+[dependency-groups]
+dev = ["pytest>=8.2.1", "ruff", "coverage", "interrogate", "Sphinx", "furo"]
 
 
 [tool.uv.sources]
 "voxel" = { workspace = true }
+"view" = { workspace = true }
+
+[project.scripts]
+"exaspim" = "exaspim_control.cli:main"
 
 [project.urls]
 "Homepage" = "https://github.com/AllenNeuralDynamics/exaspim-control"
-
-[project.scripts]
-"exaspim" = "exaspim_control.app:cli"
 
 [build-system]
 requires = ["uv_build>=0.8.2,<0.9.0"]
 build-backend = "uv_build"
 
-[tool.black]
-line-length = 120
-target-version = ["py310"]
-exclude = '''
-(
-    /(
-        \.eggs         # exclude a few common directories in the
-      | \.git          # root of the project
-      | \.hg
-      | \.mypy_cache
-      | \.pytest_cache
-      | \.tox
-      | \.venv
-      | __pycache__
-      | _build
-      | build
-      | dist
-    )/
-    | .gitignore
-    | \.pyi?$
-    | \.yaml$
-)'''
-
-[tool.isort]
-line_length = 120
-profile = "black"
-
 [tool.uv.workspace]
-members = ["voxel"]
+members = ["voxel", "view"]
+
+[tool.coverage.run]
+omit = ["*__init__*"]
+source = ["voxel", "tests"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "if __name__ == .__main__.:",
+    "from",
+    "import",
+    "pragma: no cover",
+]
+fail_under = 100
+
+[tool.interrogate]
+exclude = ["setup.py", "docs", "build"]
+fail_under = 100

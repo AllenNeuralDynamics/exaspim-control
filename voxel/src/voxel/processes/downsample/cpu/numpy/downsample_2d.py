@@ -1,5 +1,4 @@
-import numpy
-
+import numpy as np
 from voxel.processes.downsample.base import BaseDownSample
 
 
@@ -21,7 +20,7 @@ class NPDownSample2D(BaseDownSample):
         if binning != 2:
             raise ValueError("cpu downsampling only supports binning=2")
 
-    def run(self, image: numpy.ndarray) -> numpy.ndarray:
+    def run(self, image: np.ndarray) -> np.ndarray:
         """
         Run function for image downsampling.
 
@@ -30,5 +29,4 @@ class NPDownSample2D(BaseDownSample):
         :return: Downsampled image
         :rtype: numpy.ndarray
         """
-        downsampled_image = (image[0::2, 0::2] + image[1::2, 0::2] + image[0::2, 1::2] + image[1::2, 1::2]) // 4
-        return downsampled_image
+        return (image[0::2, 0::2] + image[1::2, 0::2] + image[0::2, 1::2] + image[1::2, 1::2]) // 4

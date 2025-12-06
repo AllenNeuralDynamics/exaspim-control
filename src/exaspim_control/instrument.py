@@ -1,7 +1,7 @@
 import logging
 from pathlib import Path
 
-from ruamel.yaml import YAML
+from ruyaml import YAML
 
 from voxel.instruments.instrument import Instrument
 
@@ -48,16 +48,20 @@ class ExASPIM(Instrument):
         self.log.info("verifying instrument configuration")
         num_scanning_stages = len(self.scanning_stages)
         if len(self.scanning_stages) != 1:
-            raise ValueError(f"one scanning stage must be defined but {num_scanning_stages} detected")
+            msg = f"one scanning stage must be defined but {num_scanning_stages} detected"
+            raise ValueError(msg)
         num_cameras = len(self.cameras)
         if len(self.cameras) != 1:
-            raise ValueError(f"one camera must be defined but {num_cameras} detected")
+            msg = f"one camera must be defined but {num_cameras} detected"
+            raise ValueError(msg)
         num_daqs = len(self.daqs)
         if len(self.daqs) != 1:
-            raise ValueError(f"one daq must be defined but {num_daqs} detected")
+            msg = f"one daq must be defined but {num_daqs} detected"
+            raise ValueError(msg)
         num_lasers = len(self.lasers)
         if num_lasers < 1:
-            raise ValueError(f"at least one laser is required but {num_lasers} detected")
+            msg = f"at least one laser is required but {num_lasers} detected"
+            raise ValueError(msg)
         if not self.tiling_stages["x"]:
             raise ValueError("x tiling stage is required")
         if not self.tiling_stages["y"]:

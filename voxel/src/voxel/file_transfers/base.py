@@ -2,10 +2,8 @@ import logging
 import threading
 from abc import abstractmethod
 from pathlib import Path
-from typing import Optional
 
 from imohash import hashfile
-
 from voxel.descriptors.deliminated_property import DeliminatedProperty
 
 
@@ -35,7 +33,7 @@ class BaseFileTransfer:
         self._local_path = Path(local_path)
         if self._external_path == self._local_path:
             raise ValueError("External path and local path cannot be the same")
-        self._filename: Optional[str] = None
+        self._filename: str | None = None
         self._max_retry: int = 0
         self._acquisition_name: Path = Path()
         self._verify_transfer: bool = False
@@ -266,15 +264,13 @@ class BaseFileTransfer:
         if local_hash == external_hash:
             self.log.info(f"{local_file_path} and {external_file_path} hashes match")
             return True
-        else:
-            self.log.info(f"hash mismatch for {local_file_path} and {external_file_path}")
-            self.log.info(f"{local_file_path} hash = {local_hash}")
-            self.log.info(f"{external_file_path} hash = {external_hash}")
-            return False
+        self.log.info(f"hash mismatch for {local_file_path} and {external_file_path}")
+        self.log.info(f"{local_file_path} hash = {local_hash}")
+        self.log.info(f"{external_file_path} hash = {external_hash}")
+        return False
 
     @abstractmethod
     def _run(self) -> None:
         """
         Internal function that runs the transfer process.
         """
-        pass

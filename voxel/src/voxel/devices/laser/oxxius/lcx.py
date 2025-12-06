@@ -1,5 +1,3 @@
-from typing import Dict, Union
-
 from voxel.descriptors.deliminated_property import DeliminatedProperty
 from voxel.devices.controller.oxxius.lxcc import BoolVal, Cmd, CombinerCmd, CombinerQuery, OxxiusController, Query
 from voxel.devices.laser.base import BaseLaser
@@ -11,7 +9,7 @@ class OxxiusLCXLaser(BaseLaser):
     """
 
     def __init__(
-        self, id: str, prefix: str, wavelength: float, port: str = None, controller: OxxiusController = None
+        self, id: str, prefix: str, wavelength: float, port: str | None = None, controller: OxxiusController = None
     ) -> None:
         """
         Initialize an OxxiusLCXLaser instance.
@@ -153,7 +151,7 @@ class OxxiusLCXLaser(BaseLaser):
         """
         return float(self._controller.get(Query.MaximumLaserPower, self._prefix))
 
-    def status(self) -> Dict[str, Union[str, float]]:
+    def status(self) -> dict[str, str | float]:
         """
         Get the status of the laser.
 

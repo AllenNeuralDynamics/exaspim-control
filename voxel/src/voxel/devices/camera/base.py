@@ -1,5 +1,7 @@
 from abc import abstractmethod
+
 import numpy as np
+
 from voxel.devices.base import VoxelDevice
 
 
@@ -22,7 +24,6 @@ class BaseCamera(VoxelDevice):
         :return: The exposure time in milliseconds.
         :rtype: int
         """
-        pass
 
     @exposure_time_ms.setter
     @abstractmethod
@@ -33,7 +34,6 @@ class BaseCamera(VoxelDevice):
         :param value: The exposure time in milliseconds.
         :type value: int
         """
-        pass
 
     @property
     @abstractmethod
@@ -44,7 +44,6 @@ class BaseCamera(VoxelDevice):
         :return: The width in pixels.
         :rtype: int
         """
-        pass
 
     @width_px.setter
     @abstractmethod
@@ -55,7 +54,6 @@ class BaseCamera(VoxelDevice):
         :param value: The width in pixels.
         :type value: int
         """
-        pass
 
     @property
     @abstractmethod
@@ -66,7 +64,6 @@ class BaseCamera(VoxelDevice):
         :return: The width offset in pixels.
         :rtype: int
         """
-        pass
 
     @width_offset_px.setter
     @abstractmethod
@@ -77,7 +74,6 @@ class BaseCamera(VoxelDevice):
         :param value: The width offset in pixels.
         :type value: int
         """
-        pass
 
     @property
     @abstractmethod
@@ -88,7 +84,6 @@ class BaseCamera(VoxelDevice):
         :return: The height in pixels.
         :rtype: int
         """
-        pass
 
     @height_px.setter
     @abstractmethod
@@ -99,7 +94,6 @@ class BaseCamera(VoxelDevice):
         :param value: The height in pixels.
         :type value: int
         """
-        pass
 
     @property
     @abstractmethod
@@ -110,7 +104,6 @@ class BaseCamera(VoxelDevice):
         :return: The height offset in pixels.
         :rtype: int
         """
-        pass
 
     @height_offset_px.setter
     @abstractmethod
@@ -121,7 +114,6 @@ class BaseCamera(VoxelDevice):
         :param value: The height offset in pixels.
         :type value: int
         """
-        pass
 
     @property
     @abstractmethod
@@ -132,7 +124,6 @@ class BaseCamera(VoxelDevice):
         :return: The pixel type.
         :rtype: str
         """
-        pass
 
     @pixel_type.setter
     @abstractmethod
@@ -143,7 +134,6 @@ class BaseCamera(VoxelDevice):
         :param value: The pixel type.
         :type value: str
         """
-        pass
 
     @property
     @abstractmethod
@@ -154,7 +144,6 @@ class BaseCamera(VoxelDevice):
         :return: The line interval in microseconds.
         :rtype: int
         """
-        pass
 
     @property
     @abstractmethod
@@ -165,7 +154,6 @@ class BaseCamera(VoxelDevice):
         :return: The readout mode.
         :rtype: str
         """
-        pass
 
     @property
     @readout_mode.setter
@@ -176,7 +164,6 @@ class BaseCamera(VoxelDevice):
         :param value: The readout mode.
         :type value: str
         """
-        pass
 
     @property
     @abstractmethod
@@ -187,7 +174,6 @@ class BaseCamera(VoxelDevice):
         :return: The trigger mode.
         :rtype: str
         """
-        pass
 
     @trigger.setter
     @abstractmethod
@@ -198,7 +184,6 @@ class BaseCamera(VoxelDevice):
         :param value: The trigger mode.
         :type value: str
         """
-        pass
 
     @property
     @abstractmethod
@@ -209,7 +194,6 @@ class BaseCamera(VoxelDevice):
         :return: The binning mode.
         :rtype: str
         """
-        pass
 
     @binning.setter
     @abstractmethod
@@ -220,7 +204,6 @@ class BaseCamera(VoxelDevice):
         :param value: The binning mode.
         :type value: str
         """
-        pass
 
     @property
     @abstractmethod
@@ -231,7 +214,6 @@ class BaseCamera(VoxelDevice):
         :return: The sensor width in pixels.
         :rtype: int
         """
-        pass
 
     @property
     @abstractmethod
@@ -242,7 +224,6 @@ class BaseCamera(VoxelDevice):
         :return: The sensor height in pixels.
         :rtype: int
         """
-        pass
 
     @property
     @abstractmethod
@@ -253,7 +234,6 @@ class BaseCamera(VoxelDevice):
         :return: The frame time in milliseconds.
         :rtype: int
         """
-        pass
 
     @property
     @abstractmethod
@@ -264,7 +244,6 @@ class BaseCamera(VoxelDevice):
         :return: The mainboard temperature in Celsius.
         :rtype: float
         """
-        pass
 
     @property
     @abstractmethod
@@ -275,7 +254,6 @@ class BaseCamera(VoxelDevice):
         :return: The sensor temperature in Celsius.
         :rtype: float
         """
-        pass
 
     @property
     @abstractmethod
@@ -286,7 +264,6 @@ class BaseCamera(VoxelDevice):
         :return: The latest frame.
         :rtype: np.ndarray
         """
-        pass
 
     @property
     def frame_number(self) -> int:
@@ -384,35 +361,30 @@ class BaseCamera(VoxelDevice):
         """
         Reset the camera.
         """
-        pass
 
     @abstractmethod
     def prepare(self) -> None:
         """
         Prepare the camera for acquisition.
         """
-        pass
 
     @abstractmethod
     def start(self) -> None:
         """
         Start the camera acquisition.
         """
-        pass
 
     @abstractmethod
     def stop(self) -> None:
         """
         Stop the camera acquisition.
         """
-        pass
 
     @abstractmethod
     def close(self) -> None:
         """
         Close the camera and release resources.
         """
-        pass
 
     @abstractmethod
     def grab_frame(self) -> np.ndarray:
@@ -422,18 +394,15 @@ class BaseCamera(VoxelDevice):
         :return: The grabbed frame.
         :rtype: np.ndarray
         """
-        pass
 
     @abstractmethod
-    def acquisition_state(self) -> None:
+    def acquisition_state(self) -> dict:
         """
         Return the acquisition state of the camera.
         """
-        pass
 
     @abstractmethod
     def abort(self) -> None:
         """
         Abort the camera acquisition.
         """
-        pass

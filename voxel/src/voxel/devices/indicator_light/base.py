@@ -20,7 +20,6 @@ class BaseIndicatorLight(VoxelDevice):
         :return: The active settings.
         :rtype: dict
         """
-        pass
 
     @settings.setter
     @abstractmethod
@@ -31,11 +30,9 @@ class BaseIndicatorLight(VoxelDevice):
         :param value: Active setings.
         :type value: dict
         """
-        pass
 
     @abstractmethod
     def close(self) -> None:
         """
         Close the indicator light device.
         """
-        pass

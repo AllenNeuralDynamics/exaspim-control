@@ -1,8 +1,8 @@
 import logging
 
-from tigerasi.device_codes import *
-from voxel.devices.controller.asi.tiger import TigerController
+from tigerasi.device_codes import TunableLensControlMode
 
+from voxel.devices.controller.asi.tiger import TigerController
 from voxel.devices.tunable_lens.base import BaseTunableLens
 
 # constants for Tiger ASI hardware
@@ -42,8 +42,7 @@ class TGTLCTunableLens(BaseTunableLens):
         :rtype: str
         """
         mode = self.tigerbox.get_axis_control_mode(self.hardware_axis)
-        converted_mode = next(key for key, enum in MODES.items() if enum.value == mode)
-        return converted_mode
+        return next(key for key, enum in MODES.items() if enum.value == mode)
 
     @mode.setter
     def mode(self, mode: str) -> None:
@@ -78,7 +77,7 @@ class TGTLCTunableLens(BaseTunableLens):
         build_config = self.tigerbox.get_build_config()
         self.log.debug(f"{build_config}")
         axis_settings = self.tigerbox.get_info(self.hardware_axis)
-        self.log.info("{'instrument axis': 'hardware axis'} " f"{self.sample_to_tiger_axis_map}.")
+        self.log.info(f"{{'instrument axis': 'hardware axis'}} {self.sample_to_tiger_axis_map}.")
         for setting in axis_settings:
             self.log.info(f"{self.hardware_axis} axis, {setting}, {axis_settings[setting]}")
 
@@ -87,4 +86,3 @@ class TGTLCTunableLens(BaseTunableLens):
         Close the tunable lens device.
         """
         self.log.info("closing tunable lens.")
-        pass

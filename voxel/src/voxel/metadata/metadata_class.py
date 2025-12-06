@@ -1,6 +1,6 @@
 import logging
 from datetime import datetime
-from typing import Any, Dict
+from typing import Any
 
 import inflection
 
@@ -19,7 +19,7 @@ class MetadataClass(BaseMetadata):
     Metadata class for handling metadata properties and generating acquisition names.
     """
 
-    def __init__(self, metadata_dictionary: Dict[str, Any], date_format: str = "None", name_specs: Dict[str, Any] = {}):
+    def __init__(self, metadata_dictionary: dict[str, Any], date_format: str = "None", name_specs: dict[str, Any] = {}):
         """
         Initialize the MetadataClass.
 
@@ -39,13 +39,13 @@ class MetadataClass(BaseMetadata):
             setattr(self, f"_{key}", value)
             new_property = property(
                 fget=lambda instance, k=key: self.get_class_attribute(instance, k),
-                fset=lambda metadataclass, val, k=key: self.set_class_attribute(val, k),
+                fset=lambda _, val, k=key: self.set_class_attribute(val, k),
             )
             setattr(type(self), key, new_property)
         # initialize properties
         self.date_format = date_format
-        if "delimiter" not in name_specs.keys():
-            self.log.warning('no delimiter specified in yaml file. defaulting to "_".')
+        if "delimiter" not in name_specs:
+            self.log.info('no delimiter specified in yaml file. defaulting to "_".')
         self.delimiter = name_specs.get("delimiter", "_")
         self.acquisition_name_format = name_specs.get("format", [])
         self._acquisition_name = self.generate_acquisition_name()
@@ -60,16 +60,16 @@ class MetadataClass(BaseMetadata):
         :type name: str
         :raises ValueError: If the value is not valid for the attribute.
         """
-        if inflection.pluralize(name).upper() in globals().keys():
+        if inflection.pluralize(name).upper() in globals():
             opt_dict = globals()[inflection.pluralize(name).upper()]
-            if value not in opt_dict.keys():
-                raise ValueError(f"{value} not in {opt_dict.keys()}")
-            else:
-                setattr(self, f"_{name}", opt_dict[value])
+            if value not in opt_dict:
+                msg = f"{value} not in {opt_dict.keys()}"
+                raise ValueError(msg)
+            setattr(self, f"_{name}", opt_dict[value])
         else:
             setattr(self, f"_{name}", value)
 
-    def get_class_attribute(self, instance: Any, name: str) -> Any:
+    def get_class_attribute(self, _: Any, name: str) -> Any:
         """
         Get the value of a class attribute.
 
@@ -80,12 +80,11 @@ class MetadataClass(BaseMetadata):
         :return: The value of the attribute.
         :rtype: Any
         """
-        if inflection.pluralize(name).upper() in globals().keys():
+        if inflection.pluralize(name).upper() in globals():
             opt_dict = globals()[inflection.pluralize(name).upper()]
             inv = {v: k for k, v in opt_dict.items()}
             return inv[getattr(self, f"_{name}")]
-        else:
-            return getattr(self, f"_{name}")
+        return getattr(self, f"_{name}")
 
     @property
     def date_format(self) -> str:
@@ -98,7 +97,7 @@ class MetadataClass(BaseMetadata):
         return self._date_format
 
     @date_format.setter
-    def date_format(self, format: str) -> None:
+    def date_format(self, fmt: str) -> None:
         """
         Set the date format.
 
@@ -106,9 +105,10 @@ class MetadataClass(BaseMetadata):
         :type format: str
         :raises ValueError: If the date format is not valid.
         """
-        if format not in list(DATE_FORMATS.keys()):
-            raise ValueError(f"{format} is not a valid datetime format. Please choose from {DATE_FORMATS.keys()}")
-        self._date_format = DATE_FORMATS[format]
+        if fmt not in list(DATE_FORMATS.keys()):
+            msg = f"{fmt} is not a valid datetime format. Please choose from {DATE_FORMATS.keys()}"
+            raise ValueError(msg)
+        self._date_format = DATE_FORMATS[fmt]
 
     @property
     def acquisition_name_format(self) -> list:
@@ -130,10 +130,10 @@ class MetadataClass(BaseMetadata):
         :raises ValueError: If the format contains invalid properties.
         """
         for prop_name in form:
-            if not isinstance(
-                getattr(type(self), prop_name, None), property
-            ):  # check if prop name is metadata property
-                raise ValueError(f"{prop_name} is not a metadata property. Please choose from {self.__dir__()}")
+            # check if prop name is metadata property
+            if not isinstance(getattr(type(self), prop_name, None), property):
+                msg = f"{prop_name} is not a metadata property. Please choose from {self.__dir__()}"
+                raise TypeError(msg)
         self._acquisition_name_format = form
 
     @property
@@ -179,14 +179,13 @@ class MetadataClass(BaseMetadata):
 
         if form == []:
             return "test"
-        else:
-            name = []
-            for prop_name in form:
-                if not isinstance(
-                    getattr(type(self), prop_name, None), property
-                ):  # check if prop name is metadata property
-                    raise ValueError(f"{prop_name} is not a metadata property. Please choose from {self.__dir__()}")
-                name.append(str(getattr(self, prop_name)))
-            if self._date_format is not None:
-                name.append(datetime.now().strftime(self._date_format))
-            return f"{delimiter}".join(name)
+        name = []
+        for prop_name in form:
+            # check if prop name is metadata property
+            if not isinstance(getattr(type(self), prop_name, None), property):
+                msg = f"{prop_name} is not a metadata property. Please choose from {self.__dir__()}"
+                raise TypeError(msg)
+            name.append(str(getattr(self, prop_name)))
+        if self._date_format is not None:
+            name.append(datetime.now().strftime(self._date_format))
+        return f"{delimiter}".join(name)

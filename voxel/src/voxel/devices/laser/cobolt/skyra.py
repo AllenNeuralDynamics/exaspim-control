@@ -1,25 +1,11 @@
-import sys
-from enum import Enum
-from typing import Dict, Union
+# Define StrEnums if they don't yet exist.
+from enum import StrEnum
 
 from pycobolt import CoboltLaser
 from sympy import Expr, solve, symbols
 
 from voxel.descriptors.deliminated_property import DeliminatedProperty
 from voxel.devices.laser.base import BaseLaser
-
-# Define StrEnums if they don't yet exist.
-if sys.version_info < (3, 11):
-
-    class StrEnum(str, Enum):
-        """
-        String enumeration class for command and query strings.
-        """
-
-        pass
-
-else:
-    from enum import StrEnum
 
 
 class Cmd(StrEnum):
@@ -93,7 +79,7 @@ class SkyraLaser(BaseLaser):
         max_power_mw: float,
         min_current_ma: float,
         max_current_ma: float,
-        coefficients: Dict[str, float],
+        coefficients: dict[str, float],
     ) -> None:
         """
         Initialize the SkyraLaser object.
@@ -173,12 +159,11 @@ class SkyraLaser(BaseLaser):
         :rtype: float
         """
         if self._inst.constant_current == "ON":
-            return int(round(self._coefficients_curve().subs(symbols("x"), self._current_setpoint)))
-        else:
-            return self._inst.send_cmd(f"{self._prefix}Query.PowerSetpoint") * 1000
+            return round(self._coefficients_curve().subs(symbols("x"), self._current_setpoint))
+        return self._inst.send_cmd(f"{self._prefix}Query.PowerSetpoint") * 1000
 
     @power_setpoint_mw.setter
-    def power_setpoint_mw(self, value: Union[float, int]) -> None:
+    def power_setpoint_mw(self, value: float) -> None:
         """
         Set the power setpoint in milliwatts.
 
@@ -192,7 +177,7 @@ class SkyraLaser(BaseLaser):
                 # must be within current range
                 if round(sol) in range(int(self._min_current_ma), int(self._max_current_ma)):
                     # setpoint must be integer
-                    self._current_setpoint = int(round(sol))
+                    self._current_setpoint = round(sol)
                     # set laser current setpoint to ma value
                     self._inst.send_cmd(f"{self._prefix}Cmd.CurrentSetpoint {self._current_setpoint}")
                     return
@@ -214,10 +199,9 @@ class SkyraLaser(BaseLaser):
         # query the laser for the modulation mode
         if self._inst.send_cmd(f"{self._prefix}Query.ModulationMode") == BoolVal.OFF:
             return "off"
-        elif self._inst.send_cmd(f"{self._prefix}Query.AnalogModulationMode") == BoolVal.ON:
+        if self._inst.send_cmd(f"{self._prefix}Query.AnalogModulationMode") == BoolVal.ON:
             return "analog"
-        else:
-            return "digital"
+        return "digital"
 
     @modulation_mode.setter
     def modulation_mode(self, value: str) -> None:
@@ -228,7 +212,7 @@ class SkyraLaser(BaseLaser):
         :type value: str
         :raises ValueError: If the modulation mode is not valid
         """
-        if value not in MODULATION_MODES.keys():
+        if value not in MODULATION_MODES:
             raise ValueError("mode must be one of %r." % MODULATION_MODES.keys())
         external_control_mode = MODULATION_MODES[value]["external_control_mode"]
         digital_modulation = MODULATION_MODES[value]["digital_modulation"]
@@ -258,7 +242,7 @@ class SkyraLaser(BaseLaser):
         return self._inst.get_power()
 
     @property
-    def temperature_c(self) -> Union[float, None]:
+    def temperature_c(self) -> float | None:
         """
         Get the temperature of the laser in Celsius.
 
@@ -276,6 +260,5 @@ class SkyraLaser(BaseLaser):
         :rtype: float
         """
         if self._inst.constant_current == "ON":
-            return int((round(self._coefficients_curve().subs(symbols("x"), 100), 1)))
-        else:
-            return int(self._max_power_mw)
+            return int(round(self._coefficients_curve().subs(symbols("x"), 100), 1))
+        return int(self._max_power_mw)

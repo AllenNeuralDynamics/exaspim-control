@@ -22,7 +22,6 @@ class VoxelDevice(ABC):
         """
         Close the device.
         """
-        pass
 
     def __str__(self) -> str:
         """

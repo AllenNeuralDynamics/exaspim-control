@@ -1,9 +1,7 @@
 import logging
-from typing import List
 
 import optoICC
 from optoKummenberg.tools.definitions import UnitType
-
 from voxel.devices.tunable_lens.base import BaseTunableLens
 
 # input constants for Optotune ICC-4C controller
@@ -95,7 +93,8 @@ class ICC4CTunableLens(BaseTunableLens):
         elif mode == "internal":
             self.tunable_lens.StaticInput.SetAsInput()
         else:
-            raise ValueError(f"{mode} must be {MODES}")
+            msg = f"{mode} must be {MODES}"
+            raise ValueError(msg)
 
     @property
     def temperature_c(self) -> float:
@@ -105,22 +104,20 @@ class ICC4CTunableLens(BaseTunableLens):
         :return: Temperature in Celsius
         :rtype: float
         """
-        temperature = self.tunable_lens.TemperatureManager.GetDeviceTemperature()
-        return temperature
+        return self.tunable_lens.TemperatureManager.GetDeviceTemperature()
 
     @property
-    def lut_voltages(self) -> List[float]:
+    def lut_voltages(self) -> list[float]:
         """
         Get the LUT voltages.
 
         :return: LUT voltages
         :rtype: list
         """
-        values_volts = self.tunable_lens.Analog.GetLUTvoltages()
-        return values_volts
+        return self.tunable_lens.Analog.GetLUTvoltages()
 
     @lut_voltages.setter
-    def lut_voltages(self, values_volts: List[float]) -> None:
+    def lut_voltages(self, values_volts: list[float]) -> None:
         """
         Set the LUT voltages.
 
@@ -131,18 +128,17 @@ class ICC4CTunableLens(BaseTunableLens):
         self.tunable_lens.Analog.SetLUTvoltages(values_volts)
 
     @property
-    def lut_values(self) -> List[float]:
+    def lut_values(self) -> list[float]:
         """
         Get the LUT values.
 
         :return: LUT values
         :rtype: list
         """
-        values_mA = self.tunable_lens.Analog.GetLUTvalues()
-        return values_mA
+        return self.tunable_lens.Analog.GetLUTvalues()
 
     @lut_values.setter
-    def lut_values(self, values: List[float]) -> None:
+    def lut_values(self, values: list[float]) -> None:
         """
         Set the LUT values.
 

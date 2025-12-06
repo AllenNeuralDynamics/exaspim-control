@@ -87,12 +87,12 @@ This should install two repositories that this repository builds upon:
 
 >[!IMPORTANT]
 > The ExA-SPIM system operates at data rates up to 1.8 GB/sec. Datasets can also be multiple terabytes. Therefore it is recommended to have a large M.2 or U.2/3 NVME drive for data storage.
-
+---
 >[!IMPORTANT]
 > Each raw camera is 288 megapixels (14192x10640 px). Live streaming therefore requires on-the-fly generation of multiple resolutions for each raw camera frame at high speed. This repository computes this pyramid using a GPU. Therefore it is recommended to have a decent GPU with at least 16 GB of RAM (i.e. NVIDIA A4000 or above).# New Document
-
+---
 > [!WARNING]
-> By factory default, the Vieworks VP-151MX (or other model) cameras have firmware enablewd dark signal non-uniformity (DSNU) correction enabled. This results in non-uniform background pattern for lower light level imaging (i.e. fluorescence microscopy). This can be disabled by Vieworks over a remote support session by contacting [**support@vieworks.com**](support@vieworks.com)
+> By factory default, the Vieworks VP-151MX (or other model) cameras have firmware enablewd dark pyqtSignal non-uniformity (DSNU) correction enabled. This results in non-uniform background pattern for lower light level imaging (i.e. fluorescence microscopy). This can be disabled by Vieworks over a remote support session by contacting [**support@vieworks.com**](support@vieworks.com)
 
 ### Documentation
 

@@ -1,5 +1,4 @@
 from abc import abstractmethod
-from typing import List, Dict
 
 from voxel.devices.base import VoxelDevice
 
@@ -10,28 +9,25 @@ class BaseJoystick(VoxelDevice):
     """
 
     @abstractmethod
-    def stage_axes(self) -> List[str]:
+    def stage_axes(self) -> list[str]:
         """
         Get the stage axes controlled by the joystick.
 
-        :return: List of stage axes
+        :return: list of stage axes
         :rtype: list
         """
-        pass
-    
+
     @abstractmethod
-    def joystick_mapping(self) -> Dict[str, str]:
+    def joystick_mapping(self) -> dict[str, str]:
         """
         Get the joystick mapping.
 
         :return: Joystick mapping
         :rtype: dict
         """
-        pass
-    
+
     @abstractmethod
     def close(self) -> None:
         """
         Close the joystick device.
         """
-        pass

@@ -75,7 +75,7 @@ class RobocopyFileTransfer(BaseFileTransfer):
             # if not, try to initiate transfer again
             else:
                 num_files = len(file_list)
-                self.log.info(f"attempt {retry_num+1}/{self._max_retry}, transferring {num_files} files.")
+                self.log.info(f"attempt {retry_num + 1}/{self._max_retry}, transferring {num_files} files.")
                 for file_path in file_list:
                     self.log.info(f"transfering {file_path}")
                     # check if file is a zarr store
@@ -101,7 +101,7 @@ class RobocopyFileTransfer(BaseFileTransfer):
                         # /njh no job header in log file
                         # /njs no job summary in log file
                         log_path = Path(local_directory, f"{self._filename}.log")
-                        cmd_with_args = f"{self._protocol} {str(local_directory)} {str(external_directory)} \
+                        cmd_with_args = f"{self._protocol} {local_directory!s} {external_directory!s} \
                             /j /if {file_path} /njh /njs /log:{log_path}"
                         # stdout to PIPE will cause malloc errors on exist
                         # no stdout will print subprocess to python
@@ -137,7 +137,6 @@ class RobocopyFileTransfer(BaseFileTransfer):
                                     # remove external file, try again
                                     self.log.info(f"hashes did not match, deleting {external_file_path}")
                                     os.remove(external_file_path)
-                                    pass
                             except FileNotFoundError:
                                 self.log.warning(f"no external file exists at {external_file_path}")
                         else:

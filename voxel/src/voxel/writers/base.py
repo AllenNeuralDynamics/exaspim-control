@@ -2,10 +2,8 @@ import logging
 from abc import abstractmethod
 from multiprocessing import Event, Queue, Value
 from pathlib import Path
-from typing import Optional
 
-import numpy
-
+import numpy as np
 from voxel.descriptors.deliminated_property import DeliminatedProperty
 
 
@@ -23,22 +21,22 @@ class BaseWriter:
         """
         self.log = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
         self._path = Path(path)
-        self._channel: Optional[str] = None
-        self._filename: Optional[str] = None
-        self._acquisition_name: Optional[Path] = None
-        self._data_type: Optional[numpy.unsignedinteger] = None
-        self._compression: Optional[str] = None
-        self._row_count_px: Optional[int] = None
-        self._column_count_px: Optional[int] = None
-        self._frame_count_px_px: Optional[int] = None
+        self._channel: str | None = None
+        self._filename: str | None = None
+        self._acquisition_name: Path | None = None
+        self._data_type: np.unsignedinteger | None = None
+        self._compression: str | None = None
+        self._row_count_px: int | None = None
+        self._column_count_px: int | None = None
+        self._frame_count_px_px: int | None = None
         self._shm_name: str = ""
-        self._frame_count_px: Optional[int] = None
-        self._x_voxel_size_um: Optional[float] = None
-        self._y_voxel_size_um: Optional[float] = None
-        self._z_voxel_size_um: Optional[float] = None
-        self._x_position_mm: Optional[float] = None
-        self._y_position_mm: Optional[float] = None
-        self._z_position_mm: Optional[float] = None
+        self._frame_count_px: int | None = None
+        self._x_voxel_size_um: float | None = None
+        self._y_voxel_size_um: float | None = None
+        self._z_voxel_size_um: float | None = None
+        self._x_position_mm: float | None = None
+        self._y_position_mm: float | None = None
+        self._z_position_mm: float | None = None
         self._process = None
         # share values to update inside process
         self._progress = Value("d", 0.0)
@@ -177,13 +175,12 @@ class BaseWriter:
 
     @property
     @abstractmethod
-    def theta_deg(self) -> Optional[float]:
+    def theta_deg(self) -> float | None:
         """Get theta value of the writer.
 
         :return: Theta value in deg
         :rtype: float
         """
-        pass
 
     @theta_deg.setter
     @abstractmethod
@@ -193,7 +190,6 @@ class BaseWriter:
         :param value: Theta value in deg
         :type value: float
         """
-        pass
 
     @property
     @abstractmethod
@@ -203,7 +199,6 @@ class BaseWriter:
         :return: Frame number in pixels
         :rtype: int
         """
-        pass
 
     @frame_count_px.setter
     @abstractmethod
@@ -213,7 +208,6 @@ class BaseWriter:
         :param value: Frame number in pixels
         :type value: int
         """
-        pass
 
     @property
     @abstractmethod
@@ -265,7 +259,6 @@ class BaseWriter:
         :return: Chunk count in pixels
         :rtype: int
         """
-        pass
 
     @property
     @abstractmethod
@@ -275,7 +268,6 @@ class BaseWriter:
         :return: Compression codec
         :rtype: str
         """
-        pass
 
     @compression.setter
     @abstractmethod
@@ -285,11 +277,10 @@ class BaseWriter:
         :param value: Compression codec
         :type value: str
         """
-        pass
 
     @property
     @abstractmethod
-    def data_type(self) -> numpy.unsignedinteger:
+    def data_type(self) -> np.unsignedinteger:
         """Get the data type of the writer.
 
         :return: Data type
@@ -299,7 +290,7 @@ class BaseWriter:
 
     @data_type.setter
     @abstractmethod
-    def data_type(self, data_type: numpy.unsignedinteger) -> None:
+    def data_type(self, data_type: np.unsignedinteger) -> None:
         """Set the data type of the writer.
 
         :param data_type: Data type
@@ -350,7 +341,6 @@ class BaseWriter:
         :return: The base filename
         :rtype: str
         """
-        pass
 
     @filename.setter
     @abstractmethod
@@ -361,7 +351,6 @@ class BaseWriter:
         :param value: The base filename
         :type value: str
         """
-        pass
 
     @property
     @abstractmethod
@@ -388,14 +377,13 @@ class BaseWriter:
 
     @property
     @abstractmethod
-    def color(self) -> Optional[str]:
+    def color(self) -> str | None:
         """
         The color of the writer.
 
         :return: Color
         :rtype: str
         """
-        pass
 
     @color.setter
     @abstractmethod
@@ -406,7 +394,6 @@ class BaseWriter:
         :param value: Color
         :type value: str
         """
-        pass
 
     @property
     def shm_name(self) -> str:
@@ -454,7 +441,7 @@ class BaseWriter:
         :return: Frame size in MB
         :rtype: float
         """
-        return self.row_count_px * self.column_count_px * numpy.dtype(self.data_type).itemsize / 1024**2
+        return self.row_count_px * self.column_count_px * np.dtype(self.data_type).itemsize / 1024**2
 
     def get_stack_size_mb(self) -> float:
         """Get the stack size in MB of the writer.
@@ -482,18 +469,15 @@ class BaseWriter:
         """
         Delete all files generated by the writer.
         """
-        pass
 
     @abstractmethod
     def prepare(self) -> None:
         """
         Prepare the writer.
         """
-        pass
 
     @abstractmethod
     def _run(self) -> None:
         """
         Internal run function of the writer.
         """
-        pass

@@ -1,16 +1,16 @@
+import logging
+
 from obis_laser import ObisLX, OperationalCmd, OperationalQuery
 from serial import Serial
-from typing import Union, Dict, Optional
-import logging
 
 from voxel.descriptors.deliminated_property import DeliminatedProperty
 
 from ..base import BaseLaser
 
-MODULATION_MODES: Dict[str, str] = {"off": "CWP", "analog": "ANALOG", "digital": "DIGITAL", "mixed": "MIXED"}
+MODULATION_MODES: dict[str, str] = {"off": "CWP", "analog": "ANALOG", "digital": "DIGITAL", "mixed": "MIXED"}
 
 
-def obis_modulation_getter(instance: ObisLX, logger: logging.Logger, modes: Optional[Dict[str, str]] = None) -> str:
+def obis_modulation_getter(instance: ObisLX, logger: logging.Logger, modes: dict[str, str] | None = None) -> str:
     """
     Get the modulation mode of the laser.
 
@@ -32,7 +32,7 @@ def obis_modulation_getter(instance: ObisLX, logger: logging.Logger, modes: Opti
     return logger.error(f"Returned {mode}")
 
 
-def obis_modulation_setter(instance: ObisLX, value: str, modes: Optional[Dict[str, str]] = None) -> None:
+def obis_modulation_setter(instance: ObisLX, value: str, modes: dict[str, str] | None = None) -> None:
     """
     Set the modulation mode of the laser.
 
@@ -46,7 +46,7 @@ def obis_modulation_setter(instance: ObisLX, value: str, modes: Optional[Dict[st
     """
     if modes is None:
         modes = MODULATION_MODES
-    if value not in modes.keys():
+    if value not in modes:
         raise ValueError("mode must be one of %r." % modes.keys())
     if modes[value] == "CWP":
         instance.set_operational_setting(OperationalCmd.MODE_INTERNAL_CW, modes[value])
@@ -59,7 +59,7 @@ class ObisLXLaser(BaseLaser):
     ObisLXLaser class for handling Coherent Obis LX laser devices.
     """
 
-    def __init__(self, id: str, wavelength: int, port: Union[Serial, str], prefix: Optional[str] = None) -> None:
+    def __init__(self, id: str, wavelength: int, port: Serial | str, prefix: str | None = None) -> None:
         """
         Initialize the ObisLXLaser object.
 
@@ -117,7 +117,7 @@ class ObisLXLaser(BaseLaser):
         return self._inst.power_setpoint
 
     @power_setpoint_mw.setter
-    def power_setpoint_mw(self, value: Union[float, int]) -> None:
+    def power_setpoint_mw(self, value: float) -> None:
         """
         Set the power setpoint in milliwatts.
 
@@ -166,7 +166,7 @@ class ObisLXLaser(BaseLaser):
         """
         return self._inst.temperature
 
-    def status(self) -> Dict[str, Union[str, float]]:
+    def status(self) -> dict[str, str | float]:
         """
         Get the status of the laser.
 

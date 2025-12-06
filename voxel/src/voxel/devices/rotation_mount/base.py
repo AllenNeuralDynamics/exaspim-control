@@ -17,7 +17,6 @@ class BaseRotationMount(VoxelDevice):
         :return: Current position in degrees
         :rtype: float
         """
-        pass
 
     @abstractmethod
     @position_deg.setter
@@ -29,7 +28,6 @@ class BaseRotationMount(VoxelDevice):
         :type value: float
         :raises ValueError: If the position is out of range
         """
-        pass
 
     @property
     @abstractmethod
@@ -40,7 +38,6 @@ class BaseRotationMount(VoxelDevice):
         :return: Speed in degrees per second
         :rtype: float
         """
-        pass
 
     @speed_deg_s.setter
     def speed_deg_s(self, value: float) -> None:
@@ -51,10 +48,8 @@ class BaseRotationMount(VoxelDevice):
         :type value: float
         :raises ValueError: If the speed is out of range
         """
-        pass
 
     def close(self) -> None:
         """
         Close the rotation mount connection.
         """
-        pass

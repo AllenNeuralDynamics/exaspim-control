@@ -1,12 +1,12 @@
 from time import sleep
-from typing import Literal, Dict
+from typing import Literal
 
 from voxel.descriptors.deliminated_property import DeliminatedProperty
 from voxel.devices.flip_mount.base import BaseFlipMount
 
 VALID_POSITIONS = [0, 1]
 FLIP_TIME_RANGE_MS = (500.0, 2800.0, 100.0)  # min, max, step
-POSITIONS = dict()
+POSITIONS = {}
 
 
 class SimulatedFlipMount(BaseFlipMount):
@@ -14,7 +14,7 @@ class SimulatedFlipMount(BaseFlipMount):
     SimulatedFlipMount class for handling simulated flip mount devices.
     """
 
-    def __init__(self, id: str, conn: object, positions: Dict[str, int]) -> None:
+    def __init__(self, id: str, conn: object, positions: dict[str, int]) -> None:
         """
         Initialize the SimulatedFlipMount object.
 
@@ -32,9 +32,12 @@ class SimulatedFlipMount(BaseFlipMount):
         self._inst: Literal[0, 1] = None
         for key, value in positions.items():
             if value not in VALID_POSITIONS:
-                raise ValueError(
+                msg = (
                     f"Invalid position {key} for Thorlabs flip mount.\
                     Valid positions are {VALID_POSITIONS}"
+                )
+                raise ValueError(
+                    msg
                 )
             POSITIONS[key] = value
         self._connect()
@@ -93,9 +96,10 @@ class SimulatedFlipMount(BaseFlipMount):
         try:
             self._inst = self._positions[new_position]
         except KeyError:
-            raise ValueError(f"Invalid position {new_position}. Valid positions are {list(self._positions.keys())}")
-        except Exception as e:
-            raise e
+            msg = f"Invalid position {new_position}. Valid positions are {list(self._positions.keys())}"
+            raise ValueError(msg)
+        except Exception:
+            raise
 
     @DeliminatedProperty(minimum=FLIP_TIME_RANGE_MS[0], maximum=FLIP_TIME_RANGE_MS[1], step=FLIP_TIME_RANGE_MS[2])
     def flip_time_ms(self) -> float:

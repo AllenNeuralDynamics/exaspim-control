@@ -361,7 +361,7 @@ instrument:
                       "639": 1000
               stage:
                 port: ao5
-                waveform: square wave
+                waveform: square
                 device_max_volts: 5.0
                 device_min_volts: 0.0
                 parameters:
@@ -387,7 +387,7 @@ instrument:
                       "639": 0.0
               camera:
                 port: ao21
-                waveform: square wave
+                waveform: square
                 device_max_volts: 5.0
                 device_min_volts: 0.0
                 parameters:
@@ -413,7 +413,7 @@ instrument:
                       "639": 0.0
               488 nm:
                 port: ao17
-                waveform: square wave
+                waveform: square
                 device_max_volts: 10.0
                 device_min_volts: 0.0
                 parameters:
@@ -439,7 +439,7 @@ instrument:
                       "639": 0.0
               561 nm:
                 port: ao13
-                waveform: square wave
+                waveform: square
                 device_max_volts: 10.0
                 device_min_volts: 0.0
                 parameters:
@@ -465,7 +465,7 @@ instrument:
                       "639": 0.0
               639 nm:
                 port: ao9
-                waveform: square wave
+                waveform: square
                 device_max_volts: 10.0
                 device_min_volts: 0.0
                 parameters:
@@ -491,7 +491,7 @@ instrument:
                       "639": 0.0
               left piezo x:
                 port: ao7
-                waveform: square wave
+                waveform: square
                 device_max_volts: 10.0
                 device_min_volts: 0.0
                 parameters:
@@ -517,7 +517,7 @@ instrument:
                       "639": 0.0
               left piezo y:
                 port: ao11
-                waveform: square wave
+                waveform: square
                 device_max_volts: 10.0
                 device_min_volts: 0.0
                 parameters:
@@ -543,7 +543,7 @@ instrument:
                       "639": 0.0
               left piezo z:
                 port: ao14
-                waveform: square wave
+                waveform: square
                 device_max_volts: 10.0
                 device_min_volts: 0.0
                 parameters:

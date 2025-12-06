@@ -24,7 +24,7 @@ class Memento:
         if not self.memento_path.exists():
             self.log.error("memento executable path does not exist.")
         if not self.path.exists():
-            error = "memento output destination path " f"{str(self.path)} cannot be found."
+            error = f"memento output destination path {self.path!s} cannot be found."
             self.log.error(error)
             raise FileNotFoundError(error)
 
@@ -38,7 +38,7 @@ class Memento:
         if not self.memento_path.exists():
             self.log.error("aborting start. cannot find memento executable.")
             return
-        cmd_text = f"{str(self.memento_path)} dump " f"--output={str(self.path)}\\{filename}.memento --follow"
+        cmd_text = f"{self.memento_path!s} dump --output={self.path!s}\\{filename}.memento --follow"
         self.cmd = subprocess.Popen(cmd_text)
         time.sleep(1)  # takes time for memento to boot sometimes
 

@@ -1,6 +1,5 @@
 import logging
 import struct
-from typing import Optional, Tuple, Union
 
 import serial
 
@@ -26,7 +25,7 @@ def crc_16(s: bytes) -> int:
     crc = 0x0000
     for c in s:
         crc = crc ^ c
-        for i in range(0, 8):
+        for i in range(8):
             crc = (crc >> 1) ^ 0xA001 if (crc & 1) > 0 else crc >> 1
 
     return crc
@@ -95,7 +94,7 @@ class ELE4iTunableLens(BaseTunableLens):
         state["Temperature [C]"] = self.send_command(b"TCA", ">xxxh")[0] * 0.0625
         return state["Temperature [C]"]
 
-    def send_command(self, command: Union[str, bytes], reply_fmt: Optional[str] = None) -> Tuple:
+    def send_command(self, command: str | bytes, reply_fmt: str | None = None) -> tuple:
         """
         Send a command to the tunable lens.
 
@@ -112,21 +111,21 @@ class ELE4iTunableLens(BaseTunableLens):
             command = bytes(command, encoding="ascii")
         command = command + struct.pack("<H", crc_16(command))
         if self.debug:
-            commandhex = " ".join("{:02x}".format(c) for c in command)
-            print("{:<50} ¦ {}".format(commandhex, command))
+            commandhex = " ".join(f"{c:02x}" for c in command)
+            print(f"{commandhex:<50} ¦ {command}")
         self.tunable_lens.write(command)
 
         if reply_fmt is not None:
             response_size = struct.calcsize(reply_fmt)
             response = self.tunable_lens.read(response_size + 4)
             if self.debug:
-                responsehex = " ".join("{:02x}".format(c) for c in response)
-                print("{:>50} ¦ {}".format(responsehex, response))
+                responsehex = " ".join(f"{c:02x}" for c in response)
+                print(f"{responsehex:>50} ¦ {response}")
 
             if response is None:
                 raise Exception("Expected response not received")
 
-            data, crc, newline = struct.unpack("<{}sH2s".format(response_size), response)
+            data, crc, newline = struct.unpack(f"<{response_size}sH2s", response)
             if crc != crc_16(data) or newline != b"\r\n":
                 raise Exception("Response CRC not correct")
 

@@ -1,8 +1,14 @@
 import logging
 from time import sleep
-from typing import Dict, Optional
 
-from tigerasi.device_codes import *
+from tigerasi.device_codes import (
+    JoystickInput,
+    JoystickPolarity,
+    RingBufferMode,
+    ScanPattern,
+    TTLIn0Mode,
+    TTLOut0Mode,
+)
 
 from voxel.devices.controller.asi.tiger import TigerController
 from voxel.devices.stage.base import BaseStage
@@ -86,13 +92,13 @@ class TigerStage(BaseStage):
         self.instrument_to_hardware_axis_map = self._sanitize_axis_map(axis_map)
         r_axis_map = dict(zip(axis_map.values(), axis_map.keys()))
         self.hardware_to_instrument_axis_map = self._sanitize_axis_map(r_axis_map)
-        self.log.debug(f"New instrument to hardware axis mapping: " f"{self.instrument_to_hardware_axis_map}")
-        self.log.debug(f"New hardware to instrument axis mapping: " f"{self.hardware_to_instrument_axis_map}")
+        self.log.debug(f"New instrument to hardware axis mapping: {self.instrument_to_hardware_axis_map}")
+        self.log.debug(f"New hardware to instrument axis mapping: {self.hardware_to_instrument_axis_map}")
         self._joystick_mapping = self.tigerbox.get_joystick_axis_mapping(self.hardware_axis)
 
         # clear ring buffer incase there are persistent values
         self.tigerbox.reset_ring_buffer(axis=self.hardware_axis.upper())
-        self.mode = 'off'
+        self.mode = "off"
 
         # set parameter values
         # (!!) these are hardcoded here and cannot
@@ -107,14 +113,14 @@ class TigerStage(BaseStage):
         self.max_backlash_mm: float = 1
         self.step_backlash_mm: float = 0.01
 
-    def _sanitize_axis_map(self, axis_map: Dict[str, str]) -> Dict[str, str]:
+    def _sanitize_axis_map(self, axis_map: dict[str, str]) -> dict[str, str]:
         """
         Sanitize the axis map by moving negative signs off keys and onto values.
 
         :param axis_map: Axis map
-        :type axis_map: Dict[str, str]
+        :type axis_map: dict[str, str]
         :return: Sanitized axis map
-        :rtype: Dict[str, str]
+        :rtype: dict[str, str]
         """
         sanitized_axis_map = {}
         for axis, t_axis in axis_map.items():
@@ -124,16 +130,16 @@ class TigerStage(BaseStage):
             sanitized_axis_map[axis.lstrip("-")] = f"{sign}{t_axis.lstrip('-')}"
         return sanitized_axis_map
 
-    def _remap(self, axes: Dict[str, float], mapping: Dict[str, str]) -> Dict[str, float]:
+    def _remap(self, axes: dict[str, float], mapping: dict[str, str]) -> dict[str, float]:
         """
         Remap axes using the provided mapping.
 
         :param axes: Axes to remap
-        :type axes: Dict[str, float]
+        :type axes: dict[str, float]
         :param mapping: Mapping to use for remapping
-        :type mapping: Dict[str, str]
+        :type mapping: dict[str, str]
         :return: Remapped axes
-        :rtype: Dict[str, float]
+        :rtype: dict[str, float]
         """
         new_axes = {}
         for axis, value in axes.items():
@@ -144,14 +150,14 @@ class TigerStage(BaseStage):
             new_axes[new_axis.lstrip("-")] = (-1) ** negative * value  # Get new value.
         return new_axes
 
-    def _instrument_to_hardware(self, axes: Dict[str, float]) -> Dict[str, float]:
+    def _instrument_to_hardware(self, axes: dict[str, float]) -> dict[str, float]:
         """
         Convert instrument axes to hardware axes.
 
         :param axes: Instrument axes
-        :type axes: Dict[str, float]
+        :type axes: dict[str, float]
         :return: Hardware axes
-        :rtype: Dict[str, float]
+        :rtype: dict[str, float]
         """
         return self._remap(axes, self.instrument_to_hardware_axis_map)
 
@@ -165,18 +171,18 @@ class TigerStage(BaseStage):
         :rtype: list[str]
         """
         # Easiest way to convert is to temporarily convert into dict.
-        axes_dict = {x: 0 for x in axes}
+        axes_dict = dict.fromkeys(axes, 0)
         tiger_axes_dict = self._instrument_to_hardware(axes_dict)
         return list(tiger_axes_dict.keys())
 
-    def _hardware_to_instrument(self, axes: Dict[str, float]) -> Dict[str, float]:
+    def _hardware_to_instrument(self, axes: dict[str, float]) -> dict[str, float]:
         """
         Convert hardware axes to instrument axes.
 
         :param axes: Hardware axes
-        :type axes: Dict[str, float]
+        :type axes: dict[str, float]
         :return: Instrument axes
-        :rtype: Dict[str, float]
+        :rtype: dict[str, float]
         """
         return self._remap(axes, self.hardware_to_instrument_axis_map)
 
@@ -253,7 +259,8 @@ class TigerStage(BaseStage):
             valid_pattern = list(SCAN_PATTERN.keys())
             if pattern not in valid_pattern:
                 raise ValueError("pattern must be one of %r." % valid_pattern)
-            assert retrace_speed_percent <= 100 and retrace_speed_percent > 0
+            assert retrace_speed_percent <= 100
+            assert retrace_speed_percent > 0
             fast_axis = self.hardware_axis
             axis_to_card = self.tigerbox.axis_to_card
             fast_card = axis_to_card[fast_axis][0]
@@ -262,9 +269,7 @@ class TigerStage(BaseStage):
                 key for key, value in axis_to_card.items() if value[0] == fast_card and value[1] != fast_position
             )
             # Stop any existing scan. Apply machine coordinate frame scan params.
-            self.log.debug(
-                f"fast axis start: {fast_axis_start_position}," f"slow axis start: {slow_axis_start_position}"
-            )
+            self.log.debug(f"fast axis start: {fast_axis_start_position},slow axis start: {slow_axis_start_position}")
             self.tigerbox.setup_scan(
                 fast_axis,
                 slow_axis,
@@ -280,7 +285,8 @@ class TigerStage(BaseStage):
                 scan_start_mm=slow_axis_start_position, scan_stop_mm=slow_axis_stop_position, line_count=strip_count
             )
         else:
-            raise ValueError(f"mode must be stage scan not {self.mode}")
+            msg = f"mode must be stage scan not {self.mode}"
+            raise ValueError(msg)
 
     def setup_step_shoot_scan(self, step_size_um: float) -> None:
         """
@@ -316,7 +322,6 @@ class TigerStage(BaseStage):
         Close the stage.
         """
         self.log.info("closing stage.")
-        pass
 
     @property
     def joystick_axis(self) -> str:
@@ -344,18 +349,17 @@ class TigerStage(BaseStage):
         self._joystick_mapping = JOYSTICK_AXES[axis]
 
     @property
-    def position_mm(self) -> Optional[float]:
+    def position_mm(self) -> float | None:
         """
         Get the current position of the stage in millimeters.
 
         :return: Current position in millimeters
-        :rtype: Optional[float]
+        :rtype:float | None
         """
         position_dict = self.tigerbox.get_position_mm()
         tiger_position = position_dict[self.hardware_axis]
         # converting 1/10 um to mm
-        tiger_position_mm = tiger_position / 10000
-        return tiger_position_mm
+        return tiger_position / 10000
 
     @position_mm.setter
     def position_mm(self, value: float) -> None:
@@ -379,18 +383,17 @@ class TigerStage(BaseStage):
         tiger_limit_lower = self.tigerbox.get_lower_travel_limit(self.hardware_axis)
         tiger_limit_upper = self.tigerbox.get_upper_travel_limit(self.hardware_axis)
         # Convert to sample frame before returning.
-        sample_limit_lower = list(self._hardware_to_instrument(tiger_limit_lower).values())[0]
-        sample_limit_upper = list(self._hardware_to_instrument(tiger_limit_upper).values())[0]
-        limits = sorted([sample_limit_lower, sample_limit_upper])
-        return limits
+        sample_limit_lower = next(iter(self._hardware_to_instrument(tiger_limit_lower).values()))
+        sample_limit_upper = next(iter(self._hardware_to_instrument(tiger_limit_upper).values()))
+        return sorted([sample_limit_lower, sample_limit_upper])
 
     @property
-    def backlash_mm(self) -> Dict[str, float]:
+    def backlash_mm(self) -> dict[str, float]:
         """
         Get the backlash of the stage in millimeters.
 
         :return: Backlash in millimeters
-        :rtype: Dict[str, float]
+        :rtype: dict[str, float]
         """
         tiger_backlash = self.tigerbox.get_axis_backlash(self.hardware_axis)
         return self._hardware_to_instrument(tiger_backlash)
@@ -406,12 +409,12 @@ class TigerStage(BaseStage):
         self.tigerbox.set_axis_backlash(**{self.hardware_axis: backlash})
 
     @property
-    def speed_mm_s(self) -> Dict[str, float]:
+    def speed_mm_s(self) -> dict[str, float]:
         """
         Get the speed of the stage in millimeters per second.
 
         :return: Speed in millimeters per second
-        :rtype: Dict[str, float]
+        :rtype: dict[str, float]
         """
         tiger_speed = self.tigerbox.get_speed(self.hardware_axis)
         return self._hardware_to_instrument(tiger_speed)
@@ -427,12 +430,12 @@ class TigerStage(BaseStage):
         self.tigerbox.set_speed(**{self.hardware_axis: speed})
 
     @property
-    def acceleration_ms(self) -> Dict[str, float]:
+    def acceleration_ms(self) -> dict[str, float]:
         """
         Get the acceleration of the stage in millimeters per second squared.
 
         :return: Acceleration in millimeters per second squared
-        :rtype: Dict[str, float]
+        :rtype: dict[str, float]
         """
         tiger_acceleration = self.tigerbox.get_acceleration(self.hardware_axis)
         return self._hardware_to_instrument(tiger_acceleration)
@@ -458,8 +461,7 @@ class TigerStage(BaseStage):
         card_address = self.tigerbox.axis_to_card[self.hardware_axis][0]
         ttl_reply = self.tigerbox.get_ttl_pin_modes(card_address)  # note this does not return ENUM values
         mode = int(ttl_reply[str.find(ttl_reply, "X") + 2 : str.find(ttl_reply, "Y") - 1])  # strip the X= response
-        converted_mode = next(key for key, enum in MODES.items() if enum.value == mode)
-        return converted_mode
+        return next(key for key, enum in MODES.items() if enum.value == mode)
 
     @mode.setter
     def mode(self, mode: str) -> None:
@@ -508,6 +510,6 @@ class TigerStage(BaseStage):
         build_config = self.tigerbox.get_build_config()
         self.log.debug(f"{build_config}")
         axis_settings = self.tigerbox.get_info(self.hardware_axis)
-        self.log.info("{'instrument axis': 'hardware axis'} " f"{self.instrument_to_hardware_axis_map}.")
+        self.log.info(f"{{'instrument axis': 'hardware axis'}} {self.instrument_to_hardware_axis_map}.")
         for setting in axis_settings:
             self.log.info(f"{self.hardware_axis} axis, {setting}, {axis_settings[setting]}")

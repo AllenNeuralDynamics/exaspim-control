@@ -1,12 +1,10 @@
 from random import randint
-from typing import Dict, List, Optional, Union
 
 import numpy as np
-import qtpy.QtGui as QtGui
-from qtpy.QtCore import Qt, Slot
-from qtpy.QtWidgets import QComboBox, QSizePolicy, QTreeWidgetItem
+from PyQt6 import QtGui
+from PyQt6.QtCore import Qt, pyqtSlot
+from PyQt6.QtWidgets import QComboBox, QSizePolicy, QTreeWidgetItem
 from scipy import signal
-
 from view.widgets.base_device_widget import BaseDeviceWidget, create_widget, label_maker, pathGet
 from view.widgets.device_widgets.waveform_widget import WaveformWidget
 from view.widgets.miscellaneous_widgets.q_non_scrollable_tree_widget import QNonScrollableTreeWidget
@@ -19,7 +17,7 @@ class NIWidget(BaseDeviceWidget):
     Widget for National Instruments (NI) device control.
     """
 
-    def __init__(self, daq, exposed_branches: Optional[Dict] = None, advanced_user: bool = True) -> None:
+    def __init__(self, daq, exposed_branches: dict | None = None, advanced_user: bool = True) -> None:
         """
         Initialize the NIWidget.
 
@@ -49,7 +47,7 @@ class NIWidget(BaseDeviceWidget):
 
         # create tree widget and format configured widgets into tree
         self.tree = QNonScrollableTreeWidget()
-        for tasks, widgets in self.exposed_branches.items():
+        for tasks in self.exposed_branches:
             header = QTreeWidgetItem(
                 self.tree, [label_maker(tasks.split(".")[-1])]
             )  # take last of list incase key is a map
@@ -162,7 +160,7 @@ class NIWidget(BaseDeviceWidget):
         )
         setattr(self, f"{port_name}.{wl}_plot_item", item)
 
-    @Slot(str, float)
+    @pyqtSlot(str, float)
     def waveform_value_changed(self, value: float, name: str) -> None:
         """
         Handle changes in waveform values.
@@ -184,18 +182,18 @@ class NIWidget(BaseDeviceWidget):
         setattr(self, name, value)
         self.ValueChangedInside.emit(name)
 
-    def remodel_timing_widgets(
-        self, name: str, widget: Union[QComboBox, QScrollableLineEdit]
-    ) -> Union[QComboBox, QScrollableLineEdit]:
+    def remodel_task_timing_widgets(
+        self, name: str, widget: QComboBox | QScrollableLineEdit
+    ) -> QComboBox | QScrollableLineEdit:
         """
-        Remodel timing widgets based on the name.
+        Remodel task timing widgets based on the name.
 
         :param name: The name of the widget
         :type name: str
         :param widget: The widget to remodel
-        :type widget: Union[QComboBox, QScrollableLineEdit]
+        :type widget: QComboBox | QScrollableLineEdit
         :return: The remodeled widget
-        :rtype: Union[QComboBox, QScrollableLineEdit]
+        :rtype: QComboBox | QScrollableLineEdit
         """
         path = name.split(".")
         if options := self.check_driver_variables(path[-1]):
@@ -207,17 +205,17 @@ class NIWidget(BaseDeviceWidget):
         return widget
 
     def remodel_port_widgets(
-        self, name: str, widget: Union[QComboBox, QScrollableLineEdit]
-    ) -> Union[QComboBox, QScrollableLineEdit]:
+        self, name: str, widget: QComboBox | QScrollableLineEdit
+    ) -> QComboBox | QScrollableLineEdit:
         """
         Remodel port widgets based on the name.
 
         :param name: The name of the widget
         :type name: str
         :param widget: The widget to remodel
-        :type widget: Union[QComboBox, QScrollableLineEdit]
+        :type widget: QComboBox | QScrollableLineEdit
         :return: The remodeled widget
-        :rtype: Union[QComboBox, QScrollableLineEdit]
+        :rtype: QComboBox | QScrollableLineEdit
         """
         path = name.split(".")
         task = "ao" if "ao_task" in path else "do"
@@ -315,7 +313,7 @@ class NIWidget(BaseDeviceWidget):
             slider.sliderMoved.connect(lambda: self.update_waveform(name))
         setattr(self, f"{name}_slider", slider)
 
-    def create_tree_widget(self, name: str, parent: Optional[QTreeWidgetItem] = None) -> List[QTreeWidgetItem]:
+    def create_tree_widget(self, name: str, parent: QTreeWidgetItem | None = None) -> list[QTreeWidgetItem]:
         """
         Create a tree widget for the given name.
 
@@ -324,7 +322,7 @@ class NIWidget(BaseDeviceWidget):
         :param parent: The parent widget, defaults to None
         :type parent: QTreeWidgetItem, optional
         :return: A list of QTreeWidgetItems
-        :rtype: List[QTreeWidgetItem]
+        :rtype: list[QTreeWidgetItem]
         """
         parent = self.tree if parent is None else parent
         iterable = self.mappedpathGet(self.exposed_branches.copy(), name.split("."))
@@ -376,28 +374,28 @@ class NIWidget(BaseDeviceWidget):
                 self.check_to_hide(id, item)
         return items
 
-    def mappedpathGet(self, dictionary: Dict, path: List[str]) -> Dict:
+    def mappedpathGet(self, dictionary: dict, path: list[str]) -> dict:
         """
         Get the value from the dictionary at the given path.
 
         :param dictionary: The dictionary to get the value from
-        :type dictionary: Dict
+        :type dictionary: dict
         :param path: The path to the value
-        :type path: List[str]
+        :type path: list[str]
         :return: The value at the given path
-        :rtype: Dict
+        :rtype: dict
         """
         try:
             dictionary = pathGet(dictionary, path)
         except KeyError:
-            if ".".join(path[0:2]) in dictionary.keys():
+            if ".".join(path[0:2]) in dictionary:
                 dictionary = self.mappedpathGet(dictionary[".".join(path[0:2])], path[2:])
             else:
                 dictionary = self.mappedpathGet(dictionary, [".".join(path[0:2]), *path[2:]])
         finally:
             return dictionary
 
-    def check_to_hide(self, name: str, item: QTreeWidgetItem, dictionary: Optional[Dict] = None) -> None:
+    def check_to_hide(self, name: str, item: QTreeWidgetItem, dictionary: dict | None = None) -> None:
         """
         Check if the item should be hidden.
 
@@ -406,7 +404,7 @@ class NIWidget(BaseDeviceWidget):
         :param item: The item to check
         :type item: QTreeWidgetItem
         :param dictionary: The dictionary to check against, defaults to None
-        :type dictionary: Dict, optional
+        :type dictionary: dict, optional
         """
         dictionary = self.exposed_branches.copy() if dictionary is None else dictionary
         try:
@@ -451,12 +449,12 @@ class NIWidget(BaseDeviceWidget):
         pathGet(self.__dict__, name_lst[0:-1]).__setitem__(name_lst[-1], value)
         self.update_waveform(name)
 
-    def textbox_fixup(self, value: Union[float, str], name: str) -> None:
+    def textbox_fixup(self, value: float | str, name: str) -> None:
         """
         Fix the value in the textbox.
 
         :param value: The value to fix
-        :type value: Union[float, str]
+        :type value: float | str
         :param name: The name of the parameter
         :type name: str
         """
@@ -499,12 +497,8 @@ def sawtooth(
     :return: The generated sawtooth waveform
     :rtype: np.ndarray
     """
-    time_samples_ms = np.linspace(
-        0, 2 * np.pi, int(((period_time_ms - start_time_ms) / 1000) * sampling_frequency_hz)
-    )
-    waveform = offset_volts + amplitude_volts * signal.sawtooth(
-        t=time_samples_ms, width=end_time_ms / period_time_ms
-    )
+    time_samples_ms = np.linspace(0, 2 * np.pi, int(((period_time_ms - start_time_ms) / 1000) * sampling_frequency_hz))
+    waveform = offset_volts + amplitude_volts * signal.sawtooth(t=time_samples_ms, width=end_time_ms / period_time_ms)
     # add in delay
     delay_samples = int((start_time_ms / 1000) * sampling_frequency_hz)
     waveform = np.pad(
@@ -516,13 +510,12 @@ def sawtooth(
 
     # add in rest
     rest_samples = int((rest_time_ms / 1000) * sampling_frequency_hz)
-    waveform = np.pad(
+    return np.pad(
         array=waveform,
         pad_width=(0, rest_samples),
         mode="constant",
         constant_values=(offset_volts - amplitude_volts),
     )
-    return waveform
 
 
 def square_wave(
@@ -597,7 +590,7 @@ def triangle_wave(
     :rtype: np.ndarray
     """
     # sawtooth with end time in center of waveform
-    waveform = sawtooth(
+    return sawtooth(
         sampling_frequency_hz,
         period_time_ms,
         start_time_ms,
@@ -608,4 +601,3 @@ def triangle_wave(
         cutoff_frequency_hz,
     )
 
-    return waveform

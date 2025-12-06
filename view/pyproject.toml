@@ -1,0 +1,25 @@
+[project]
+name = "view"
+version = "0.1.0"
+description = "A python package providing a GUI and widgets for lightsheet microscopy"
+readme = "README.md"
+authors = [
+    { name = "Micah Woodard", email = "micah.woodard@alleninstitute.org" },
+    { name = "Walter Mwaniki", email = "walter.g.mwaniki@gmail.com" },
+]
+requires-python = ">=3.12, <3.13"
+dependencies = [
+    'pyqtgraph >= 0.12.4',
+    'numpy >= 1.23.5',
+    'napari >= 0.4.19',
+    'inflection >= 0.5.1',
+    'pymmcore-widgets >= 0.7.1',
+    'pint >= 0.24',
+    'schema >= 0.7.7',
+    "pyqt6>=6.10.1",
+    "ruyaml>=0.91.0",
+]
+
+[build-system]
+requires = ["uv_build>=0.8.8,<0.9.0"]
+build-backend = "uv_build"

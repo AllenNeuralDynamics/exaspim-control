@@ -1,6 +1,5 @@
 from multiprocessing import Event
 from multiprocessing.shared_memory import SharedMemory
-from typing import Tuple
 
 import numpy as np
 
@@ -29,7 +28,7 @@ class SharedDoubleBuffer:
         dbl_buf.toggle_buffers() # read_buf and write_buf have switched places.
     """
 
-    def __init__(self, shape: Tuple[int, ...], dtype: str) -> None:
+    def __init__(self, shape: tuple[int, ...], dtype: str) -> None:
         """
         Initialize the SharedDoubleBuffer.
 
@@ -91,9 +90,8 @@ class SharedDoubleBuffer:
         if self.buffer_index == -1:
             # buffer just switched, grab last image from read buffer
             return self.read_buf[-1]
-        else:
-            # return the image from the write buffer
-            return self.write_buf[self.buffer_index]
+        # return the image from the write buffer
+        return self.write_buf[self.buffer_index]
 
     def close_and_unlink(self) -> None:
         """Shared memory cleanup; call when done using this object."""

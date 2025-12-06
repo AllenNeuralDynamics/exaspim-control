@@ -70,9 +70,7 @@ class DCAMERR(IntEnum):
     NOPROPERTY = -2147481560  # 0x80000828, there is no altenative or influence id, or no more property id
     INVALIDCHANNEL = -2147481559  # 0x80000829, the property id specifies channel but channel is invalid
     INVALIDVIEW = -2147481558  # 0x8000082a, the property id specifies channel but channel is invalid
-    INVALIDSUBARRAY = (
-        -2147481557
-    )  # 0x8000082b, the combination of subarray values are invalid. e.g. DCAM_IDPROP_SUBARRAYHPOS + DCAM_IDPROP_SUBARRAYHSIZE is greater than the number of horizontal pixel of sensor.
+    INVALIDSUBARRAY = -2147481557  # 0x8000082b, the combination of subarray values are invalid. e.g. DCAM_IDPROP_SUBARRAYHPOS + DCAM_IDPROP_SUBARRAYHSIZE is greater than the number of horizontal pixel of sensor.
     ACCESSDENY = -2147481556  # 0x8000082c, the property cannot access during this DCAM STATUS
     NOVALUETEXT = -2147481555  # 0x8000082d, the property does not have value text
     WRONGPROPERTYVALUE = -2147481554  # 0x8000082e, at least one property value is wrong
@@ -91,9 +89,7 @@ class DCAMERR(IntEnum):
         -2147481541
     )  # 0x8000083b, the frame count is larger than device momory size on using device memory.
     REQUIREDSNAP = -2147481540  # 0x8000083c, the capture mode is sequence on using device memory.
-    LESSSYSTEMMEMORY = (
-        -2147481537
-    )  # 0x8000083f, the sysmte memory size is too small. PC doesn't have enough memory or is limited memory by 32bit OS.
+    LESSSYSTEMMEMORY = -2147481537  # 0x8000083f, the sysmte memory size is too small. PC doesn't have enough memory or is limited memory by 32bit OS.
     NOTSUPPORT = -2147479805  # 0x80000f03, camera does not support the function or property with current settings
     # camera or bus trouble
     FAILREADCAMERA = -2097147902  # 0x83001002, failed to read data from camera
@@ -167,11 +163,11 @@ class DCAMERR(IntEnum):
 
     SUCCESS_PROP_GETATTR = 88  # dcamprop_getattr() returns this value at SUCCESS
 
-    def is_failed(self):
-        return True if int(self) < 0 else False
+    def is_failed(self) -> bool:
+        return int(self) < 0
 
-    def is_timeout(self):
-        return True if int(self) == DCAMERR.TIMEOUT else False
+    def is_timeout(self) -> bool:
+        return int(self) == DCAMERR.TIMEOUT
 
 
 class DCAM_PIXELTYPE(IntEnum):
@@ -652,7 +648,6 @@ class DCAMPROP_UNIT(IntEnum):
 
 
 class DCAMPROP:
-
     class SENSORMODE(IntEnum):
         AREA = 1
         LINE = 3
@@ -1096,38 +1091,38 @@ class DCAMPROP_ATTR(Structure):
     def __init__(self):
         self.cbSize = sizeof(DCAMPROP_ATTR)
 
-    def is_effective(self):
-        return True if self.attribute & DCAM_PROP.ATTR.EFFECTIVE else False
+    def is_effective(self) -> bool:
+        return bool(self.attribute & DCAM_PROP.ATTR.EFFECTIVE)
 
-    def is_writable(self):
-        return True if self.attribute & DCAM_PROP.ATTR.WRITABLE else False
+    def is_writable(self) -> bool:
+        return bool(self.attribute & DCAM_PROP.ATTR.WRITABLE)
 
-    def is_readable(self):
-        return True if self.attribute & DCAM_PROP.ATTR.READABLE else False
+    def is_readable(self) -> bool:
+        return bool(self.attribute & DCAM_PROP.ATTR.READABLE)
 
-    def is_volatile(self):
-        return True if self.attribute & DCAM_PROP.ATTR.VOLATILE else False
+    def is_volatile(self) -> bool:
+        return bool(self.attribute & DCAM_PROP.ATTR.VOLATILE)
 
-    def is_accessready(self):
-        return True if self.attribute & DCAM_PROP.ATTR.ACCESSREADY else False
+    def is_accessready(self) -> bool:
+        return bool(self.attribute & DCAM_PROP.ATTR.ACCESSREADY)
 
-    def is_accessbusy(self):
-        return True if self.attribute & DCAM_PROP.ATTR.ACCESSBUSY else False
+    def is_accessbusy(self) -> bool:
+        return bool(self.attribute & DCAM_PROP.ATTR.ACCESSBUSY)
 
-    def is_datastream(self):
-        return True if self.attribute & DCAM_PROP.ATTR.DATASTREAM else False
+    def is_datastream(self) -> bool:
+        return bool(self.attribute & DCAM_PROP.ATTR.DATASTREAM)
 
-    def is_autorounding(self):
-        return True if self.attribute & DCAM_PROP.ATTR.AUTOROUNDING else False
+    def is_autorounding(self) -> bool:
+        return bool(self.attribute & DCAM_PROP.ATTR.AUTOROUNDING)
 
-    def is_stepping_inconsistent(self):
-        return True if self.attribute & DCAM_PROP.ATTR.STEPPING_INCONSISTENT else False
+    def is_stepping_inconsistent(self) -> bool:
+        return bool(self.attribute & DCAM_PROP.ATTR.STEPPING_INCONSISTENT)
 
-    def is_hasview(self):
-        return True if self.attribute & DCAM_PROP.ATTR.HASVIEW else False
+    def is_hasview(self) -> bool:
+        return bool(self.attribute & DCAM_PROP.ATTR.HASVIEW)
 
-    def is_haschannel(self):
-        return True if self.attribute & DCAM_PROP.ATTR.HASCHANNEL else False
+    def is_haschannel(self) -> bool:
+        return bool(self.attribute & DCAM_PROP.ATTR.HASCHANNEL)
 
 
 class DCAMPROP_VALUETEXT(Structure):

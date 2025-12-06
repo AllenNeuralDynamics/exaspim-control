@@ -1,7 +1,7 @@
 import logging
-from typing import List, Tuple
 
 from pylablib.devices import Thorlabs
+
 from voxel.devices.rotation_mount.base import BaseRotationMount
 
 MIN_POSITION_DEG = 0
@@ -29,7 +29,7 @@ class K10CR1Mount(BaseRotationMount):
         # this is used to determine the step to scale units of the device
         model = "K10CR1"
         # lets find the device using pyvisa
-        devices: List[Tuple[str, str]] = Thorlabs.list_kinesis_devices()
+        devices: list[tuple[str, str]] = Thorlabs.list_kinesis_devices()
         # device = [(serial number, name)]
         try:
             for device in devices:
@@ -40,9 +40,10 @@ class K10CR1Mount(BaseRotationMount):
                 if info.serial_no == id:
                     self.rotation_mount = rotation_mount
                     break
-        except Exception:
+        except (AttributeError, TypeError, ValueError):
             self.log.debug(f"{id} is not a valid thorabs rotation mount")
-            raise ValueError(f"could not find power meter with id {id}")
+            msg = f"could not find power meter with id {id}"
+            raise ValueError(msg)
 
     @property
     def position_deg(self) -> float:
@@ -65,9 +66,10 @@ class K10CR1Mount(BaseRotationMount):
         :raises ValueError: If the position is out of range
         """
         if position_deg < MIN_POSITION_DEG or position_deg > MAX_POSITION_DEG:
-            raise ValueError(f"position {position_deg} must be between" f"{MIN_POSITION_DEG} and {MAX_POSITION_DEG}")
+            msg = f"position {position_deg} must be between{MIN_POSITION_DEG} and {MAX_POSITION_DEG}"
+            raise ValueError(msg)
         self.rotation_mount.move_to(position_deg)
-        self.log.info(f"rotation mount {self.id} moved" f"to position {position_deg} deg")
+        self.log.info(f"rotation mount {self.id} movedto position {position_deg} deg")
 
     @property
     def speed_deg_s(self) -> float:
@@ -91,11 +93,10 @@ class K10CR1Mount(BaseRotationMount):
         :raises ValueError: If the speed is out of range
         """
         if speed_deg_s < MIN_SPEED_DEG_S or speed_deg_s > MAX_SPEED_DEG_S:
-            raise ValueError(
-                f"speed {speed_deg_s} deg/s must be between" f"{MIN_SPEED_DEG_S} and {MAX_SPEED_DEG_S} deg/s"
-            )
+            msg = f"speed {speed_deg_s} deg/s must be between{MIN_SPEED_DEG_S} and {MAX_SPEED_DEG_S} deg/s"
+            raise ValueError(msg)
         self.rotation_mount.set_velocity_parameters(max_velocity=speed_deg_s)
-        self.log.info(f"rotation mount {self.id} set" f"to speed {speed_deg_s} deg/s")
+        self.log.info(f"rotation mount {self.id} setto speed {speed_deg_s} deg/s")
 
     def close(self) -> None:
         """

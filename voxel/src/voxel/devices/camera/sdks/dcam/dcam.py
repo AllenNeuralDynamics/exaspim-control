@@ -65,7 +65,7 @@ class Dcamapi:
     __devicecount = 0
 
     @classmethod
-    def __result(cls, errvalue):
+    def __result(cls, errvalue) -> bool:
         """
         Internal use. Keep last error code
         """
@@ -106,7 +106,7 @@ class Dcamapi:
         return True
 
     @classmethod
-    def uninit(cls):
+    def uninit(cls) -> bool:
         """
         Uninitlaize dcamapi.
         After using DCAM-API, call this function to close all resources.
@@ -148,10 +148,10 @@ class Dcam:
         self.__hdcamwait = 0
         self.__bufframe = DCAMBUF_FRAME()
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "Dcam()"
 
-    def __result(self, errvalue):
+    def __result(self, errvalue) -> bool:
         """
         Internal use. Keep last error code
         """
@@ -167,7 +167,7 @@ class Dcam:
         """
         return self.__lasterr
 
-    def is_opened(self):
+    def is_opened(self) -> bool:
         """
         Check DCAM handle is opened.
 
@@ -175,10 +175,7 @@ class Dcam:
             True:   DCAM handle is opened
             False:  DCAM handle is not opened
         """
-        if self.__hdcam == 0:
-            return False
-        else:
-            return True
+        return self.__hdcam != 0
 
     def dev_open(self, index=-1):
         """
@@ -208,7 +205,7 @@ class Dcam:
         self.__hdcam = paramopen.hdcam
         return True
 
-    def dev_close(self):
+    def dev_close(self) -> bool:
         """
         Close dcam handle.
         Call this if you need to close the current device.
@@ -235,10 +232,7 @@ class Dcam:
             String
             False:  error happened.  lasterr() returns the DCAMERR value
         """
-        if self.is_opened():
-            hdcam = self.__hdcam
-        else:
-            hdcam = self.__iDevice
+        hdcam = self.__hdcam if self.is_opened() else self.__iDevice
 
         paramdevstr = DCAMDEV_STRING()
         paramdevstr.iString = idstr
@@ -311,10 +305,7 @@ class Dcam:
             return self.__result(DCAMERR.INVALIDHANDLE)  # instance is not opened yet.
 
         ret = self.__result(dcamprop_setvalue(self.__hdcam, idprop, fValue))
-        if ret is False:
-            return False
-
-        return True
+        return ret is not False
 
     def prop_setgetvalue(self, idprop, fValue, option=0):
         """
@@ -545,10 +536,7 @@ class Dcam:
         if not self.is_opened():
             return self.__result(DCAMERR.INVALIDHANDLE)  # instance is not opened yet.
 
-        if bSequence:
-            mode = DCAMCAP_START.SEQUENCE
-        else:
-            mode = DCAMCAP_START.SNAP
+        mode = DCAMCAP_START.SEQUENCE if bSequence else DCAMCAP_START.SNAP
 
         return self.__result(dcamcap_start(self.__hdcam, mode))
 
@@ -627,10 +615,7 @@ class Dcam:
 
         cOption = c_int32(0)
         ret = self.__result(dcamcap_firetrigger(self.__hdcam, cOption))
-        if ret is False:
-            return False
-
-        return True
+        return ret is not False
 
     # dcamwait functions
 
@@ -638,7 +623,7 @@ class Dcam:
         """
         Get HDCAMWAIT handle
         """
-        if not self.__hdcamwait == 0:
+        if self.__hdcamwait != 0:
             return True
 
         paramwaitopen = DCAMWAIT_OPEN()
@@ -653,7 +638,7 @@ class Dcam:
         self.__hdcamwait = paramwaitopen.hwait
         return True
 
-    def __close_hdcamwait(self):
+    def __close_hdcamwait(self) -> bool:
         """
         Close HDCAMWAIT handle
         """
@@ -693,7 +678,7 @@ class Dcam:
 
         return paramwaitstart.eventhappened
 
-    def wait_capevent_frameready(self, timeout_millisec):
+    def wait_capevent_frameready(self, timeout_millisec) -> bool:
         """
         Wait DCAMWAIT_CAPEVENT.FRAMEREADY event
 

@@ -1,5 +1,3 @@
-from typing import Dict, Union
-
 from sympy import Expr, solve, symbols
 
 from voxel.descriptors.deliminated_property import DeliminatedProperty
@@ -23,8 +21,8 @@ class OxxiusLBXLaser(BaseLaser):
         id: str,
         prefix: str,
         wavelength: float,
-        coefficients: Dict[str, float] = None,
-        port: str = None,
+        coefficients: dict[str, float] | None = None,
+        port: str | None = None,
         controller: OxxiusController = None,
     ) -> None:
         """
@@ -107,8 +105,7 @@ class OxxiusLBXLaser(BaseLaser):
                     )
                 )
             )
-        else:
-            return float(self._controller.get(Query.LaserPowerSetting, self._prefix))
+        return float(self._controller.get(Query.LaserPowerSetting, self._prefix))
 
     @power_setpoint_mw.setter
     def power_setpoint_mw(self, value: float) -> None:
@@ -122,9 +119,9 @@ class OxxiusLBXLaser(BaseLaser):
         if self._get_constant_current() == BoolVal.ON:
             solutions = solve(self._coefficients_curve() - value)
             for sol in solutions:
-                if round(sol) in range(0, 101):
+                if round(sol) in range(101):
                     if 0 > value > 100:
-                        reason = "exceeds 100%" if value > self.max_power else f"is below 0%"
+                        reason = "exceeds 100%" if value > self.max_power else "is below 0%"
                         self.log.error(f"Cannot set laser to {value}ml because it {reason}")
                     else:
                         if self._get_constant_current() == BoolVal.OFF:
@@ -134,16 +131,13 @@ class OxxiusLBXLaser(BaseLaser):
                         self._controller.set(Cmd.LaserCurrent, int(sol), self._prefix)
                     return
             self.log.error(f"Cannot set laser to {value}mW because no current percent correlates to {value} mW")
+        elif 0 > value > self.max_power:
+            reason = f"exceeds maximum power output {self.max_power}mW" if value > self.max_power else "is below 0mW"
+            self.log.error(f"Cannot set laser to {value}ml because it {reason}")
         else:
-            if 0 > value > self.max_power:
-                reason = (
-                    f"exceeds maximum power output {self.max_power}mW" if value > self.max_power else "is below 0mW"
-                )
-                self.log.error(f"Cannot set laser to {value}ml because it {reason}")
-            else:
-                if self._get_constant_current() == BoolVal.ON:
-                    self.log.warning("Laser is in constant current mode so changing power will not change intensity")
-                self._controller.set(Cmd.LaserPower, value, self._prefix)
+            if self._get_constant_current() == BoolVal.ON:
+                self.log.warning("Laser is in constant current mode so changing power will not change intensity")
+            self._controller.set(Cmd.LaserPower, value, self._prefix)
         self.log.info(f"power set to {value} mW")
 
     @property
@@ -158,10 +152,9 @@ class OxxiusLBXLaser(BaseLaser):
         digital_modulation = BoolVal(self._controller.get(Query.DigitalModulation, self._prefix))
         if external_control_mode == BoolVal.ON:
             return "analog"
-        elif digital_modulation == BoolVal.ON:
+        if digital_modulation == BoolVal.ON:
             return "digital"
-        else:
-            return "off"
+        return "off"
 
     @modulation_mode.setter
     def modulation_mode(self, value: str) -> None:
@@ -173,7 +166,7 @@ class OxxiusLBXLaser(BaseLaser):
         :raises ValueError: If the modulation mode is not valid.
         :return: None
         """
-        if value not in MODULATION_MODES.keys():
+        if value not in MODULATION_MODES:
             raise ValueError("mode must be one of %r." % MODULATION_MODES.keys())
         states = MODULATION_MODES[value]
         # needs to be set first otherwise digital ON is rejected
@@ -185,7 +178,7 @@ class OxxiusLBXLaser(BaseLaser):
         self._controller.set(Cmd.ExternalPowerControl, states["external_control_mode"], self._prefix)
         self.log.info(f"modulated mode set to {value}")
 
-    def status(self) -> Dict[str, Union[str, float]]:
+    def status(self) -> dict[str, str | float]:
         """
         Get the status of the laser.
 

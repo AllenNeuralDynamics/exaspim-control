@@ -2,10 +2,9 @@ import inspect
 import logging
 import sys
 from pathlib import Path
-from typing import Dict, Optional
 
 import inflection
-from ruamel.yaml import YAML
+from ruyaml import YAML
 
 from voxel.instruments.instrument import Instrument
 
@@ -14,7 +13,7 @@ class Acquisition:
     """Handles the acquisition process for the instrument."""
 
     def __init__(
-        self, instrument: Instrument, config_filename: str, yaml_handler: Optional[YAML] = None, log_level: str = "INFO"
+        self, instrument: Instrument, config_filename: str, yaml_handler: YAML | None = None, log_level: str = "INFO"
     ):
         """
         Initializes the Acquisition class.
@@ -38,23 +37,23 @@ class Acquisition:
         self.config = self.yaml.load(Path(self.config_path))
 
         self.instrument = instrument
-        self.file_transfers = dict()  # initialize file_transfers attribute
-        self.processes = dict()  # initialize processes attribute
-        self.routines = dict()  # initialize routines attribute
+        self.file_transfers = {}  # initialize file_transfers attribute
+        self.processes = {}  # initialize processes attribute
+        self.routines = {}  # initialize routines attribute
 
         # initialize metadata attribute. NOT a dictionary since only one metadata class can exist in acquisition
         # TODO: Validation of config should check that metadata exists and only one
         self.metadata = self._construct_class(self.config["acquisition"]["metadata"])
-        self.acquisition_name: Optional[str] = (
+        self.acquisition_name: str | None = (
             None  # initialize acquisition_name that will be populated at start of acquisition
         )
 
         # initialize operations
         for operation_type, operation_dict in self.config["acquisition"]["operations"].items():
-            setattr(self, operation_type, dict())
+            setattr(self, operation_type, {})
             self._construct_operations(operation_type, operation_dict)
 
-    def _load_class(self, driver: str, module: str, kwds: Dict = dict()) -> object:
+    def _load_class(self, driver: str, module: str, kwds: dict = {}) -> object:
         """
         Loads a class dynamically.
 
@@ -72,7 +71,7 @@ class Acquisition:
         device_class = getattr(sys.modules[driver], module)
         return device_class(**kwds)
 
-    def _setup_class(self, device: object, properties: Dict) -> None:
+    def _setup_class(self, device: object, properties: dict) -> None:
         """
         Sets up a class with given properties.
 
@@ -87,9 +86,10 @@ class Acquisition:
             if hasattr(device, key):
                 setattr(device, key, value)
             else:
-                raise ValueError(f"{device} property {key} has no setter")
+                msg = f"{device} property {key} has no setter"
+                raise ValueError(msg)
 
-    def _construct_operations(self, device_name: str, operation_dictionary: Dict) -> None:
+    def _construct_operations(self, device_name: str, operation_dictionary: dict) -> None:
         """
         Constructs operations for a given device.
 
@@ -109,7 +109,7 @@ class Acquisition:
                 getattr(self, operation_type)[device_name] = {}
             getattr(self, operation_type)[device_name][operation_name] = operation_object
 
-    def _construct_class(self, class_specs: Dict) -> object:
+    def _construct_class(self, class_specs: dict) -> object:
         """
         Constructs a class from specifications.
 
@@ -148,7 +148,6 @@ class Acquisition:
         """
         Runs the acquisition process.
         """
-        pass
 
     def update_current_state_config(self) -> None:
         """
@@ -184,4 +183,3 @@ class Acquisition:
         """
         Close the acquisition.
         """
-        pass

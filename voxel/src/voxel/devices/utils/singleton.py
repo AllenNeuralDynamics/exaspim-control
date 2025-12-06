@@ -1,8 +1,9 @@
+from collections.abc import Callable
 from functools import wraps
 from threading import Lock
-from typing import Callable, Any, TypeVar, Type
+from typing import Any, ClassVar, TypeVar
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 def thread_safe_singleton(func: Callable[..., T]) -> Callable[..., T]:
@@ -17,7 +18,7 @@ def thread_safe_singleton(func: Callable[..., T]) -> Callable[..., T]:
     :rtype: function
     """
     lock = Lock()
-    instance: T = None
+    instance: T | None = None
 
     @wraps(func)
     def wrapper(*args: Any, **kwargs: Any) -> T:
@@ -42,15 +43,15 @@ class Singleton(type):
     This is a thread-safe implementation of Singleton.
     """
 
-    _instances: dict[Type, Any] = {}
+    _instances: ClassVar[dict[type, Any]] = {}
 
-    _lock: Lock = Lock()
+    _lock: ClassVar[Lock] = Lock()
     """
     We now have a lock object that will be used to synchronize threads during
     first access to the Singleton.
     """
 
-    def __call__(cls: Type[T], *args: Any, **kwargs: Any) -> T:
+    def __call__(cls: type[T], *args: Any, **kwargs: Any) -> T:
         """
         Ensure that only one instance of the class is created.
 

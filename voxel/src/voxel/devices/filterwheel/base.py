@@ -12,7 +12,7 @@ class BaseFilterWheel(VoxelDevice):
         """
         Initialize the BaseFilterWheel object.
         """
-        self.filter_list: list = list()
+        self.filter_list: list = []
 
     @property
     @abstractmethod
@@ -23,7 +23,6 @@ class BaseFilterWheel(VoxelDevice):
         :return: Current filter name
         :rtype: str
         """
-        pass
 
     @filter.setter
     @abstractmethod
@@ -34,11 +33,9 @@ class BaseFilterWheel(VoxelDevice):
         :param filter_name: Filter name
         :type filter_name: str
         """
-        pass
 
     @abstractmethod
     def close(self) -> None:
         """
         Close the filter wheel device.
         """
-        pass

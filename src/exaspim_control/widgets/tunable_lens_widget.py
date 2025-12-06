@@ -1,5 +1,4 @@
-from qtpy.QtWidgets import QSizePolicy
-
+from PyQt6.QtWidgets import QSizePolicy
 from view.widgets.base_device_widget import BaseDeviceWidget, create_widget, scan_for_properties
 
 

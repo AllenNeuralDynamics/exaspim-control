@@ -7,6 +7,7 @@ class BasePowerMeter(VoxelDevice):
     """
     Base class for power meter devices.
     """
+
     def __init__(self, id: str) -> None:
         """
         Initialize the BasePowerMeter object.
@@ -25,7 +26,6 @@ class BasePowerMeter(VoxelDevice):
         :return: Power in milliwatts
         :rtype: float
         """
-        pass
 
     @property
     @abstractmethod
@@ -36,7 +36,6 @@ class BasePowerMeter(VoxelDevice):
         :return: Wavelength in nanometers
         :rtype: float
         """
-        pass
 
     @wavelength_nm.setter
     @abstractmethod
@@ -47,4 +46,3 @@ class BasePowerMeter(VoxelDevice):
         :param wavelength: Wavelength in nanometers
         :type wavelength: float
         """
-        pass

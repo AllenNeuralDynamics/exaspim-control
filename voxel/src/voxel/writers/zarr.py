@@ -8,11 +8,9 @@ from multiprocessing import Array, Process
 from multiprocessing.shared_memory import SharedMemory
 from pathlib import Path, PureWindowsPath
 from time import perf_counter, sleep
-from typing import List
 
-import numpy as np
 import acquire_zarr as aqz
-
+import numpy as np
 from voxel.writers.base import BaseWriter
 
 CHUNK_COUNT_PX = 64
@@ -439,7 +437,7 @@ class ZarrWriter(BaseWriter):
 
     def _run(
         self,
-        shm_shape: List[int],
+        shm_shape: list[int],
         shm_nbytes: int,
         shared_progress: multiprocessing.Value,
         shared_log_queue: multiprocessing.Queue,
@@ -490,7 +488,7 @@ class ZarrWriter(BaseWriter):
                 bucket_name=self._bucket_name,
                 endpoint=self._endpoint_url,
                 secret_access_key=self._secret_access_key,
-                region=self._region
+                region=self._region,
             )
             settings = aqz.StreamSettings(
                 store_path=str(filepath),
@@ -498,7 +496,7 @@ class ZarrWriter(BaseWriter):
                 version=VERSIONS[self._version],
                 multiscale=self._multiscale,
                 compression=compression_settings,
-                s3=s3_settings
+                s3=s3_settings,
             )
 
         settings.dimensions.extend(
@@ -538,13 +536,13 @@ class ZarrWriter(BaseWriter):
             shm = SharedMemory(self.shm_name, create=False, size=shm_nbytes)
             frames = np.ndarray(shm_shape, self._data_type, buffer=shm.buf)
             shared_log_queue.put(
-                f"{self._filename}: writing chunk " f"{chunk_num + 1}/{chunk_total} of size {frames.shape}."
+                f"{self._filename}: writing chunk {chunk_num + 1}/{chunk_total} of size {frames.shape}."
             )
             start_time = perf_counter()
             # Put the frames into the stream
             stream.append(frames)
             frames = None
-            shared_log_queue.put(f"{self._filename}: writing chunk took " f"{perf_counter() - start_time:.2f} [s]")
+            shared_log_queue.put(f"{self._filename}: writing chunk took {perf_counter() - start_time:.2f} [s]")
             shm.close()
             self.done_reading.set()
             # update shared value progress range 0-1

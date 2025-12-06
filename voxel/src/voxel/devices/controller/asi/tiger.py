@@ -1,15 +1,31 @@
 """TigerController Serial Port Abstraction"""
 
-from enum import Enum
-from serial import Serial, SerialException
-from functools import cache, wraps
-from time import sleep, perf_counter
-
-from tigerasi.device_codes import *
-from typing import Union, Callable, Any
 import logging
 import threading
 import time
+from collections.abc import Callable
+from enum import Enum
+from functools import cache, wraps
+from time import perf_counter, sleep
+from typing import Any
+
+from serial import Serial, SerialException
+from tigerasi.device_codes import (
+    ACK,
+    Cmds,
+    ErrorCodes,
+    FirmwareModules,
+    JoystickInput,
+    JoystickPolarity,
+    MicroMirrorControlMode,
+    PiezoControlMode,
+    RingBufferMode,
+    ScanPattern,
+    ScanState,
+    TTLIn0Mode,
+    TTLOut0Mode,
+    TunableLensControlMode,
+)
 
 # Constants
 STEPS_PER_UM = 10.0  # multiplication constant to convert micrometers to steps.
@@ -59,14 +75,16 @@ def no_repeated_axis_check(func):
         # Figure out if any axes was specified twice.
         intersection = {a.upper() for a in args} & {k.upper() for k, _ in kwds.items()}
         if len(intersection):
-            raise SyntaxError(
+            msg = (
                 "The following axes cannot be specified "
                 "both at the current position and at a specific "
                 f"position: {intersection}."
             )
+            raise SyntaxError(msg)
         return func(self, *args, **kwds)
 
     return inner
+
 
 def thread_locked(function: Callable) -> Callable:
     """
@@ -109,7 +127,7 @@ class TigerController:
 
         .. code-block:: python
 
-            box = TigerController('COM4')
+            box = TigerController("COM4")
 
         """
         self.ser = None
@@ -119,8 +137,8 @@ class TigerController:
             self.ser = Serial(com_port, TigerController.BAUD_RATE, timeout=TigerController.TIMEOUT)
             self.ser.reset_input_buffer()
             self.ser.reset_output_buffer()
-        except SerialException as e:
-            logging.error(
+        except SerialException:
+            logging.exception(
                 "Error: could not open connection to Tiger "
                 "Controller. Is the device plugged in? Is another program "
                 "using it?"
@@ -230,7 +248,7 @@ class TigerController:
 
         .. code-block:: python
 
-            box.home('x', 'y', 'z')  # home the specified axes.
+            box.home("x", "y", "z")  # home the specified axes.
 
         """
         self._set_cmd_args_and_kwds(Cmds.HOME, *axes, wait=wait)
@@ -252,12 +270,12 @@ class TigerController:
 
         .. code-block:: python
 
-            box.set_home('x', 'y', 'z')  # current position set as home OR
+            box.set_home("x", "y", "z")  # current position set as home OR
             box.set_home(x=100, y=20.5, z=0)  # specific positions for home OR
-            box.set_home('x', y=20.5)  # mix of both.
+            box.set_home("x", y=20.5)  # mix of both.
 
         """
-        args = [f"{ax}+" for ax in axes]
+        [f"{ax}+" for ax in axes]
         return self._set_cmd_args_and_kwds(Cmds.SETHOME, *axes, **kwd_axes, wait=wait)
 
     @thread_locked
@@ -298,7 +316,7 @@ class TigerController:
 
         .. code-block:: python
 
-            box.zero_in_place('x', 'y')  # x and y axis' current locations are now zero.
+            box.zero_in_place("x", "y")  # x and y axis' current locations are now zero.
 
         """
         # TODO: what happens if we home a device with CLOCKED POSITIONS?
@@ -343,9 +361,9 @@ class TigerController:
 
         .. code-block:: python
 
-            box.set_lower_travel_limit('x', 'y')  # current positions as limit OR
+            box.set_lower_travel_limit("x", "y")  # current positions as limit OR
             box.set_lower_travel_limit(x=50, y=4.0)  # specific positions as limit OR
-            box.set_lower_travel_limit('x', y=20.5)  # mix of both.
+            box.set_lower_travel_limit("x", y=20.5)  # mix of both.
 
         """
         axes = [f"{ax}+" for ax in axes]
@@ -390,9 +408,9 @@ class TigerController:
 
         .. code-block:: python
 
-            box.set_upper_travel_limit('x', 'y')  # current positions as limit OR
+            box.set_upper_travel_limit("x", "y")  # current positions as limit OR
             box.set_upper_travel_limit(x=50, y=4.0)  # specific positions as limit OR
-            box.set_upper_travel_limit('x', y=20.5)  # mix of both.
+            box.set_upper_travel_limit("x", y=20.5)  # mix of both.
 
         """
         axes = [f"{ax}+" for ax in axes]
@@ -447,8 +465,8 @@ class TigerController:
 
         .. code-block:: python
 
-            box.get_axis_backlash('x')  # returns: {'X': 0.1}
-            box.get_axis_backlash('x', 'y')  # returns: {'X': 0.1, 'Y': 0.2}
+            box.get_axis_backlash("x")  # returns: {'X': 0.1}
+            box.get_axis_backlash("x", "y")  # returns: {'X': 0.1, 'Y': 0.2}
 
         """
         return self._get_axis_value(Cmds.BACKLASH, *axes)
@@ -466,8 +484,8 @@ class TigerController:
 
         .. code-block:: python
 
-            box.get_position('x')  # returns: {'X': 10}
-            box.get_position('x', 'y')  # returns: {'X': 10, 'Y': 50}
+            box.get_position("x")  # returns: {'X': 10}
+            box.get_position("x", "y")  # returns: {'X': 10, 'Y': 50}
 
         """
         axes_str = ""
@@ -481,7 +499,7 @@ class TigerController:
         cmd_str = Cmds.WHERE.value + axes_str + "\r"
         reply = self.send(cmd_str)
         axes_positions = [float(v) for v in reply.split()[1:]]
-        return {k: v for k, v in zip(axes, axes_positions)}
+        return dict(zip(axes, axes_positions))
 
     @thread_locked
     @axis_check("wait")
@@ -513,7 +531,7 @@ class TigerController:
 
         .. code-block:: python
 
-            box.get_speed('x', 'z')  # returns: {'X': 50.5, 'Y': 10}
+            box.get_speed("x", "z")  # returns: {'X': 50.5, 'Y': 10}
 
         """
         return self._get_axis_value(Cmds.SPEED, *axes)
@@ -548,7 +566,7 @@ class TigerController:
 
         .. code-block:: python
 
-            box.get_acceleration('x', 'z')  # returns: {'X': 100, 'Y': 70}
+            box.get_acceleration("x", "z")  # returns: {'X': 100, 'Y': 70}
 
         """
         return self._get_axis_value(Cmds.ACCEL, *axes)
@@ -574,8 +592,7 @@ class TigerController:
 
             from tigerasi.device_codes import JoystickInput
 
-            box.bind_axis_to_joystick(x=JoystickInput.Y,
-                                      y=JoystickInput.CONTROL_KNOB)
+            box.bind_axis_to_joystick(x=JoystickInput.Y, y=JoystickInput.CONTROL_KNOB)
 
         """
         axes = {x: js_input.value for x, js_input in axes.items()}
@@ -608,8 +625,7 @@ class TigerController:
 
         .. code-block:: python
 
-            box.set_joystick_polarity(x=JoystickPolarity.DEFAULT,
-                                      y=JoystickPolarity.INVERTED)
+            box.set_joystick_polarity(x=JoystickPolarity.DEFAULT, y=JoystickPolarity.INVERTED)
 
         """
         # Get axis mapping
@@ -635,7 +651,7 @@ class TigerController:
 
         .. code-block:: python
 
-            box.enable_joystick_inputs('y')  # Enable joystick control of y axis.
+            box.enable_joystick_inputs("y")  # Enable joystick control of y axis.
             box.enable_joystick_inputs()  # Enable joystick control of all axes.
 
         Note: enabling joystick inputs will re-apply their default axis
@@ -707,7 +723,7 @@ class TigerController:
     def set_axis_control_mode(
         self,
         wait: bool = True,
-        **axes: Union[MicroMirrorControlMode, PiezoControlMode, TunableLensControlMode, int, str],
+        **axes: MicroMirrorControlMode | PiezoControlMode | TunableLensControlMode | int | str,
     ):
         """Set an axis to a particular control mode.
         Implements `PM <http://asiimaging.com/docs/commands/pm>`_ command.
@@ -739,9 +755,8 @@ class TigerController:
         """
         # example reply appears as 'V=1 :A'
         # assume control mode is a single digit
-        control_num = str(int(self._get_axis_value(Cmds.PM, axis)[axis]))
+        return str(int(self._get_axis_value(Cmds.PM, axis)[axis]))
         # TODO: figure out which axis type it is and return that type of enum.
-        return control_num
 
     @thread_locked
     def setup_scan(
@@ -790,8 +805,8 @@ class TigerController:
         self,
         scan_start_mm: float,
         pulse_interval_um: float,
-        scan_stop_mm: float = None,
-        num_pixels: int = None,
+        scan_stop_mm: float | None = None,
+        num_pixels: int | None = None,
         retrace_speed_percent: int = DEFAULT_SPEED_PERCENT,
         wait: bool = True,
     ):
@@ -831,7 +846,7 @@ class TigerController:
         # Confirm that fast and slow axes have been defined.
         if self._scan_card_addr is None:
             raise RuntimeError(
-                "Cannot infer the card address for which to " "apply the sttings. setup_scan must be run " "first."
+                "Cannot infer the card address for which to apply the sttings. setup_scan must be run first."
             )
 
         ENC_TICKS_PER_MM = self.get_encoder_ticks_per_mm(self._scan_fast_axis)
@@ -851,7 +866,7 @@ class TigerController:
         if num_pixels is not None:
             kwds["F"] = num_pixels
         if retrace_speed_percent is not None:
-            kwds["R"] = round(retrace_speed_percent)
+            kwds["R"] = retrace_speed_percent
         self._set_cmd_args_and_kwds(Cmds.SCANR, **kwds, wait=wait, card_address=self._scan_card_addr)
 
     @thread_locked
@@ -860,8 +875,8 @@ class TigerController:
         scan_start_mm: float,
         scan_stop_mm: float,
         line_count: int,
-        overshoot_time_ms: int = None,
-        overshoot_factor: float = None,
+        overshoot_time_ms: int | None = None,
+        overshoot_factor: float | None = None,
         wait: bool = True,
     ):
         """Setup the slow scanning axis.
@@ -889,7 +904,7 @@ class TigerController:
         # Confirm that fast and slow axes have been defined.
         if self._scan_card_addr is None:
             raise RuntimeError(
-                "Cannot infer the card address for which to " "apply the sttings. setup_scan must be run " "first."
+                "Cannot infer the card address for which to apply the sttings. setup_scan must be run first."
             )
         kwds = {
             "X": round(scan_start_mm, MM_SCALE),
@@ -897,7 +912,7 @@ class TigerController:
             "Z": line_count,
         }
         if overshoot_time_ms is not None:
-            kwds["F"] = round(overshoot_time_ms)
+            kwds["F"] = overshoot_time_ms
         if overshoot_factor is not None:
             kwds["T"] = round(overshoot_factor, MM_SCALE)
         self._set_cmd_args_and_kwds(Cmds.SCANV, **kwds, wait=wait, card_address=self._scan_card_addr)
@@ -910,7 +925,7 @@ class TigerController:
         # Use the previously specified card address.
         if self._scan_card_addr is None:
             raise RuntimeError(
-                "Cannot infer the card address for which to " "apply the sttings. setup_scan must be " "run first."
+                "Cannot infer the card address for which to apply the sttings. setup_scan must be run first."
             )
         card_address = self._scan_card_addr
         # Clear card address for which the scan settings were specified.
@@ -931,10 +946,10 @@ class TigerController:
         y_points: int = 0,
         delta_y_mm: float = 0,
         theta_deg: float = 0,
-        x_start_mm: int = None,
-        y_start_mm: int = None,
+        x_start_mm: int | None = None,
+        y_start_mm: int | None = None,
         pattern: ScanPattern = ScanPattern.RASTER,
-        card_address: int = None,
+        card_address: int | None = None,
         wait: bool = True,
     ):
         """Configure Tiger-based grid-like array scan.
@@ -972,7 +987,7 @@ class TigerController:
         if card_address is None:
             cards = {self.axis_to_card[x][0] for x in ["X", "Y"]}
             if len(cards) != 1:
-                raise RuntimeError("Cannot infer the card address. It must be" "specified explicitly.")
+                raise RuntimeError("Cannot infer the card address. It must bespecified explicitly.")
             self._array_scan_card_addr = cards.pop()  # Get the only set item.
         else:
             self._array_scan_card_addr = card_address
@@ -1026,9 +1041,7 @@ class TigerController:
         # Use the previously specified card address.
         if self._array_scan_card_addr is None:
             raise RuntimeError(
-                "Cannot infer the card address for which to "
-                "apply the sttings. setup_array_scan must be "
-                "run first."
+                "Cannot infer the card address for which to apply the sttings. setup_array_scan must be run first."
             )
         card_address = self._array_scan_card_addr
         # Clear card address for which the array-scan settings were specified.
@@ -1036,7 +1049,7 @@ class TigerController:
         self._set_cmd_args_and_kwds(Cmds.ARRAY, card_address=card_address, wait=wait)
 
     @thread_locked
-    def reset_ring_buffer(self, axis: str = None, wait: bool = True):
+    def reset_ring_buffer(self, axis: str | None = None, wait: bool = True):
         """Clear the ring buffer contents.
         See `RING BUFFER MODULE <https://asiimaging.com/docs/ring_buffer>`_
         for mode details.
@@ -1076,7 +1089,7 @@ class TigerController:
         axis_byte = axis_byte & 0xFFFF  # Fix axis byte to 32 bits wide.
         # Save axes so we can autoconfigure set_ttl_pin_modes without
         # specifying the card address.
-        self._rb_axes = [x for x in axes]
+        self._rb_axes = list(axes)
         kwds = {"X": 0, "Y": axis_byte, "F": mode.value}  # X=0 clears ring buffer.
         self._set_cmd_args_and_kwds(Cmds.RBMODE, **kwds, wait=wait)
 
@@ -1110,13 +1123,13 @@ class TigerController:
     @thread_locked
     def set_ttl_pin_modes(
         self,
-        in0_mode: TTLIn0Mode = None,
-        out0_mode: TTLOut0Mode = None,
+        in0_mode: TTLIn0Mode | None = None,
+        out0_mode: TTLOut0Mode | None = None,
         reverse_output_polarity: bool = False,
-        aux_io_state: int = None,
-        aux_io_mask: int = None,
-        aux_io_mode: int = None,
-        card_address: int = None,
+        aux_io_state: int | None = None,
+        aux_io_mask: int | None = None,
+        aux_io_mode: int | None = None,
+        card_address: int | None = None,
         wait: bool = True,
     ):
         """Setup ttl external IO modes or query the external output state
@@ -1155,14 +1168,18 @@ class TigerController:
             from tiger_controller.device_codes import TTLOUT0Mode as OUT0Mode
 
             # Make the input ttl pin repeat the last move.
-            box.set_ttl_pin_modes(In0Mode.REPEAT_LAST_REL_MOVE,
-                                  Out0Mode.PULSE_AFTER_MOVING,
-                                  reverse_output_polarity=True)
+            box.set_ttl_pin_modes(
+                In0Mode.REPEAT_LAST_REL_MOVE, Out0Mode.PULSE_AFTER_MOVING, reverse_output_polarity=True
+            )
 
             # OR: make the input ttl pin trigger a predefined ARRAY movement.
-            box.set_ttl_pin_modes(IN0Mode.ARRAY_MODE_MOVE_TO_NEXT_POSITION,
-                                  Out0Mode.PULSE_AFTER_MOVING,
-                                  aux_io_state = 0, aux_io_mask = 0, aux_io_mode = 0)
+            box.set_ttl_pin_modes(
+                IN0Mode.ARRAY_MODE_MOVE_TO_NEXT_POSITION,
+                Out0Mode.PULSE_AFTER_MOVING,
+                aux_io_state=0,
+                aux_io_mask=0,
+                aux_io_mode=0,
+            )
 
         """
         in0_str = f" X={in0_mode.value} " if in0_mode is not None else ""
@@ -1172,7 +1189,7 @@ class TigerController:
         auxmask_str = f" R={aux_io_mask} " if aux_io_mask is not None else ""
         auxmode_str = f" T={aux_io_mode} " if aux_io_mode is not None else ""
         # Aggregate specified params.
-        param_str = f"{in0_str}{out0_str}{auxstate_str}{polarity_str}" f"{auxmask_str}{auxmode_str}".rstrip()
+        param_str = f"{in0_str}{out0_str}{auxstate_str}{polarity_str}{auxmask_str}{auxmode_str}".rstrip()
         # Infer address of card or cards for a repeated move.
         if in0_mode == TTLIn0Mode.REPEAT_LAST_REL_MOVE and card_address is None:
             cards = {self.axis_to_card[x][0] for x in self._last_rel_move_axes}
@@ -1195,7 +1212,7 @@ class TigerController:
             and card_address is None
         ):
             if len(self._rb_axes) == 0:
-                raise RuntimeError("Cannot infer the card address(es). " "Ring Buffer has not yet been setup.")
+                raise RuntimeError("Cannot infer the card address(es). Ring Buffer has not yet been setup.")
             cards = {self.axis_to_card[x][0] for x in self._rb_axes}
             for card in cards:  # apply settings to each card.
                 self._set_cmd_args_and_kwds(Cmds.TTL, param_str, card_address=card, wait=wait)
@@ -1206,23 +1223,18 @@ class TigerController:
             cards = {self.axis_to_card[x][0] for x in ["X", "Y"]}
             if len(cards) != 1:
                 raise RuntimeError(
-                    "Cannot infer the card address of the "
-                    "X and Y axes. card_address must be "
-                    "explicitly specified."
+                    "Cannot infer the card address of the X and Y axes. card_address must be explicitly specified."
                 )
             card = cards.pop()  # Get the only set item.
             self._has_firmware(card, FirmwareModules.ARRAY_MODULE)
             self._set_cmd_args_and_kwds(Cmds.TTL, param_str, card_address=card, wait=wait)
         # Default case: card address must be explicitly specified.
+        elif card_address is None:
+            raise RuntimeError(
+                "Cannot infer the card address of the X and Y axes. card_address must be explicitly specified."
+            )
         else:
-            if card_address is None:
-                raise RuntimeError(
-                    "Cannot infer the card address of the "
-                    "X and Y axes. card_address must be "
-                    "explicitly specified."
-                )
-            else:
-                self._set_cmd_args_and_kwds(Cmds.TTL, param_str, card_address=card_address, wait=wait)
+            self._set_cmd_args_and_kwds(Cmds.TTL, param_str, card_address=card_address, wait=wait)
 
     @thread_locked
     def get_ttl_pin_modes(self, card_address: int, wait: bool = True):
@@ -1236,12 +1248,9 @@ class TigerController:
         reply = self._set_cmd_args_and_kwds(Cmds.TTL, wait=wait)
         return bool(int(reply.lstrip(":A ")))
 
-    def is_moving(self):
+    def is_moving(self) -> bool:
         """True if any axes is moving. False otherwise. Blocks."""
-        if any(self.property_updater.axes_status):
-            return True
-        else:
-            return False
+        return bool(any(self.property_updater.axes_status))
 
     def is_axis_moving(self, axis: str):
         """True if the specified axis is moving. False otherwise. Blocks."""
@@ -1270,12 +1279,13 @@ class TigerController:
         # Sometimes tigerbox replies with ACK to this cmd instead of B or N.
         # Re-issue cmd if we received an ACK.
         if reply == ACK:
-            self.log.warning("Received ':A' when we expected 'N' or 'B'. " "Re-issuing command.")
+            self.log.warning("Received ':A' when we expected 'N' or 'B'. Re-issuing command.")
             reply = self.send(f"{Cmds.RDSTAT.value + axes_str}\r").rstrip().rstrip("\r\n").lstrip(ACK).lstrip()
 
         axis_states = list(reply)
         if "B" not in reply and "N" not in reply:
-            raise RuntimeError(f"Error. Cannot tell if axes are moving. " f"Received: '{reply}'")
+            msg = f"Error. Cannot tell if axes are moving. Received: '{reply}'"
+            raise RuntimeError(msg)
         return {x.upper(): state == "B" for x, state in zip(axes, axis_states)}
 
     def wait(self):
@@ -1300,7 +1310,7 @@ class TigerController:
         :param wait: wait until the reply has been received.
         """
         wait_for_output = wait  # wait for outgoing bytest to exit the PC.
-        self.log.debug(f"Sending: {repr(cmd_str)}")
+        self.log.debug(f"Sending: {cmd_str!r}")
         # self.ser.reset_input_buffer()
         # self.ser.reset_output_buffer()
         self.ser.write(cmd_str.encode("ascii"))
@@ -1316,11 +1326,11 @@ class TigerController:
         # Note: reading at least one reply out of the buffer costs ~0.01[s]
         while True:
             reply = self.ser.read_until(read_until.encode("ascii")).decode("utf8")
-            self.log.debug(f"Reply: {repr(reply)}")
+            self.log.debug(f"Reply: {reply!r}")
             try:
                 self.check_reply_for_errors(reply)
-            except SyntaxError as e:  # Technically, this could be a skipped reply.
-                self.log.error("Error occurred when sending: " f"{repr(cmd_str)}")
+            except SyntaxError:  # Technically, this could be a skipped reply.
+                self.log.exception(f"Error occurred when sending: {cmd_str!r}")
                 raise
             break
         return reply
@@ -1360,7 +1370,8 @@ class TigerController:
         """
         # enforce axis type for etl
         if self.axis_to_type[axis] != "b":
-            raise SyntaxError(f"Error. Axis '{axis}' is not an ETL")
+            msg = f"Error. Axis '{axis}' is not an ETL"
+            raise SyntaxError(msg)
         # get initial control mode
         ctrl_mode = TunableLensControlMode(self.get_axis_control_mode(axis))
         # must set to internal mode to read temperature. must wait for reply.
@@ -1407,12 +1418,11 @@ class TigerController:
         .. code-block:: python
 
             # return type looks like:
-            {'X': (31, 0),
-             'Y': (31, 1)}
+            {"X": (31, 0), "Y": (31, 1)}
 
         """
         axis_to_card = {}
-        curr_card_index = {c: 0 for c in set(build_config["Hex Addr"])}
+        curr_card_index = dict.fromkeys(set(build_config["Hex Addr"]), 0)
         for axis, hex_addr in zip(build_config["Motor Axes"], build_config["Hex Addr"]):
             card_index = curr_card_index[hex_addr]
             axis_to_card[axis] = (hex_addr, card_index)
@@ -1429,12 +1439,11 @@ class TigerController:
         .. code-block:: python
 
             # return type looks like:
-            {'X': 'X',
-             'V': 'b'}
+            {"X": "X", "V": "b"}
 
         """
         axis_to_type = {}
-        curr_card_index = {c: 0 for c in set(build_config["Axis Types"])}
+        dict.fromkeys(set(build_config["Axis Types"]), 0)
         for axis, axis_type in zip(build_config["Motor Axes"], build_config["Axis Types"]):
             axis_to_type[axis] = axis_type
         return axis_to_type
@@ -1446,8 +1455,7 @@ class TigerController:
         :return: a dict
         """
         cmd_str = str(card_address) + Cmds.PZINFO.value + "\r"
-        reply = self.send(cmd_str)
-        return reply
+        return self.send(cmd_str)
 
     def _order_axes(self, axes: tuple[str]) -> list[str]:
         """return axes in the order they are received in replies from tigerbox."""
@@ -1466,15 +1474,15 @@ class TigerController:
         cmd: Cmds,
         *args: str,
         wait: bool = True,
-        card_address: int = None,
-        **kwds: Union[float, int],
+        card_address: int | None = None,
+        **kwds: float,
     ):
         """Flag a parameter or set a parameter with a specified value.
 
         .. code-block:: python
 
-            box._set_cmd_args_and_kwds(Cmds.SETHOME, 'x', 'y', 'z')
-            box._set_cmd_args_and_kwds(Cmds.SETHOME, 'x', y=10, z=20.5)
+            box._set_cmd_args_and_kwds(Cmds.SETHOME, "x", "y", "z")
+            box._set_cmd_args_and_kwds(Cmds.SETHOME, "x", y=10, z=20.5)
             box._set_cmd_args_and_kwds(Cmds.SETHOME, y=10, z=20.5)
 
         """
@@ -1524,13 +1532,14 @@ class TigerController:
         for module in modules:
             if module.value not in self._card_modules[card_address]:
                 missing_modules.append(module.value)
-        if len(missing_modules):
-            raise RuntimeError(
+        if missing_modules:
+            msg = (
                 f"Error: card 0x{card_address} cannot execute "
                 f"the specified command because it is missing "
                 f"the following firmware modules: "
                 f"{missing_modules}"
             )
+            raise RuntimeError(msg)
 
     @staticmethod
     def check_reply_for_errors(reply: str):
@@ -1539,7 +1548,8 @@ class TigerController:
         try:
             # throws a value error on failure
             error_enum = ErrorCodes(reply.rstrip("\r\n"))
-            raise SyntaxError(f"Error. TigerController replied with error " f"code: {str(error_enum)}.")
+            msg = f"Error. TigerController replied with error code: {error_enum!s}."
+            raise SyntaxError(msg)
         except ValueError:
             pass
 
@@ -1577,8 +1587,8 @@ class PropertyUpdater:
         self.tigerbox = tigerbox
         self.get_properties = threading.Event()
         # initialize positions in mm
-        self.position_mm = {axis: 0.0 for axis in self.tigerbox.ordered_axes}
-        self.axes_status = {axis: False for axis in self.tigerbox.ordered_axes}
+        self.position_mm = dict.fromkeys(self.tigerbox.ordered_axes, 0.0)
+        self.axes_status = dict.fromkeys(self.tigerbox.ordered_axes, False)
         self.property_updater = threading.Thread(target=self.property_updater)
         self.property_updater.start()
 
@@ -1586,18 +1596,18 @@ class PropertyUpdater:
         """
         Thread to continuously query properties.
         """
-        while not self.get_properties.is_set(): 
+        while not self.get_properties.is_set():
             if self.get_properties:
                 try:
                     position_mm = self.tigerbox.get_position(*self.tigerbox.ordered_axes)
                     self.position_mm.update(position_mm)
                 except:
-                    self.log.error("could not update axes positions")
+                    self.log.exception("could not update axes positions")
                 try:
                     axes_status = self.tigerbox.are_axes_moving()
                     self.axes_status.update(axes_status)
                 except:
-                    self.log.error("could not update axes status")           
+                    self.log.exception("could not update axes status")
                 time.sleep(1.0 / UPDATE_RATE_HZ)
 
     def close(self) -> None:

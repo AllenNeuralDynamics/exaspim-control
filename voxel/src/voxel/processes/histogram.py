@@ -405,7 +405,7 @@ class HistogramProjection:
         """
         self._filename = (
             filename.replace(".tiff", "").replace(".tif", "")
-            if filename.endswith(".tiff") or filename.endswith(".tif")
+            if filename.endswith((".tiff", ".tif"))
             else f"{filename}"
         )
         self.log.info(f"setting filename to: {filename}")
@@ -444,7 +444,8 @@ class HistogramProjection:
         else:
             x_projection = True
             if self._x_bin_count_px < 0 or self._x_bin_count_px > self._column_count_px:
-                raise ValueError(f"x projection must be > 0 and < {self._column_count_px}")
+                msg = f"x projection must be > 0 and < {self._column_count_px}"
+                raise ValueError(msg)
             x_index_list = np.arange(0, self._column_count_px, self._x_bin_count_px)
             if self._column_count_px not in x_index_list:
                 x_index_list = np.append(x_index_list, self._column_count_px)
@@ -454,7 +455,8 @@ class HistogramProjection:
         else:
             y_projection = True
             if self._y_bin_count_px < 0 or self._y_bin_count_px > self._row_count_px:
-                raise ValueError(f"y projection must be > 0 and < {self._row_count_px}")
+                msg = f"y projection must be > 0 and < {self._row_count_px}"
+                raise ValueError(msg)
             y_index_list = np.arange(0, self._row_count_px, self._y_bin_count_px)
             if self._row_count_px not in y_index_list:
                 y_index_list = np.append(y_index_list, self._row_count_px)
@@ -464,7 +466,8 @@ class HistogramProjection:
         else:
             z_projection = True
             if self._z_bin_count_px < 0 or self._z_bin_count_px > self._frame_count_px_px:
-                raise ValueError(f"z projection must be > 0 and < {self._frame_count_px}")
+                msg = f"z projection must be > 0 and < {self._frame_count_px}"
+                raise ValueError(msg)
             z_index_list = np.arange(0, self._frame_count_px_px, self._z_bin_count_px)
             if self._frame_count_px_px not in z_index_list:
                 z_index_list = np.append(z_index_list, self._frame_count_px_px)
@@ -486,14 +489,14 @@ class HistogramProjection:
                         )
                         z_chunk_number += 1
                 if x_projection:
-                    for i in range(0, len(x_index_list) - 1):
+                    for i in range(len(x_index_list) - 1):
                         self.histogram_x[:, i] = histogram1d(
                             self.latest_img[:, x_index_list[i] : x_index_list[i + 1]],
                             bins=self._x_bins,
                             range=[self._x_min_value, self._x_max_value],
                         )
                 if y_projection:
-                    for i in range(0, len(y_index_list) - 1):
+                    for i in range(len(y_index_list) - 1):
                         self.histogram_y[:, i] = histogram1d(
                             self.latest_img[y_index_list[i] : y_index_list[i + 1], :],
                             bins=self._y_bins,
@@ -511,7 +514,7 @@ class HistogramProjection:
         x_projection_centers[0, 1:] = (x_index_list[1:] + x_index_list[:-1]) / 2
         np.savetxt(
             Path(self._path, self._acquisition_name, f"{self.filename}_histogram_x.csv"),
-            np.row_stack((x_projection_centers, np.column_stack((x_bin_centers, self.histogram_x)))),
+            np.vstack((x_projection_centers, np.column_stack((x_bin_centers, self.histogram_x)))),
             delimiter=",",
             fmt="%f",
         )
@@ -524,7 +527,7 @@ class HistogramProjection:
         y_projection_centers[0, 1:] = (y_index_list[1:] + y_index_list[:-1]) / 2
         np.savetxt(
             Path(self._path, self._acquisition_name, f"{self.filename}_histogram_y.csv"),
-            np.row_stack((y_projection_centers, np.column_stack((y_bin_centers, self.histogram_y)))),
+            np.vstack((y_projection_centers, np.column_stack((y_bin_centers, self.histogram_y)))),
             delimiter=",",
             fmt="%f",
         )
@@ -537,7 +540,7 @@ class HistogramProjection:
         z_projection_centers[0, 1:] = (z_index_list[1:] + z_index_list[:-1]) / 2
         np.savetxt(
             Path(self._path, self._acquisition_name, f"{self.filename}_histogram_z.csv"),
-            np.row_stack((z_projection_centers, np.column_stack((z_bin_centers, self.histogram_z)))),
+            np.vstack((z_projection_centers, np.column_stack((z_bin_centers, self.histogram_z)))),
             delimiter=",",
             fmt="%f",
         )

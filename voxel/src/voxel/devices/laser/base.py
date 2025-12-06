@@ -1,5 +1,4 @@
 from abc import abstractmethod
-from typing import Optional
 
 from voxel.devices.base import VoxelDevice
 
@@ -21,14 +20,12 @@ class BaseLaser(VoxelDevice):
         """
         Turn on the laser.
         """
-        pass
 
     @abstractmethod
     def disable(self) -> None:
         """
         Turn off the laser.
         """
-        pass
 
     @property
     @abstractmethod
@@ -39,7 +36,6 @@ class BaseLaser(VoxelDevice):
         :return: Wavelength of the laser
         :rtype: int
         """
-        pass
 
     @property
     @abstractmethod
@@ -50,7 +46,6 @@ class BaseLaser(VoxelDevice):
         :return: The power setpoint in mW.
         :rtype: float
         """
-        pass
 
     @power_setpoint_mw.setter
     @abstractmethod
@@ -61,7 +56,6 @@ class BaseLaser(VoxelDevice):
         :param value: The power setpoint in mW.
         :type value: float
         """
-        pass
 
     @property
     @abstractmethod
@@ -72,15 +66,13 @@ class BaseLaser(VoxelDevice):
         :return: The power in mW.
         :rtype: float
         """
-        pass
 
     @property
     @abstractmethod
-    def temperature_c(self) -> Optional[float]:
+    def temperature_c(self) -> float | None:
         """
         Get the main temperature of the laser in degrees Celsius.
 
         :return: The temperature in degrees Celsius.
         :rtype: float
         """
-        pass

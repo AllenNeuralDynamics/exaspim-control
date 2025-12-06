@@ -2,13 +2,15 @@ import copy
 import importlib
 import inspect
 import logging
-from functools import wraps
+import operator
+from collections.abc import Callable
+from functools import reduce, wraps
 from pathlib import Path
 from threading import Lock, RLock
-from typing import Any, Dict, Optional, Type
+from typing import Any
 
 import inflection
-from ruamel.yaml import YAML
+from ruyaml import YAML
 from serial import Serial
 
 from voxel.descriptors.deliminated_property import _DeliminatedProperty
@@ -17,7 +19,7 @@ from voxel.descriptors.deliminated_property import _DeliminatedProperty
 class Instrument:
     """Represents an instrument with various devices and configurations."""
 
-    def __init__(self, config_path: str, yaml_handler: Optional[YAML] = None, log_level: str = "INFO"):
+    def __init__(self, config_path: str, yaml_handler: YAML | None = None, log_level: str = "INFO"):
         """
         Initialize the Instrument class.
 
@@ -38,7 +40,7 @@ class Instrument:
         self.config = self.yaml.load(self.config_path)
 
         # store a dict of {device name: device type} for convenience
-        self.channels: Dict[str, Any] = {}
+        self.channels: dict[str, Any] = {}
         self.stage_axes: list = []
 
         # construct microscope
@@ -64,16 +66,23 @@ class Instrument:
         # construct and verify channels
         for channel in self.config["instrument"]["channels"].values():
             for laser_name in channel.get("lasers", []):
-                if laser_name not in self.lasers.keys():
-                    raise ValueError(f"laser {laser_name} not in {self.lasers.keys()}")
+                if laser_name not in self.lasers:
+                    msg = f"laser {laser_name} not in {self.lasers.keys()}"
+                    raise ValueError(msg)
             for filter in channel.get("filters", []):
-                if filter not in self.filters.keys():
-                    raise ValueError(f"filter wheel {filter} not in {self.filters.keys()}")
-                if filter not in sum([list(v.filters.keys()) for v in self.filter_wheels.values()], []):
-                    raise ValueError(f"filter {filter} not associated with any filter wheel: {self.filter_wheels}")
+                if filter not in self.filters:
+                    msg = f"filter wheel {filter} not in {self.filters.keys()}"
+                    raise ValueError(msg)
+                if filter not in reduce(
+                    operator.iadd, [list(v.filters.keys()) for v in self.filter_wheels.values()], []
+                ):
+                    msg = f"filter {filter} not associated with any filter wheel: {self.filter_wheels}"
+                    raise ValueError(msg)
         self.channels = self.config["instrument"]["channels"]
 
-    def _construct_device(self, device_name: str, device_specs: Dict[str, Any], lock: Optional[Lock] = None) -> None:
+    def _construct_device(
+        self, device_name: str, device_specs: dict[str, Any], lock: "Lock | RLock | None" = None
+    ) -> None:
         """
         Construct a device based on its specifications.
 
@@ -101,12 +110,12 @@ class Instrument:
         getattr(self, device_type)[device_name] = device_object
 
         # added logic for stages to store and check stage axes
-        if device_type == "tiling_stages" or device_type == "scanning_stages":
+        if device_type in {"tiling_stages", "scanning_stages"}:
             instrument_axis = device_specs["init"]["instrument_axis"]
             if instrument_axis in self.stage_axes:
-                raise ValueError(f"{instrument_axis} is duplicated and already exists!")
-            else:
-                self.stage_axes.append(instrument_axis)
+                msg = f"{instrument_axis} is duplicated and already exists!"
+                raise ValueError(msg)
+            self.stage_axes.append(instrument_axis)
 
         # Add subdevices under device and fill in any needed keywords to init
         for subdevice_name, subdevice_specs in device_specs.get("subdevices", {}).items():
@@ -114,7 +123,7 @@ class Instrument:
             self._construct_subdevice(device_object, subdevice_name, copy.deepcopy(subdevice_specs), lock)
 
     def _construct_subdevice(
-        self, device_object: Any, subdevice_name: str, subdevice_specs: Dict[str, Any], lock: Lock
+        self, device_object: Any, subdevice_name: str, subdevice_specs: dict[str, Any], lock: "Lock | RLock"
     ) -> None:
         """
         Construct a subdevice based on its specifications.
@@ -135,13 +144,15 @@ class Instrument:
             # If subdevice init needs a serial port, add device's serial port to init arguments
             if parameter.annotation == Serial and Serial in [type(v) for v in device_object.__dict__.values()]:
                 # assuming only one relevant serial port in parent
-                subdevice_specs["init"][name] = [v for v in device_object.__dict__.values() if type(v) == Serial][0]
+                subdevice_specs["init"][name] = next(
+                    v for v in device_object.__dict__.values() if isinstance(v, Serial)
+                )
             # If subdevice init needs parent object type, add device object to init arguments
             elif parameter.annotation == type(device_object):
                 subdevice_specs["init"][name] = device_object
         self._construct_device(subdevice_name, subdevice_specs, lock)
 
-    def _load_device(self, driver: str, module: str, kwds: Dict[str, Any], lock: Lock) -> Any:
+    def _load_device(self, driver: str, module: str, kwds: dict[str, Any], lock: "Lock | RLock") -> Any:
         """
         Load a device class and make it thread-safe.
 
@@ -161,7 +172,7 @@ class Instrument:
         thread_safe_device_class = for_all_methods(lock, device_class)
         return thread_safe_device_class(**kwds)
 
-    def _setup_device(self, device: Any, properties: Dict[str, Any]) -> None:
+    def _setup_device(self, device: Any, properties: dict[str, Any]) -> None:
         """
         Set up a device with its properties.
 
@@ -176,7 +187,8 @@ class Instrument:
             if hasattr(device, key):
                 setattr(device, key, value)
             else:
-                raise ValueError(f"{device} property {key} has no setter")
+                msg = f"{device} property {key} has no setter"
+                raise ValueError(msg)
 
     def update_current_state_config(self) -> None:
         """
@@ -207,15 +219,14 @@ class Instrument:
         """
         Close the instrument and release any resources.
         """
-        pass
 
 
-def for_all_methods(lock: Lock, cls: Type) -> Type:
+def for_all_methods(lock: Lock, cls: type) -> type:
     """
     Apply a lock to all methods of a class to make them thread-safe.
 
     :param lock: Lock for thread safety.
-    :type lock: Lock
+    :type lock: Lock or RLock
     :param cls: Class to apply the lock to.
     :type cls: type
     :return: Class with thread-safe methods.
@@ -225,7 +236,7 @@ def for_all_methods(lock: Lock, cls: Type) -> Type:
         if attr_name == "__init__":
             continue
         attr = getattr(cls, attr_name)
-        if type(attr) == _DeliminatedProperty:
+        if isinstance(attr, _DeliminatedProperty):
             attr._fset = lock_methods(attr._fset, lock)
             attr._fget = lock_methods(attr._fget, lock)
         elif isinstance(attr, property):
@@ -238,14 +249,14 @@ def for_all_methods(lock: Lock, cls: Type) -> Type:
     return cls
 
 
-def lock_methods(fn: callable, lock: Lock) -> callable:
+def lock_methods(fn: Callable, lock) -> Callable:
     """
     Apply a lock to a method to make it thread-safe.
 
     :param fn: Function to apply the lock to.
     :type fn: function
     :param lock: Lock for thread safety.
-    :type lock: Lock
+    :type lock: Lock or RLock
     :return: Thread-safe function.
     :rtype: function
     """

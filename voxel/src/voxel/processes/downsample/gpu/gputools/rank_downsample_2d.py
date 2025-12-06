@@ -1,12 +1,10 @@
 from numbers import Number
-from typing import Optional
 
 import numpy as np
 from gputools import OCLArray, OCLProgram
 from gputools.convolve._abspath import abspath
 from gputools.core.ocltypes import cl_buffer_datatype_dict
 from mako.template import Template
-
 from voxel.processes.downsample.base import BaseDownSample
 
 
@@ -19,7 +17,7 @@ class GPUToolsRankDownSample2D(BaseDownSample):
     If rank = size[0] x size[1] x size[2] - 1 (or -1) then the maximum is returned
     """
 
-    def __init__(self, binning: int, rank: Optional[int] = None, data_type: Optional[str] = None) -> None:
+    def __init__(self, binning: int, rank: int | None = None, data_type: str | None = None) -> None:
         """
         Module for handling 2D rank-based downsampling processes.
 
@@ -48,9 +46,10 @@ class GPUToolsRankDownSample2D(BaseDownSample):
         elif data_type == "uint16":
             DTYPE = cl_buffer_datatype_dict[np.uint16]
         else:
-            raise ValueError("Invalid data type: {}".format(self._data_type))
+            msg = f"Invalid data type: {self._data_type}"
+            raise ValueError(msg)
 
-        with open(abspath("kernels/rank_downscale.cl"), "r") as f:
+        with open(abspath("kernels/rank_downscale.cl")) as f:
             tpl = Template(f.read())
 
         rendered = tpl.render(

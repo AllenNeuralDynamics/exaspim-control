@@ -2,7 +2,6 @@ from pathlib import Path
 
 import numpy as np
 import tifffile
-
 from voxel.processes.max_projection.base import BaseMaxProjection
 
 
@@ -46,7 +45,8 @@ class CPUMaxProjection(BaseMaxProjection):
         else:
             x_projection = True
             if self._x_projection_count_px < 0 or self._x_projection_count_px > self._column_count_px:
-                raise ValueError(f"x projection must be > 0 and < {self._column_count_px}")
+                msg = f"x projection must be > 0 and < {self._column_count_px}"
+                raise ValueError(msg)
             x_index_list = np.arange(0, self._column_count_px, self._x_projection_count_px)
             if self._column_count_px not in x_index_list:
                 x_index_list = np.append(x_index_list, self._column_count_px)
@@ -59,7 +59,8 @@ class CPUMaxProjection(BaseMaxProjection):
         else:
             y_projection = True
             if self._y_projection_count_px < 0 or self._y_projection_count_px > self._row_count_px:
-                raise ValueError(f"y projection must be > 0 and < {self._row_count_px}")
+                msg = f"y projection must be > 0 and < {self._row_count_px}"
+                raise ValueError(msg)
             y_index_list = np.arange(0, self._row_count_px, self._y_projection_count_px)
             if self._row_count_px not in y_index_list:
                 y_index_list = np.append(y_index_list, self._row_count_px)
@@ -72,7 +73,8 @@ class CPUMaxProjection(BaseMaxProjection):
         else:
             z_projection = True
             if self._z_projection_count_px < 0 or self._z_projection_count_px > self._frame_count_px:
-                raise ValueError(f"z projection must be > 0 and < {self._frame_count_px}")
+                msg = f"z projection must be > 0 and < {self._frame_count_px}"
+                raise ValueError(msg)
             self.mip_xy = np.zeros((self._row_count_px, self._column_count_px), dtype=self._data_type)
 
         frame_index = 0
@@ -107,21 +109,21 @@ class CPUMaxProjection(BaseMaxProjection):
                         # set next start index to previous end index
                         start_index = end_index
                 if x_projection:
-                    for i in range(0, len(x_index_list) - 1):
+                    for i in range(len(x_index_list) - 1):
                         self.mip_yz[frame_index, :, i] = np.max(
-                            self.latest_img[:, x_index_list[i]:x_index_list[i + 1]],
+                            self.latest_img[:, x_index_list[i] : x_index_list[i + 1]],
                             axis=1,
                         )
                 if y_projection:
-                    for i in range(0, len(y_index_list) - 1):
+                    for i in range(len(y_index_list) - 1):
                         self.mip_xz[frame_index, :, i] = np.max(
-                            self.latest_img[y_index_list[i]:y_index_list[i + 1], :],
+                            self.latest_img[y_index_list[i] : y_index_list[i + 1], :],
                             axis=0,
                         )
                 frame_index += 1
                 self.new_image.clear()
         if x_projection:
-            for i in range(0, len(x_index_list) - 1):
+            for i in range(len(x_index_list) - 1):
                 start_index = x_index_list[i]
                 end_index = x_index_list[i + 1]
                 self.log.info(f"saving {self.filename}_max_projection_yz_x_{start_index:06}_{end_index:06}.tiff")
@@ -134,7 +136,7 @@ class CPUMaxProjection(BaseMaxProjection):
                     self.mip_yz[:, :, i],
                 )
         if y_projection:
-            for i in range(0, len(y_index_list) - 1):
+            for i in range(len(y_index_list) - 1):
                 start_index = y_index_list[i]
                 end_index = y_index_list[i + 1]
                 self.log.info(f"saving {self.filename}_max_projection_xz_y_{start_index:06}_{end_index:06}.tiff")

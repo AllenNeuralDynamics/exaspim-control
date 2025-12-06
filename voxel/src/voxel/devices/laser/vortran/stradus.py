@@ -1,6 +1,5 @@
 from vortran_laser import BoolVal
 from vortran_laser import StradusLaser as StradusVortran
-from typing import Union, Dict
 
 from voxel.descriptors.deliminated_property import DeliminatedProperty
 from voxel.devices.laser.base import BaseLaser
@@ -62,7 +61,7 @@ class StradusLaser(BaseLaser):
         return self._inst.power_setpoint
 
     @power_setpoint_mw.setter
-    def power_setpoint_mw(self, value: Union[float, int]) -> None:
+    def power_setpoint_mw(self, value: float) -> None:
         """
         Set the power setpoint in milliwatts.
 
@@ -81,10 +80,9 @@ class StradusLaser(BaseLaser):
         """
         if self._inst.external_control == BoolVal.ON:
             return "analog"
-        elif self._inst.digital_modulation == BoolVal.ON:
+        if self._inst.digital_modulation == BoolVal.ON:
             return "digital"
-        else:
-            return "off"
+        return "off"
 
     @modulation_mode.setter
     def modulation_mode(self, value: str) -> None:
@@ -95,7 +93,7 @@ class StradusLaser(BaseLaser):
         :type value: str
         :raises ValueError: If the modulation mode is not valid
         """
-        if value not in MODULATION_MODES.keys():
+        if value not in MODULATION_MODES:
             raise ValueError("mode must be one of %r." % MODULATION_MODES.keys())
         for attribute, state in MODULATION_MODES[value].items():
             setattr(self._inst, attribute, state)
@@ -131,7 +129,7 @@ class StradusLaser(BaseLaser):
         return self._inst.temperature
 
     @property
-    def status(self) -> Dict[str, Union[str, float]]:
+    def status(self) -> dict[str, str | float]:
         """
         Get the status of the laser.
 

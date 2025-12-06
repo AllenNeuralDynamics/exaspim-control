@@ -2,7 +2,7 @@
 name = "voxel"
 description = "A python package for generalized microscope control"
 license = { file = "LICENSE" }
-requires-python = ">=3.10, <=3.12"
+requires-python = ">=3.12, <3.13"
 authors = [
     { name = "Micah Woodard", email = "micah.woodard@alleninstitute.org" },
     { name = "Adam Glaser", email = "adam.glaser@alleninstitute.org" },
@@ -20,7 +20,7 @@ keywords = ["microscopy", "microscope", "acquisition", "imaging"]
 version = "0.1.0"
 
 dependencies = [
-    "ruamel-yaml>=0.18.5",
+    "ruyaml>=0.91.0",
     "inflection>=0.5.1",
     "pydantic>=2.7.3",
     "imohash>=1.0.5",
@@ -38,7 +38,7 @@ dependencies = [
     # processing and utils dependencies
     "pyclesperanto>=0.8.2",
     "scikit-image>=0.20.0",
-    "gputools>0.2.14",
+    "gputools",
     "tensorstore>=0.1.56",
     "matplotlib>=3.8.2",
     "scipy>=1.12.0",
@@ -82,16 +82,7 @@ scikit-tensor = [
     "scikit-tensor-py3 @ https://github.com/adamkglaser/scikit-tensor-py3/releases/download/v0.1.0/scikit_tensor_py3-0.4.1-py3-none-any.whl",
 ]
 
-dev = [
-    "pytest>=8.2.1",
-    "black",
-    "coverage",
-    "flake8",
-    "interrogate",
-    "isort",
-    "Sphinx",
-    "furo",
-]
+
 all = [
     "voxel[imaris-writer]",
     "voxel[tifffile-writer]",
@@ -115,48 +106,9 @@ all = [
 "Homepage" = "https://github.com/AllenNeuralDynamics/voxel"
 "Issues" = "https://github.com/AllenNeuralDynamics/voxel/issues"
 
+[tool.uv.sources]
+"gputools" = { path = "../vendor/gputools-src", editable = true }
+
 [build-system]
 requires = ["uv_build>=0.8.2,<0.9.0"]
 build-backend = "uv_build"
-
-
-[tool.black]
-line-length = 120
-target-version = ["py311"]
-exclude = '''
-(
-    /(
-        \.eggs         # exclude a few common directories in the
-      | \.git          # root of the project
-      | \.hg
-      | \.mypy_cache
-      | \.tox
-      | \.venv
-      | _build
-      | build
-      | dist
-    )/
-    | .gitignore
-)
-'''
-
-[tool.coverage.run]
-omit = ["*__init__*"]
-source = ["voxel", "tests"]
-
-[tool.coverage.report]
-exclude_lines = [
-    "if __name__ == .__main__.:",
-    "from",
-    "import",
-    "pragma: no cover",
-]
-fail_under = 100
-
-[tool.isort]
-line_length = 120
-profile = "black"
-
-[tool.interrogate]
-exclude = ["setup.py", "docs", "build"]
-fail_under = 100

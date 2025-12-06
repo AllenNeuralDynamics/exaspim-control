@@ -3,14 +3,12 @@ import os
 import sys
 from ctypes import c_wchar
 from math import ceil
-from multiprocessing import Array, Process, Value, Queue
+from multiprocessing import Array, Process, Queue, Value
 from multiprocessing.shared_memory import SharedMemory
 from pathlib import Path
 from time import perf_counter, sleep
-from typing import List, Dict, Tuple, Optional
 
 import numpy as np
-
 from voxel.writers.base import BaseWriter
 from voxel.writers.bdv_writer import npy2bdv
 
@@ -46,17 +44,17 @@ class BDVWriter(BaseWriter):
         """
         super().__init__(path)
         self._compression = None  # initialize as no compression
-        self.compression_opts: Optional[Tuple[int, int, int, int, int]] = None
+        self.compression_opts: tuple[int, int, int, int, int] | None = None
         # Lists for storing all datasets in a single BDV file
         self.current_tile_num: int = 0
         self.current_channel_num: int = 0
-        self.tile_list: List[Tuple[float, float, float]] = list()
-        self.channel_list: List[str] = list()
-        self.dataset_dict: Dict[Tuple[int, int], Tuple[int, int, int]] = dict()
-        self.voxel_size_dict: Dict[Tuple[int, int], Tuple[float, float, float]] = dict()
-        self.affine_deskew_dict: Dict[Tuple[int, int], np.ndarray] = dict()
-        self.affine_scale_dict: Dict[Tuple[int, int], np.ndarray] = dict()
-        self.affine_shift_dict: Dict[Tuple[int, int], np.ndarray] = dict()
+        self.tile_list: list[tuple[float, float, float]] = []
+        self.channel_list: list[str] = []
+        self.dataset_dict: dict[tuple[int, int], tuple[int, int, int]] = {}
+        self.voxel_size_dict: dict[tuple[int, int], tuple[float, float, float]] = {}
+        self.affine_deskew_dict: dict[tuple[int, int], np.ndarray] = {}
+        self.affine_scale_dict: dict[tuple[int, int], np.ndarray] = {}
+        self.affine_shift_dict: dict[tuple[int, int], np.ndarray] = {}
 
     @property
     def theta_deg(self) -> float:
@@ -271,7 +269,7 @@ class BDVWriter(BaseWriter):
         self.log.info(f"{self._filename}: starting writer.")
         self._process.start()
 
-    def _run(self, shm_shape: List[int], shm_nbytes: int, shared_progress: Value, shared_log_queue: Queue) -> None:
+    def _run(self, shm_shape: list[int], shm_nbytes: int, shared_progress: Value, shared_log_queue: Queue) -> None:
         """
         Main run function of the BDV writer.
 
@@ -369,7 +367,7 @@ class BDVWriter(BaseWriter):
             shm = SharedMemory(self.shm_name, create=False, size=shm_nbytes)
             frames = np.ndarray(shm_shape, self._data_type, buffer=shm.buf)
             shared_log_queue.put(
-                f"{self._filename}: writing chunk " f"{chunk_num + 1}/{chunk_total} of size {frames.shape}."
+                f"{self._filename}: writing chunk {chunk_num + 1}/{chunk_total} of size {frames.shape}."
             )
             start_time = perf_counter()
             # write substack of data to BDV file at correct z position
@@ -381,7 +379,7 @@ class BDVWriter(BaseWriter):
                 channel=self.current_channel_num,
             )
             frames = None
-            shared_log_queue.put(f"{self._filename}: writing chunk took " f"{perf_counter() - start_time:.2f} [s]")
+            shared_log_queue.put(f"{self._filename}: writing chunk took {perf_counter() - start_time:.2f} [s]")
             shm.close()
             self.done_reading.set()
             # update shared progress value

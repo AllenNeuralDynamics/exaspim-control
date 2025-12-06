@@ -1,8 +1,8 @@
 import logging
 from abc import abstractmethod
-from typing import Callable
+from collections.abc import Callable
 
-import numpy
+import numpy as np
 
 
 class BaseDownSample:
@@ -21,7 +21,7 @@ class BaseDownSample:
         self.log = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
 
     @abstractmethod
-    def run(self, method: Callable[[numpy.ndarray], numpy.ndarray], image: numpy.ndarray) -> numpy.ndarray:
+    def run(self, method: Callable[[np.ndarray], np.ndarray], image: np.ndarray) -> np.ndarray:
         """
         Run function for image downsampling.
 
@@ -32,4 +32,3 @@ class BaseDownSample:
         :return: Downsampled image
         :rtype: numpy.ndarray
         """
-        pass

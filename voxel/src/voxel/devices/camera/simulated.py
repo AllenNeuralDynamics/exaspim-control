@@ -1,11 +1,8 @@
 import logging
-import time
-import multiprocessing
-from multiprocessing import Event, Process, Queue, Value
-from typing import Dict, Any
+from multiprocessing import Event
+from typing import Any
 
-import numpy
-
+import numpy as np
 from voxel.descriptors.deliminated_property import DeliminatedProperty
 from voxel.devices.camera.base import BaseCamera
 from voxel.processes.downsample.gpu.gputools.downsample_2d import GPUToolsDownSample2D
@@ -186,7 +183,7 @@ class SimulatedCamera(BaseCamera):
         self.log.info(f"height offset set to: {value} px")
 
     @property
-    def trigger(self) -> Dict[str, str]:
+    def trigger(self) -> dict[str, str]:
         """Get the trigger settings.
 
         :return: Trigger settings
@@ -195,7 +192,7 @@ class SimulatedCamera(BaseCamera):
         return self._trigger
 
     @trigger.setter
-    def trigger(self, trigger: Dict[str, str]) -> None:
+    def trigger(self, trigger: dict[str, str]) -> None:
         """Set the trigger settings.
 
         :param trigger: Trigger settings
@@ -237,10 +234,9 @@ class SimulatedCamera(BaseCamera):
         valid_binning = list(BINNINGS.keys())
         if binning not in valid_binning:
             raise ValueError("binning must be one of %r." % BINNINGS)
-        else:
-            self._binning = BINNINGS[binning]
-            # initialize the downsampling in 2d
-            self.gpu_binning = GPUToolsDownSample2D(binning=self._binning, mode="average")
+        self._binning = BINNINGS[binning]
+        # initialize the downsampling in 2d
+        self.gpu_binning = GPUToolsDownSample2D(binning=self._binning, mode="average")
 
     @property
     def pixel_type(self) -> str:
@@ -320,7 +316,7 @@ class SimulatedCamera(BaseCamera):
         :return: The mainboard temperature in Celsius.
         :rtype: float
         """
-        return 40.0 + numpy.random.randn()
+        return 40.0 + np.random.randn()
 
     @property
     def sensor_temperature_c(self) -> float:
@@ -330,7 +326,7 @@ class SimulatedCamera(BaseCamera):
         :return: The sensor temperature in Celsius.
         :rtype: float
         """
-        return 4.0 + numpy.random.randn()
+        return 4.0 + np.random.randn()
 
     @property
     def readout_mode(self) -> str:
@@ -358,31 +354,28 @@ class SimulatedCamera(BaseCamera):
     def reset(self) -> None:
         """Reset camera."""
         self.log.info("simulated camera resetting...")
-        pass
 
     def close(self) -> None:
         """Close camera."""
         self.log.info("simulated camera closing...")
-        pass
 
-    def grab_frame(self) -> numpy.ndarray:
+    def grab_frame(self) -> np.ndarray:
         """Grab the latest frame.
 
         :return: Latest frame
         :rtype: numpy.ndarray
         """
-        image = numpy.random.randint(
+        image = np.random.randint(
             low=128, high=256, size=(self.image_height_px, self.image_width_px), dtype=PIXEL_TYPES[self._pixel_type]
         )
-        self._latest_frame = numpy.copy(image)
+        self._latest_frame = np.copy(image)
         self.frame_number += 1
         if self._binning > 1:
             return self.gpu_binning.run(image)
-        else:
-            return image
+        return image
 
     @property
-    def latest_frame(self) -> numpy.ndarray:
+    def latest_frame(self) -> np.ndarray:
         """Get the latest frame.
 
         :return: Latest frame
@@ -391,7 +384,7 @@ class SimulatedCamera(BaseCamera):
         # return latest frame from internal queue buffer
         return self._latest_frame
 
-    def acquisition_state(self) -> Dict[str, Any]:
+    def acquisition_state(self) -> dict[str, Any]:
         """Return the acquisition state of the camera.
 
         :return: Acquisition state
@@ -405,10 +398,11 @@ class SimulatedCamera(BaseCamera):
         # number of underrun, i.e. dropped frames
         state["Dropped Frames"] = 0
         state["Data Rate [MB/s]"] = (
-            1.0 / (self.frame_time_ms / 1000)
+            1.0
+            / (self.frame_time_ms / 1000)
             * self._width_px
             * self._height_px
-            * numpy.dtype(self._pixel_type).itemsize
+            * np.dtype(self._pixel_type).itemsize
             / self._binning**2
             / 1024**2
         )

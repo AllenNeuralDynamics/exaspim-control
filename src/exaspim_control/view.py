@@ -1,15 +1,14 @@
 import time
+from collections.abc import Iterator
 from datetime import datetime
 from pathlib import Path
-from typing import Iterator, Literal
 
 import inflection
 import numpy as np
-import ruamel
 from napari.qt.threading import create_worker, thread_worker
 from napari.utils.events import Event
-from qtpy.QtCore import Qt, Signal
-from qtpy.QtWidgets import (
+from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtWidgets import (
     QComboBox,
     QFrame,
     QGridLayout,
@@ -22,27 +21,28 @@ from qtpy.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from ruyaml import RoundTripRepresenter
+
 from view.acquisition_view import AcquisitionView
 from view.instrument_view import InstrumentView
 from view.widgets.acquisition_widgets.channel_plan_widget import ChannelPlanWidget
 from view.widgets.acquisition_widgets.volume_model import VolumeModel
 from view.widgets.acquisition_widgets.volume_plan_widget import VolumePlanWidget
 from view.widgets.base_device_widget import create_widget, disable_button
-
 from voxel.processes.downsample.gpu.gputools.rank_downsample_2d import GPUToolsRankDownSample2D
 
 
-class NonAliasingRTRepresenter(ruamel.yaml.RoundTripRepresenter):
+class NonAliasingRTRepresenter(RoundTripRepresenter):
     """
-    Custom representer for ruamel.yaml to ignore aliases.
+    Custom representer for ruyaml to ignore aliases.
     This class is used to ensure that YAML files do not contain aliases,
     which can cause issues with certain YAML parsers.
     It overrides the `ignore_aliases` method to always return True.
-    This prevents ruamel.yaml from creating aliases for any data structures
+    This prevents ruyaml from creating aliases for any data structures
     that it represents.
 
-    :param ruamel: ruamel.yaml.RoundTripRepresenter
-    :type ruamel: ruamel.yaml.RoundTripRepresenter
+    :param ruamel: RoundTripRepresenter
+    :type ruamel: RoundTripRepresenter
     """
 
     def ignore_aliases(self, data):
@@ -55,26 +55,26 @@ class ExASPIMInstrumentView(InstrumentView):
     @property
     def qt_camera(self):
         """Get the Qt viewer camera, handling API changes between napari versions."""
-        try:
-            # Try newer napari API first (canvas.camera)
-            return self.viewer.window.qt_viewer.canvas.camera
-        except AttributeError:
-            # Fall back to older API (view.camera)
-            return self.viewer.window.qt_viewer.view.camera
+        return self.viewer.window.qt_viewer.canvas.camera
+        # try:
+        #     # Try newer napari API first (canvas.camera)
+        # except AttributeError:
+        #     # Fall back to older API (view.camera)
+        #     return self.viewer.window.qt_viewer.view.camera
 
-    def __init__(self, instrument: object, config_path: Path, log_level: Literal["DEBUG", "INFO"] = "INFO"):
+    def __init__(self, instrument: object, gui_config_path: Path, save_acquisition_config_callback=None):
         """
         Initialize the ExASPIMInstrumentView object.
 
         :param instrument: Instrument object
         :type instrument: object
-        :param config_path: Configuration path
-        :type config_path: Path
-        :param log_level: Logging level, defaults to "INFO"
-        :type log_level: str, optional
+        :param gui_config_path: GUI configuration path
+        :type gui_config_path: Path
+        :param save_acquisition_config_callback: Optional callback for saving acquisition config
+        :type save_acquisition_config_callback: callable, optional
         """
         self.flip_mount_widgets = {}
-        super().__init__(instrument, config_path, log_level)
+        super().__init__(instrument, gui_config_path, save_acquisition_config_callback)
         # other setup taken care of in base instrumentview class
         self.setup_flip_mount_widgets()
 
@@ -115,8 +115,8 @@ class ExASPIMInstrumentView(InstrumentView):
         self.viewer.camera.events.center.connect(self.camera_position)
 
         # create cache for contrast limit values
-        self.contrast_limits = dict()
-        for key in self.channels.keys():
+        self.contrast_limits = {}
+        for key in self.channels:
             self.contrast_limits[key] = [self.intensity_min, self.intensity_max]
 
     def setup_camera_widgets(self) -> None:
@@ -165,11 +165,11 @@ class ExASPIMInstrumentView(InstrumentView):
         Set up stage widgets.
         """
         stage_widgets = []
-        for name, widget in {
+        for widget in {
             **self.tiling_stage_widgets,
             **self.scanning_stage_widgets,
             **self.focusing_stage_widgets,
-        }.items():
+        }.values():
             label = QLabel()
             layout = QVBoxLayout()
             layout.addWidget(create_widget("H", label, widget))
@@ -202,7 +202,8 @@ class ExASPIMInstrumentView(InstrumentView):
             layout.addWidget(create_widget("H", label, widget))
             laser_widgets.append(layout)
         self.laser_widget = create_widget("V", *laser_widgets)
-        self.laser_widget.layout().setSpacing(12)
+        if (laser_layout := self.laser_widget.layout()) is not None:
+            laser_layout.setSpacing(12)
         self.viewer.window.add_dock_widget(self.laser_widget, area="bottom", name="Lasers")
 
     def setup_channel_widget(self) -> None:
@@ -224,38 +225,6 @@ class ExASPIMInstrumentView(InstrumentView):
         widget.setLayout(layout)
         widget.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Minimum)
         self.viewer.window.add_dock_widget(widget, area="bottom", name="Channels")
-
-    def change_channel(self, channel: str) -> None:
-        """
-        Change the livestream channel.
-
-        :param channel: Name of the channel
-        :type channel: str
-        """
-        if self.grab_frames_worker.is_running:  # livestreaming is going
-            for old_laser_name in self.channels[self.livestream_channel].get("lasers", []):
-                self.log.info(f"Disabling laser {old_laser_name}")
-                self.instrument.lasers[old_laser_name].disable()
-            for daq_name, daq in self.instrument.daqs.items():
-                self.log.info(f"Writing new waveforms for {daq_name}")
-                self.write_waveforms(daq)
-            for new_laser_name in self.channels[channel].get("lasers", []):
-                self.log.info(f"Enabling laser {new_laser_name}")
-                self.instrument.lasers[new_laser_name].enable()
-        self.livestream_channel = channel
-        # change filter
-        for filter in self.channels[self.livestream_channel].get("filters", []):
-            self.log.info(f"Enabling filter {filter}")
-            self.instrument.filters[filter].enable()
-
-    def update_fps(self, fps: float) -> None:
-        """
-        Update the frames per second (FPS) display.
-
-        :param fps: Frames per second
-        :type fps: float
-        """
-        self.viewer.text_overlay.text = f"{fps:1.1f} fps"
 
     @thread_worker
     def grab_frames(self, camera_name: str, frames=float("inf")) -> Iterator[tuple[np.ndarray, str]]:
@@ -299,7 +268,7 @@ class ExASPIMInstrumentView(InstrumentView):
         """
         Update the image layer in the viewer.
 
-        :param args: Tuple containing image and camera name
+        :param args: tuple containing image and camera name
         :type args: tuple
         :param snapshot: Whether the image is a snapshot, defaults to False
         :type snapshot: bool, optional
@@ -370,7 +339,7 @@ class ExASPIMInstrumentView(InstrumentView):
         """
         Dissect the image and add to the viewer.
 
-        :param args: Tuple containing image and camera name
+        :param args: tuple containing image and camera name
         :type args: tuple
         """
         (image, camera_name) = args
@@ -513,10 +482,10 @@ class ExASPIMInstrumentView(InstrumentView):
 
         # TODO fix this, messy way to figure out FOV dimensions from camera properties
         if hasattr(self.instrument, "indicator_lights"):
-            first_indicator_light_key = list(self.instrument.indicator_lights.keys())[0]
+            first_indicator_light_key = next(iter(self.instrument.indicator_lights.keys()))
             self.instrument.indicator_lights[first_indicator_light_key].enable()
 
-        for daq_name, daq in self.instrument.daqs.items():
+        for daq in self.instrument.daqs.values():
             if daq.tasks.get("ao_task", None) is not None:
                 daq.add_task("ao")
                 daq.generate_waveforms("ao", self.livestream_channel)
@@ -545,7 +514,7 @@ class ExASPIMInstrumentView(InstrumentView):
         :type camera_name: str
         """
         self.instrument.cameras[camera_name].abort()
-        for _, daq in self.instrument.daqs.items():
+        for daq in self.instrument.daqs.values():
             # wait for daq tasks to finish - prevents devices from stopping in
             # unsafe state, i.e. lasers still on
             daq.co_task.stop()
@@ -566,7 +535,7 @@ class ExASPIMInstrumentView(InstrumentView):
 
         # TODO fix this, messy way to figure out FOV dimensions from camera properties
         if hasattr(self.instrument, "indicator_lights"):
-            first_indicator_light_key = list(self.instrument.indicator_lights.keys())[0]
+            first_indicator_light_key = next(iter(self.instrument.indicator_lights.keys()))
             self.instrument.indicator_lights[first_indicator_light_key].disable()
 
         self.filter_wheel_widget.setDisabled(False)  # enable filter wheel widget
@@ -605,26 +574,46 @@ class ExASPIMInstrumentView(InstrumentView):
 class ExASPIMAcquisitionView(AcquisitionView):
     """Class for handling ExASPIM acquisition view."""
 
-    acquisitionEnded = Signal()
-    acquisitionStarted = Signal((datetime,))
+    acquisitionEnded = pyqtSignal()
+    acquisitionStarted = pyqtSignal(datetime)
 
-    def __init__(self, acquisition: object, instrument_view: ExASPIMInstrumentView):
+    def __init__(
+        self,
+        acquisition: object,
+        config: dict,
+        save_config_callback=None,
+        update_layer_callback=None,
+    ):
         """
         Initialize the ExASPIMAcquisitionView object.
 
         :param acquisition: Acquisition object
         :type acquisition: object
-        :param instrument_view: Instrument view object
-        :type instrument_view: ExASPIMInstrumentView
+        :param config: Configuration dictionary
+        :type config: dict
+        :param save_config_callback: Callback function for saving acquisition config
+        :type save_config_callback: callable, optional
+        :param update_layer_callback: Callback for updating viewer layers
+        :type update_layer_callback: callable, optional
         """
-        instrument_view.config["acquisition_view"]["unit"] = "mm"
-        super().__init__(acquisition=acquisition, instrument_view=instrument_view)
+        config["acquisition_view"]["unit"] = "mm"
+        super().__init__(
+            acquisition=acquisition,
+            config=config,
+            save_config_callback=save_config_callback,
+            update_layer_callback=update_layer_callback,
+        )
         # acquisition view constants for ExA-SPIM
         self.binning_levels = 2
         self.acquisition_thread = create_worker(self.acquisition.run)
         # Eventual threads
         self.grab_frames_worker = create_worker(lambda: None)  # dummy thread
         self.setWindowTitle("ExA-SPIM control")
+
+        # Get display properties from config
+        self.intensity_min = config.get("instrument_view", {}).get("properties", {}).get("intensity_min", 0)
+        self.intensity_max = config.get("instrument_view", {}).get("properties", {}).get("intensity_max", 65535)
+        self.camera_rotation = config.get("instrument_view", {}).get("properties", {}).get("camera_rotation_deg", 0)
 
     def create_acquisition_widget(self) -> QSplitter:
         """
@@ -637,10 +626,10 @@ class ExASPIMAcquisitionView(AcquisitionView):
         # find limits of all axes
         lim_dict = {}
         # add tiling stages
-        for name, stage in self.instrument.tiling_stages.items():
+        for stage in self.instrument.tiling_stages.values():
             lim_dict.update({f"{stage.instrument_axis}": stage.limits_mm})
         # last axis should be scanning axis
-        ((scan_name, scan_stage),) = self.instrument.scanning_stages.items()
+        ((_scan_name, scan_stage),) = self.instrument.scanning_stages.items()
         lim_dict.update({f"{scan_stage.instrument_axis}": scan_stage.limits_mm})
         try:
             limits = [lim_dict[x.strip("-")] for x in self.coordinate_plane]
@@ -648,15 +637,11 @@ class ExASPIMAcquisitionView(AcquisitionView):
             raise KeyError("Coordinate plane must match instrument axes in tiling_stages")
 
         # TODO fix this, messy way to figure out FOV dimensions from camera properties
-        first_camera_key = list(self.instrument.cameras.keys())[0]
+        first_camera_key = next(iter(self.instrument.cameras.keys()))
         camera = self.instrument.cameras[first_camera_key]
         fov_height_mm = camera.fov_height_mm
         fov_width_mm = camera.fov_width_mm
-        camera_rotation = (
-            self.config["instrument_view"]["properties"]["camera_rotation_deg"]
-            if "camera_rotation_deg" in self.config["instrument_view"]["properties"]
-            else 0
-        )
+        camera_rotation = self.config["instrument_view"]["properties"].get("camera_rotation_deg", 0)
         if camera_rotation in [-270, -90, 90, 270]:
             fov_dimensions = [fov_height_mm, fov_width_mm, 0]
         else:
@@ -672,16 +657,8 @@ class ExASPIMAcquisitionView(AcquisitionView):
             fov_dimensions=fov_dimensions,
             coordinate_plane=self.coordinate_plane,
             unit=self.unit,
-            default_overlap=(
-                self.config["acquisition_view"]["default_overlap"]
-                if "default_overlap" in self.config["acquisition_view"]
-                else 15.0
-            ),
-            default_order=(
-                self.config["acquisition_view"]["default_tile_order"]
-                if "default_tile_order" in self.config["acquisition_view"]
-                else "row_wise"
-            ),
+            default_overlap=(self.config["acquisition_view"].get("default_overlap", 15.0)),
+            default_order=(self.config["acquisition_view"].get("default_tile_order", "row_wise")),
         )
         self.volume_plan.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Minimum)
 
@@ -703,8 +680,7 @@ class ExASPIMAcquisitionView(AcquisitionView):
 
         # create channel plan
         self.channel_plan = ChannelPlanWidget(
-            instrument_view=self.instrument_view,
-            channels=self.instrument.config["instrument"]["channels"],
+            instrument=self.instrument,
             unit=self.unit,
             **self.config["acquisition_view"]["acquisition_widgets"].get("channel_plan", {}).get("init", {}),
         )
@@ -731,10 +707,7 @@ class ExASPIMAcquisitionView(AcquisitionView):
         acquisition_widget.addWidget(table_splitter)
 
         # connect signals
-        self.instrument_view.snapshotTaken.connect(self.volume_model.add_fov_image)  # connect snapshot signal
-        self.instrument_view.contrastChanged.connect(
-            self.volume_model.adjust_glimage_contrast
-        )  # connect snapshot adjusted
+        # Note: snapshotTaken and contrastChanged should be connected by application coordinator
         self.volume_model.fovHalt.connect(self.stop_stage)  # stop stage if halt button is pressed
         self.volume_model.fovMove.connect(self.move_stage)  # move stage to clicked coords
         self.volume_plan.valueChanged.connect(self.volume_plan_changed)
@@ -771,48 +744,9 @@ class ExASPIMAcquisitionView(AcquisitionView):
         :param camera_name: Camera name
         :type camera_name: str
         """
-
-        if image is not None:
-            # for binning in range(0, self.binning_levels):
-            #     image = self.instrument_view.downsampler.run(image)
-
-            # calculate centroid of image
-            pixel_size_um = self.instrument.cameras[camera_name].sampling_um_px
-            y_center_um = image.shape[0] // 2 * pixel_size_um
-            x_center_um = image.shape[1] // 2 * pixel_size_um
-
-            layer_name = "acquisition"
-            if layer_name in self.instrument_view.viewer.layers:
-                layer = self.instrument_view.viewer.layers[layer_name]
-                layer.data = image
-                layer.scale = (pixel_size_um, pixel_size_um)
-                layer.translate = (-x_center_um, y_center_um)
-            else:
-                layer = self.instrument_view.viewer.add_image(
-                    image,
-                    name=layer_name,
-                    contrast_limits=(self.instrument_view.intensity_min, self.instrument_view.intensity_max),
-                    scale=(pixel_size_um, pixel_size_um),
-                    translate=(-x_center_um, y_center_um),
-                    rotate=self.instrument_view.camera_rotation,
-                )
-
-    def save_acquisition(self) -> None:
-        """
-        Save a tile configuration to a YAML file.
-        """
-
-        # create YAML handler with non-aliasing representer
-        yaml = ruamel.yaml.YAML()
-        yaml.Representer = NonAliasingRTRepresenter
-
-        # save daq tasks to config
-        daq = self.instrument.daqs[list(self.instrument.daqs.keys())[0]]
-        self.acquisition.config["acquisition"]["daq"] = daq.tasks
-
-        # save the tile configuration to the YAML file
-        with open(f"{self.acquisition.metadata.acquisition_name}_tiles.yaml", "w") as file:
-            yaml.dump(self.acquisition.config, file)
+        # Use parent class callback-based implementation
+        if self.update_layer_callback and image is not None:
+            self.update_layer_callback(image, camera_name)
 
     def start_acquisition(self) -> None:
         """
@@ -822,12 +756,12 @@ class ExASPIMAcquisitionView(AcquisitionView):
         # add tiles to acquisition config
         self.update_tiles()
 
-        if self.instrument_view.grab_frames_worker.is_running:  # stop livestream if running
-            self.instrument_view.grab_frames_worker.quit()
+        # Note: Livestream stopping should be handled by application coordinator
+        # Application should connect to acquisitionStarting pyqtSignal
 
         # write correct daq values if different from livestream
         for daq_name, daq in self.instrument.daqs.items():
-            if daq_name in self.config["acquisition_view"].get("data_acquisition_tasks", {}).keys():
+            if daq_name in self.config["acquisition_view"].get("data_acquisition_tasks", {}):
                 daq.tasks = self.config["acquisition_view"]["data_acquisition_tasks"][daq_name]["tasks"]
 
         # anchor grid in volume widget
@@ -844,8 +778,8 @@ class ExASPIMAcquisitionView(AcquisitionView):
             if hasattr(self, f"{operation}_dock"):
                 getattr(self, f"{operation}_dock").setDisabled(True)
         self.stop_button.setEnabled(True)
-        # disable instrument view
-        self.instrument_view.setDisabled(True)
+
+        # Note: Instrument view disable/enable should be handled by application coordinator
 
         # Start acquisition
         self.acquisition_thread = create_worker(self.acquisition.run)

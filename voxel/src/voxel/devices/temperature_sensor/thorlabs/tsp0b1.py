@@ -31,7 +31,7 @@ class TSP01BTemperatureSensor(BaseTemperatureSensor):
         self._load_dll()
         device_count = C.c_uint32()
         self.dll.get_device_count(0, device_count)
-        self.device_number_to_handle = dict()
+        self.device_number_to_handle = {}
         for device in range(device_count.value):
             device_name = (256 * C.c_char)()
             self.dll.get_device_name(0, device, device_name)
@@ -59,7 +59,7 @@ class TSP01BTemperatureSensor(BaseTemperatureSensor):
         :type device: int
         :param device_handle: Device handle
         :type device_handle: C.c_uint32
-        :return: Tuple containing model, serial number, manufacturer, and in_use status
+        :return: tuple containing model, serial number, manufacturer, and in_use status
         :rtype: tuple
         """
         model = (256 * C.c_char)()
@@ -90,7 +90,8 @@ class TSP01BTemperatureSensor(BaseTemperatureSensor):
         """
         valid = CHANNELS.keys()
         if channel not in valid:
-            raise ValueError(f"{channel} is not valid. channel must = {CHANNELS.keys()}")
+            msg = f"{channel} is not valid. channel must = {CHANNELS.keys()}"
+            raise ValueError(msg)
         self._channel = channel
 
     @property
