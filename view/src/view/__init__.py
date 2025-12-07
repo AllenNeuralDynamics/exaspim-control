@@ -1,3 +1,5 @@
-"""View for Voxel Instruments and Acquisition"""
+"""UI components for view module."""
 
-__version__ = "0.1.0"
+from view.ui.toggle_button import ToggleButton
+
+__all__ = ["ToggleButton"]

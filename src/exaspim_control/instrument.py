@@ -1,12 +1,4 @@
-import logging
-from pathlib import Path
-from typing import ClassVar
-
-from ruyaml import YAML
-from view.instrument_view import InstrumentView
 from voxel.instrument import Instrument
-
-DIRECTORY = Path(__file__).parent.resolve()
 
 
 class ExASPIM(Instrument):
@@ -14,27 +6,7 @@ class ExASPIM(Instrument):
     Class for handling ExASPIM instrument configuration and verification.
     """
 
-    def __init__(self, config_filename: str, yaml_handler: YAML, log_level: str = "INFO") -> None:
-        """
-        Initialize the ExASPIM object.
-
-        :param config_filename: Configuration filename
-        :type config_filename: str
-        :param yaml_handler: YAML handler
-        :type yaml_handler: YAML
-        :param log_level: Logging level, defaults to "INFO"
-        :type log_level: str, optional
-        """
-        self.log = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
-        self.log.setLevel(log_level)
-
-        # current working directory
-        super().__init__(DIRECTORY / Path(config_filename), yaml_handler, log_level)
-
-        # verify exaspim microscope
-        self._verify_instrument()
-
-    def _verify_instrument(self) -> None:
+    def _verify_instrument(self) -> list[str]:
         """
         Verify the ExASPIM instrument configuration.
 
@@ -47,29 +19,24 @@ class ExASPIM(Instrument):
         """
         # assert that only one scanning stage is allowed
         self.log.info("verifying instrument configuration")
-        num_scanning_stages = len(self.scanning_stages)
-        if len(self.scanning_stages) != 1:
-            msg = f"one scanning stage must be defined but {num_scanning_stages} detected"
-            raise ValueError(msg)
-        num_cameras = len(self.cameras)
-        if len(self.cameras) != 1:
-            msg = f"one camera must be defined but {num_cameras} detected"
-            raise ValueError(msg)
-        num_daqs = len(self.daqs)
-        if len(self.daqs) != 1:
-            msg = f"one daq must be defined but {num_daqs} detected"
-            raise ValueError(msg)
-        num_lasers = len(self.lasers)
-        if num_lasers < 1:
-            msg = f"at least one laser is required but {num_lasers} detected"
-            raise ValueError(msg)
+
+        errors: list[str] = []
+        if (num_scanning_stages := len(self.scanning_stages)) != 1:
+            errors.append(f"one scanning stage must be defined but {num_scanning_stages} detected")
+
+        if (num_cameras := len(self.cameras)) != 1:
+            errors.append(f"one camera must be defined but {num_cameras} detected")
+
+        if (num_daqs := len(self.daqs)) != 1:
+            errors.append(f"one daq must be defined but {num_daqs} detected")
+
+        if (num_lasers := len(self.lasers)) < 1:
+            errors.append(f"at least one laser is required but {num_lasers} detected")
+
         if not self.tiling_stages["x"]:
-            raise ValueError("x tiling stage is required")
+            errors.append("x tiling stage is required")
+
         if not self.tiling_stages["y"]:
-            raise ValueError("y tiling stage is required")
+            errors.append("y tiling stage is required")
 
-
-class ExASPIMInstrumentView[ExASPIM](InstrumentView):
-    """Class for handling ExASPIM instrument view."""
-
-    viewer_title: ClassVar[str] = "ExA-SPIM control"
+        return errors

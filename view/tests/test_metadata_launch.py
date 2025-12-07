@@ -7,8 +7,7 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 from aind_data_schema.core import acquisition
-
-from exaspim_control.metadata_launch import MetadataLaunch
+from view.metadata_launch import MetadataLaunch
 
 RESOURCES_DIR = Path(os.path.dirname(os.path.realpath(__file__)))
 

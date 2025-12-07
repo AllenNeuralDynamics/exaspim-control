@@ -9,12 +9,10 @@ from ruyaml import YAML
 from voxel.instrument import Instrument
 
 
-class Acquisition:
+class Acquisition[I: Instrument]:
     """Handles the acquisition process for the instrument."""
 
-    def __init__(
-        self, instrument: Instrument, config_filename: str, yaml_handler: YAML | None = None, log_level: str = "INFO"
-    ):
+    def __init__(self, instrument: I, config_filename: str, yaml_handler: YAML | None = None, log_level: str = "INFO"):
         """
         Initializes the Acquisition class.
 
@@ -161,13 +159,17 @@ class Acquisition:
         # update properties of metadata
         self.config["acquisition"]["metadata"]["properties"] = self._collect_properties(self.metadata)
 
-    def save_config(self, path: Path) -> None:
+    def save_config(self, path: Path, capture_current: bool = True) -> None:
         """
         Save the configuration to a file.
 
         :param path: Path to the configuration file.
         :type path: Path
+        :param capture_current: Whether to update config with current operation states before saving, defaults to True
+        :type capture_current: bool, optional
         """
+        if capture_current:
+            self.update_current_state_config()
         with path.open("w") as f:
             self.yaml.dump(self.config, f)
 

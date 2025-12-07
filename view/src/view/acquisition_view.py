@@ -1,16 +1,16 @@
-import datetime
 import importlib
 import logging
-from collections.abc import Iterator
-from time import sleep
+import shutil
+import time
+from collections.abc import Callable
+from datetime import datetime
 
 import inflection
-import napari
 import numpy as np
 from napari.qt import get_stylesheet
-from napari.qt.threading import create_worker, thread_worker
+from napari.qt.threading import create_worker
 from napari.settings import get_settings
-from PyQt6.QtCore import Qt, pyqtSlot
+from PyQt6.QtCore import Qt, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import (
     QApplication,
@@ -32,6 +32,8 @@ from PyQt6.QtWidgets import (
     QSplitter,
     QWidget,
 )
+from voxel.acquisition import Acquisition
+from voxel.instrument import Instrument
 
 from view.widgets.acquisition_widgets.channel_plan_widget import ChannelPlanWidget
 from view.widgets.acquisition_widgets.metadata_widget import MetadataWidget
@@ -59,43 +61,48 @@ from view.widgets.miscellaneous_widgets.q_scrollable_line_edit import (
 )
 
 
-class AcquisitionView(QWidget):
+class AcquisitionView[I: Instrument](QWidget):
     """ "Class to act as a general acquisition view model to voxel instrument"""
+
+    acquisitionEnded: pyqtSignal = pyqtSignal()
+    acquisitionStarted: pyqtSignal = pyqtSignal(datetime)
+    windowHidden: pyqtSignal = pyqtSignal()  # Emitted when window is hidden via close button
 
     def __init__(
         self,
-        acquisition,
+        acquisition: Acquisition[I],
         config: dict,
-        save_config_callback=None,
-        update_layer_callback=None,
+        update_layer_callback: Callable,
+        property_worker_factory: Callable,
+        fov_positions_worker,
+        parent=None,
     ):
         """
         :param acquisition: voxel acquisition object
         :param config: configuration dictionary
-        :param save_config_callback: callback function for saving acquisition config
         :param update_layer_callback: callback(image, camera_name) for updating viewer layers
+        :param property_worker_factory: factory function(device, property_name) for creating property workers
+        :param fov_positions_worker: worker instance from InstrumentView that yields FOV positions
+        :param parent: parent widget (for Qt lifecycle management)
         """
 
-        super().__init__()
+        super().__init__(parent)
         self.log = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
-        self.setStyleSheet(napari.qt.get_current_stylesheet())
+        config["acquisition_view"]["unit"] = "mm"
         self.setStyleSheet(get_stylesheet(get_settings().appearance.theme))
         self.acquisition = acquisition
         self.instrument = self.acquisition.instrument
         self.config = config
         self.coordinate_plane = self.config["acquisition_view"]["coordinate_plane"]
         self.unit = self.config["acquisition_view"]["unit"]
-        self.save_config_callback = save_config_callback
         self.update_layer_callback = update_layer_callback
-
-        # Eventual threads
-        self.grab_fov_positions_worker = None
+        self.property_worker_factory = property_worker_factory
         self.property_workers = []
 
         # create workers for latest image taken by cameras
         for camera_name, camera in self.instrument.cameras.items():
-            worker = self.grab_property_value(camera, "latest_frame", camera_name)
-            worker.yielded.connect(lambda args: self.update_acquisition_layer(*args))
+            worker = self.property_worker_factory(camera, "latest_frame")
+            worker.yielded.connect(lambda args, name=camera_name: self.update_acquisition_layer(args[0], name))
             worker.start()
             worker.pause()  # start and pause, so we can resume when acquisition starts and pause when over
             self.property_workers.append(worker)
@@ -110,8 +117,10 @@ class AcquisitionView(QWidget):
         self.start_button = self.create_start_button()
         self.stop_button = self.create_stop_button()
 
-        # setup stage thread
-        self.setup_fov_position()
+        # Connect FOV positions worker to volume widgets
+        if fov_positions_worker is not None:
+            fov_positions_worker.yielded.connect(lambda pos: setattr(self.volume_plan, "fov_position", list(pos)))
+            fov_positions_worker.yielded.connect(lambda pos: setattr(self.volume_model, "fov_position", list(pos)))
 
         # Set up main window
         self.main_layout = QGridLayout()
@@ -124,7 +133,7 @@ class AcquisitionView(QWidget):
         self.main_layout.addWidget(self.acquisition_widget, 1, 0, 5, 3)
 
         # splitter for operation widgets
-        splitter = QSplitter(Qt.Vertical)
+        splitter = QSplitter(Qt.Orientation.Vertical)
         splitter.setChildrenCollapsible(False)
 
         # create scroll wheel for metadata widget
@@ -132,12 +141,11 @@ class AcquisitionView(QWidget):
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         scroll.setWidget(self.metadata_widget)
         scroll.setWindowTitle("Metadata")
-        scroll.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
+        scroll.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum)
         dock = QDockWidget(scroll.windowTitle(), self)
         dock.setWidget(scroll)
-        dock.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
+        dock.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum)
         dock.setTitleBarWidget(QDockWidgetTitleBar(dock))
-        dock.setWidget(scroll)
         dock.setMinimumHeight(25)
         splitter.addWidget(dock)
 
@@ -161,11 +169,55 @@ class AcquisitionView(QWidget):
         self.setWindowTitle("Acquisition View")
         self.show()
 
+        # acquisition view constants for ExA-SPIM
+        self.binning_levels = 2
+        self.acquisition_thread = create_worker(self.acquisition.run)
+        # Eventual threads
+        self.grab_frames_worker = create_worker(lambda: None)  # dummy thread
+        self.setWindowTitle("ExA-SPIM control")
+
+        # Get display properties from config
+        self.intensity_min = config.get("instrument_view", {}).get("properties", {}).get("intensity_min", 0)
+        self.intensity_max = config.get("instrument_view", {}).get("properties", {}).get("intensity_max", 65535)
+        self.camera_rotation = config.get("instrument_view", {}).get("properties", {}).get("camera_rotation_deg", 0)
+
         # Set app events
         app = QApplication.instance()
         # Config save removed from quit - now manual via File menu
         self.config_save_to = self.acquisition.config_path
         app.lastWindowClosed.connect(self.close)  # shut everything down when closing
+
+    def stop_acquisition(self) -> None:
+        """
+        Stop the acquisition process.
+        """
+        self.acquisition_thread.quit()
+        self.acquisition.stop_acquisition()
+
+    def create_start_button(self) -> QPushButton:
+        """
+        Create the start button.
+
+        :return: Start button
+        :rtype: QPushButton
+        """
+        start = QPushButton("Start")
+        start.clicked.connect(self.start_acquisition)
+        start.setStyleSheet("background-color: #55a35d; color: black; border-radius: 10px;")
+        return start
+
+    def create_stop_button(self) -> QPushButton:
+        """
+        Create the stop button.
+
+        :return: Stop button
+        :rtype: QPushButton
+        """
+        stop = QPushButton("Stop")
+        stop.clicked.connect(self.stop_acquisition)
+        stop.setStyleSheet("background-color: #a3555b; color: black; border-radius: 10px;")
+        stop.setDisabled(True)
+        return stop
 
     def save_config_with_backup(self, backup_dir: str = "bak", config_prefix: str = "acquisition") -> None:
         """
@@ -188,7 +240,6 @@ class AcquisitionView(QWidget):
             backup_path = bak_dir / backup_filename
 
             # Copy current config to backup
-            import shutil
 
             if self.acquisition.config_path.exists():
                 shutil.copy2(self.acquisition.config_path, backup_path)
@@ -234,30 +285,6 @@ class AcquisitionView(QWidget):
         msgBox.setStandardButtons(QMessageBox.Ok)
         msgBox.exec()
 
-    def create_start_button(self) -> QPushButton:
-        """
-        Create button to start acquisition
-        :return: start button
-        """
-
-        start = QPushButton("Start")
-        start.clicked.connect(self.start_acquisition)
-        start.setStyleSheet("background-color: green")
-        return start
-
-    def create_stop_button(self) -> QPushButton:
-        """
-        Create button to stop acquisition
-        :return: stop button
-        """
-
-        stop = QPushButton("Stop")
-        stop.clicked.connect(self.acquisition.stop_acquisition)
-        stop.setStyleSheet("background-color: red")
-        stop.setDisabled(True)
-
-        return stop
-
     def start_acquisition(self) -> None:
         """
         Start acquisition and disable widgets
@@ -266,8 +293,8 @@ class AcquisitionView(QWidget):
         # add tiles to acquisition config
         self.update_tiles()
 
-        # Note: Livestream management should be handled by application coordinator
-        # No longer directly accessing instrument_view here
+        # Note: Livestream stopping should be handled by application coordinator
+        # Application should connect to acquisitionStarting pyqtSignal
 
         # write correct daq values if different from livestream
         for daq_name, daq in self.instrument.daqs.items():
@@ -275,7 +302,7 @@ class AcquisitionView(QWidget):
                 daq.tasks = self.config["acquisition_view"]["data_acquisition_tasks"][daq_name]["tasks"]
 
         # anchor grid in volume widget
-        for anchor, widget in zip(self.volume_plan.anchor_widgets, self.volume_plan.grid_offset_widgets):
+        for anchor, widget in zip(self.volume_plan.anchor_widgets, self.volume_plan.grid_offset_widgets, strict=True):
             anchor.setChecked(True)
             widget.setDisabled(True)
         self.volume_plan.tile_table.setDisabled(True)
@@ -288,8 +315,8 @@ class AcquisitionView(QWidget):
             if hasattr(self, f"{operation}_dock"):
                 getattr(self, f"{operation}_dock").setDisabled(True)
         self.stop_button.setEnabled(True)
+
         # Note: Instrument view disable/enable should be handled by application coordinator
-        # No longer directly accessing instrument_view here
 
         # Start acquisition
         self.acquisition_thread = create_worker(self.acquisition.run)
@@ -299,7 +326,8 @@ class AcquisitionView(QWidget):
         # start all workers
         for worker in self.property_workers:
             worker.resume()
-            sleep(1)
+            time.sleep(1)
+        self.acquisitionStarted.emit(datetime.now())
 
     def acquisition_ended(self) -> None:
         """
@@ -330,11 +358,10 @@ class AcquisitionView(QWidget):
         # Note: Instrument view enable should be handled by application coordinator
         # No longer directly accessing instrument_view here
 
-        # restart stage threads
-        self.setup_fov_position()
-
         for worker in self.property_workers:
             worker.pause()
+
+        self.acquisitionEnded.emit()
 
     def stack_device_widgets(self, device_type: str) -> QWidget:
         """
@@ -397,10 +424,12 @@ class AcquisitionView(QWidget):
 
     def create_acquisition_widget(self) -> QSplitter:
         """
-        Create widget to visualize acquisition grid
-        :return: splitter widget containing the volume model, volume plan, and channel plan widget
-        """
+        Create the acquisition widget.
 
+        :raises KeyError: If the coordinate plane does not match instrument axes in tiling_stages
+        :return: Acquisition widget
+        :rtype: QSplitter
+        """
         # find limits of all axes
         lim_dict = {}
         # add tiling stages
@@ -412,21 +441,33 @@ class AcquisitionView(QWidget):
         try:
             limits = [lim_dict[x.strip("-")] for x in self.coordinate_plane]
         except KeyError:
-            raise KeyError("Coordinate plane must match instrument axes in tiling_stages")
+            raise KeyError("Coordinate plane must match instrument axes in tiling_stages") from None
 
-        fov_dimensions = self.config["acquisition_view"]["fov_dimensions"]
+        # TODO fix this, messy way to figure out FOV dimensions from camera properties
+        first_camera_key = next(iter(self.instrument.cameras.keys()))
+        camera = self.instrument.cameras[first_camera_key]
+        fov_height_mm = camera.fov_height_mm
+        fov_width_mm = camera.fov_width_mm
+        camera_rotation = self.config["instrument_view"]["properties"].get("camera_rotation_deg", 0)
+        if camera_rotation in [-270, -90, 90, 270]:
+            fov_dimensions = [fov_height_mm, fov_width_mm, 0]
+        else:
+            fov_dimensions = [fov_width_mm, fov_height_mm, 0]
 
-        acquisition_widget = QSplitter(Qt.Vertical)
+        acquisition_widget = QSplitter(Qt.Orientation.Vertical)
         acquisition_widget.setChildrenCollapsible(False)
 
         # create volume plan
         self.volume_plan = VolumePlanWidget(
+            # instrument=self.instrument,
             limits=limits,
             fov_dimensions=fov_dimensions,
             coordinate_plane=self.coordinate_plane,
             unit=self.unit,
+            default_overlap=(self.config["acquisition_view"].get("default_overlap", 15.0)),
+            default_order=(self.config["acquisition_view"].get("default_tile_order", "row_wise")),
         )
-        self.volume_plan.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Minimum)
+        self.volume_plan.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Minimum)
 
         # create volume model
         self.volume_model = VolumeModel(
@@ -451,7 +492,7 @@ class AcquisitionView(QWidget):
             **self.config["acquisition_view"]["acquisition_widgets"].get("channel_plan", {}).get("init", {}),
         )
         # place volume_plan.tile_table and channel plan table side by side
-        table_splitter = QSplitter(Qt.Horizontal)
+        table_splitter = QSplitter(Qt.Orientation.Horizontal)
         table_splitter.setChildrenCollapsible(False)
         table_splitter.setHandleWidth(20)
 
@@ -466,14 +507,14 @@ class AcquisitionView(QWidget):
         line = QFrame(handle)
         line.setStyleSheet("QFrame {border: 1px dotted grey;}")
         line.setFixedHeight(50)
-        line.setFrameShape(QFrame.VLine)
+        line.setFrameShape(QFrame.Shape.VLine)
         handle_layout.addWidget(line)
 
         # add tables to layout
         acquisition_widget.addWidget(table_splitter)
 
         # connect signals
-        # Note: snapshotTaken and contrastChanged signals should be connected by application coordinator
+        # Note: snapshotTaken and contrastChanged should be connected by application coordinator
         self.volume_model.fovHalt.connect(self.stop_stage)  # stop stage if halt button is pressed
         self.volume_model.fovMove.connect(self.move_stage)  # move stage to clicked coords
         self.volume_plan.valueChanged.connect(self.volume_plan_changed)
@@ -528,7 +569,7 @@ class AcquisitionView(QWidget):
 
         self.acquisition.config["acquisition"]["tiles"] = self.create_tile_list()
 
-    def move_stage(self, fov_position: list[float, float, float]) -> None:
+    def move_stage(self, fov_position: list[float]) -> None:
         """
         pyqtSlot for moving stage when fov_position is changed internally by grid_widget
         :param fov_position: new fov position to move to
@@ -551,42 +592,6 @@ class AcquisitionView(QWidget):
             **getattr(self.instrument, "tiling_stages", {}),
         }.values():  # combine stage
             stage.halt()
-
-    def setup_fov_position(self) -> None:
-        """
-        Set up live position thread
-        """
-
-        self.grab_fov_positions_worker = self.grab_fov_positions()
-        self.grab_fov_positions_worker.yielded.connect(lambda pos: setattr(self.volume_plan, "fov_position", pos))
-        self.grab_fov_positions_worker.yielded.connect(lambda pos: setattr(self.volume_model, "fov_position", pos))
-        self.grab_fov_positions_worker.start()
-
-    @thread_worker
-    def grab_fov_positions(self) -> Iterator[tuple[float, float, float]]:
-        """
-        Grab stage position from all stage objects and yield positions
-        """
-        scalar_coord_plane = [x.strip("-") for x in self.coordinate_plane]
-        while True:  # best way to do this or have some sort of break?
-            fov_pos = [
-                self.volume_plan.fov_position[0],
-                self.volume_plan.fov_position[1],
-                self.volume_plan.fov_position[2],
-            ]
-            for stage in {
-                **self.instrument.tiling_stages,
-                **self.instrument.scanning_stages,
-            }.values():
-                if stage.instrument_axis in scalar_coord_plane:
-                    index = scalar_coord_plane.index(stage.instrument_axis)
-                    try:
-                        pos = stage.position_mm
-                        fov_pos[index] = pos if pos is not None else self.volume_plan.fov_position[index]
-                    except ValueError:  # Tigerbox sometime coughs up garbage. Locking issue?
-                        pass
-                    sleep(0.1)
-            yield fov_pos
 
     def create_operation_widgets(self, device_name: str, operation_name: str, operation_specs: dict) -> None:
         """
@@ -627,8 +632,11 @@ class AcquisitionView(QWidget):
                     widget.parentWidget().layout().replaceWidget(getattr(gui, f"{prop_name}_widget"), progress_bar)
                     widget.deleteLater()
                     setattr(gui, f"{prop_name}_widget", progress_bar)
-                worker = self.grab_property_value(operation, prop_name, getattr(gui, f"{prop_name}_widget"))
-                worker.yielded.connect(lambda args: self.update_property_value(*args))
+                if not self.property_worker_factory:
+                    raise ValueError("property_worker_factory is required but was not provided")
+                worker = self.property_worker_factory(operation, prop_name)
+                prop_widget = getattr(gui, f"{prop_name}_widget")
+                worker.yielded.connect(lambda args, w=prop_widget: self.update_property_value(args[0], w))
                 worker.start()
                 worker.pause()  # start and pause, so we can resume when acquisition starts and pause when over
                 self.property_workers.append(worker)
@@ -660,28 +668,16 @@ class AcquisitionView(QWidget):
 
     def update_acquisition_layer(self, image: np.ndarray, camera_name: str) -> None:
         """
-        Update viewer with latest frame taken during acquisition
-        :param image: numpy array to add to viewer
-        :param camera_name: name of camera that image came off
+        Update the acquisition image layer in the viewer.
+
+        :param image: Image array
+        :type image: np.ndarray
+        :param camera_name: Camera name
+        :type camera_name: str
         """
-        # Use callback if provided
+        # Use parent class callback-based implementation
         if self.update_layer_callback and image is not None:
             self.update_layer_callback(image, camera_name)
-
-    @thread_worker
-    def grab_property_value(self, device: object, property_name: str, widget) -> Iterator:
-        """
-        Grab value of property and yield
-        :param device: device to grab property from
-        :param property_name: name of property to get
-        :param widget: corresponding device widget
-        :return: value of property and widget to update
-        """
-
-        while True:  # best way to do this or have some sort of break?
-            sleep(1)
-            value = getattr(device, property_name)
-            yield value, widget
 
     def update_property_value(self, value, widget) -> None:
         """
@@ -705,10 +701,8 @@ class AcquisitionView(QWidget):
                 widget.setCurrentIndex(index)
             elif isinstance(widget, QProgressBar):
                 widget.setValue(round(value))
-        except (
-            RuntimeError,
-            AttributeError,
-        ):  # Pass when window's closed or widget doesn't have position_mm_widget
+        # Pass when window's closed or widget doesn't have position_mm_widget
+        except (RuntimeError, AttributeError):
             pass
 
     @pyqtSlot(str)
@@ -807,14 +801,25 @@ class AcquisitionView(QWidget):
             tile_dict[name] = array[row, column]
         return tile_dict
 
-    def close(self) -> None:
+    def closeEvent(self, event) -> None:
         """
-        Close operations and end threads
-        """
+        Override close event to hide instead of closing.
 
-        for worker in self.property_workers:
-            worker.quit()
-        self.grab_fov_positions_worker.quit()
+        When user clicks X button, window is hidden and can be reopened via toggle button.
+
+        :param event: Close event
+        """
+        # User clicked X button - just hide the window
+        event.ignore()
+        self.hide()
+        self.windowHidden.emit()
+        self.log.info("Acquisition window hidden (not closed)")
+
+    def close(self) -> bool:
+        """
+        Close operations and end threads.
+        """
+        # Workers are fully managed by InstrumentView - no local cleanup needed
         for device_name, operation_dictionary in self.acquisition.config["acquisition"]["operations"].items():
             for operation_name, operation_specs in operation_dictionary.items():
                 operation_type = operation_specs["type"]
@@ -824,3 +829,4 @@ class AcquisitionView(QWidget):
                 except AttributeError:
                     self.log.debug(f"{device_name} {operation_name} does not have close function")
         self.acquisition.close()
+        return True

@@ -7,7 +7,6 @@ import shutil
 import time
 from collections.abc import Iterator
 from pathlib import Path
-from typing import ClassVar
 
 import inflection
 import napari
@@ -34,9 +33,13 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 from ruyaml import YAML
+from voxel.acquisition import Acquisition
 from voxel.instrument import Instrument
 from voxel.processes.downsample.gpu.gputools.rank_downsample_2d import GPUToolsRankDownSample2D
 
+from view.acquisition_view import AcquisitionView
+from view.metadata_launch import MetadataLaunch
+from view.ui import ToggleButton
 from view.widgets.base_device_widget import (
     BaseDeviceWidget,
     create_widget,
@@ -51,48 +54,49 @@ class InstrumentView[I: Instrument](QWidget):
 
     snapshotTaken = pyqtSignal(np.ndarray, list)
     contrastChanged = pyqtSignal(np.ndarray, list)
-    viewer_title: ClassVar[str] = "Instrument Control"
 
-    def __init__(self, instrument: I, gui_config_path: Path, save_acquisition_config_callback=None):
+    def __init__(
+        self,
+        acquisition: Acquisition[I],
+        gui_config_path: Path,
+        log_filename: str | None = None,
+        viewer_title: str = "Instrument Control",
+    ):
         """
-        :param instrument: voxel like instrument object
+        :param acquisition: voxel acquisition object containing the instrument
         :param gui_config_path: path to gui config yaml
-        :param save_acquisition_config_callback: optional callback for saving acquisition config
+        :param log_filename: path to log file for metadata coordination
+        :param viewer_title: title for the napari viewer window
         """
         super().__init__()
 
         self.log = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
 
-        # Eventual widget groups
-        self.laser_widgets = {}
-        self.daq_widgets = {}
-        self.camera_widgets = {}
-        self.scanning_stage_widgets = {}
-        self.tiling_stage_widgets = {}
-        self.focusing_stage_widgets = {}
-        self.filter_wheel_widgets = {}
-        self.flip_mount_widgets = {}
-        self.joystick_widgets = {}
+        self._acquisition = acquisition
+        self.log_filename = log_filename
+
+        # Acquisition view will be created later via _initialize_acquisition_view
+        self.acquisition_view = None
+        self.metadata_launch = None
 
         # Eventual threads
         self.grab_frames_worker = create_worker(lambda: None)  # dummy thread
         self.property_workers = []  # list of property workers
         self._is_closing = False  # flag to signal workers to stop
+        self.fov_positions_worker = None  # FOV positions worker managed here
 
         # Eventual attributes
         self.livestream_channel = None
         self.snapshot = False  # flag to pyqtSignal snapshot has been taken
 
-        self.instrument = instrument
         self.gui_config_path = gui_config_path
         self.config = YAML().load(gui_config_path)
-        self.save_acquisition_config_callback = save_acquisition_config_callback
 
         # Convenient config maps
         self.channels = self.instrument.config["instrument"]["channels"]
 
         # Setup napari window
-        self.viewer = napari.Viewer(title=self.viewer_title, ndisplay=2, axis_labels=("x", "y"))
+        self.viewer = napari.Viewer(title=viewer_title, ndisplay=2, axis_labels=("x", "y"))
 
         # Initialize viewer properties from config
         self.intensity_min = self.config["instrument_view"]["properties"].get("intensity_min", 0)
@@ -131,6 +135,10 @@ class InstrumentView[I: Instrument](QWidget):
 
         self.downsampler = GPUToolsRankDownSample2D(binning=2, rank=-2, data_type="uint16")
 
+        # Create and start FOV positions worker - runs continuously until shutdown
+        self.fov_positions_worker = self.create_stage_position_worker()
+        self.fov_positions_worker.start()
+
         # Create cache for contrast limit values
         self.contrast_limits = {}
         for key in self.channels:
@@ -141,6 +149,17 @@ class InstrumentView[I: Instrument](QWidget):
 
         # setup daq with livestreaming tasks
         self.setup_daqs()
+
+        # Eventual widget groups
+        self.laser_widgets = {}
+        self.daq_widgets = {}
+        self.camera_widgets = {}
+        self.scanning_stage_widgets = {}
+        self.tiling_stage_widgets = {}
+        self.focusing_stage_widgets = {}
+        self.filter_wheel_widgets = {}
+        self.flip_mount_widgets = {}
+        self.joystick_widgets = {}
 
         # Set up instrument widgets
         for device_name, device_specs in self.instrument.config["instrument"]["devices"].items():
@@ -161,9 +180,264 @@ class InstrumentView[I: Instrument](QWidget):
         # Set app events
         app = QApplication.instance()
 
+        self._initialize_acquisition_view()
+
         self.config_save_to = self.instrument.config_path
         if isinstance(app, QApplication):
             app.lastWindowClosed.connect(self.close)
+
+    @property
+    def instrument(self) -> I:
+        return self._acquisition.instrument
+
+    def _initialize_acquisition_view(self) -> None:
+        """
+        Initialize acquisition view and metadata coordination.
+
+        This must be called after QApplication is instantiated.
+        Creates acquisition_view internally and sets up all signal coordination.
+        """
+
+        # Create acquisition view with self as parent for automatic lifecycle management
+        self.acquisition_view = AcquisitionView(
+            acquisition=self._acquisition,
+            config=self.config,
+            update_layer_callback=self._update_acquisition_layer,
+            property_worker_factory=self.create_property_worker,
+            fov_positions_worker=self.fov_positions_worker,
+            parent=self,
+        )
+
+        # Set as a top-level window (not embedded) while keeping parent for lifecycle
+        self.acquisition_view.setWindowFlag(Qt.WindowType.Window)
+
+        # Hide it initially - will be shown via toggle button
+        self.acquisition_view.hide()
+
+        # Connect signal coordination
+        self._connect_acquisition_view_signals()
+
+        # Create metadata coordinator
+        self.metadata_launch = MetadataLaunch(
+            instrument=self.instrument,
+            acquisition=self._acquisition,
+            instrument_view=self,
+            acquisition_view=self.acquisition_view,
+            log_filename=self.log_filename,
+        )
+
+        # Add toggle button to show/hide acquisition window
+        self._setup_acquisition_toggle_button()
+
+    def _connect_acquisition_view_signals(self) -> None:
+        """Connect signals between instrument view and acquisition view."""
+        if not self.acquisition_view:
+            return
+
+        # Connect snapshot and contrast signals to volume model
+        if hasattr(self.acquisition_view, "volume_model"):
+            self.snapshotTaken.connect(self.acquisition_view.volume_model.add_fov_image)
+            self.contrastChanged.connect(self.acquisition_view.volume_model.adjust_glimage_contrast)
+
+        # Connect acquisition lifecycle signals
+        self.acquisition_view.acquisitionStarted.connect(self._on_acquisition_started)
+        self.acquisition_view.acquisitionEnded.connect(self._on_acquisition_ended)
+
+        # Connect window hidden signal to update toggle button state
+        self.acquisition_view.windowHidden.connect(self._on_acquisition_window_hidden)
+
+    def _on_acquisition_started(self, start_time) -> None:
+        """
+        Handle acquisition start - stop livestream and disable instrument view.
+
+        :param start_time: Datetime when acquisition started
+        """
+        # Stop livestream if running
+        if self.grab_frames_worker.is_running:
+            self.log.info("Stopping livestream for acquisition")
+            self.grab_frames_worker.quit()
+
+        # Disable instrument view during acquisition
+        self.setDisabled(True)
+        self.log.info("Instrument view disabled during acquisition")
+
+    def _on_acquisition_ended(self) -> None:
+        """Handle acquisition end - re-enable instrument view."""
+        # Re-enable instrument view after acquisition
+        self.setDisabled(False)
+        self.log.info("Instrument view re-enabled after acquisition")
+
+    def _on_acquisition_window_hidden(self) -> None:
+        """Handle acquisition window being hidden - update toggle button state."""
+        # Don't update UI if we're shutting down
+        if self._is_closing:
+            return
+
+        if self.acquisition_toggle_button and self.acquisition_toggle_button.isChecked():
+            self.acquisition_toggle_button.setChecked(False)
+            self.log.info("Toggle button unchecked after window closed")
+
+    def _setup_acquisition_toggle_button(self) -> None:
+        """Add toggle button to show/hide acquisition window in bottom-right with muted colors."""
+        # Create toggle button with muted blue/red colors
+        self.acquisition_toggle_button = ToggleButton(
+            unchecked_state={
+                "label": "Open Acquisition Window",
+                "background": (96, 125, 139),  # Muted slate blue
+                "foreground": (255, 255, 255),  # White text
+            },
+            checked_state={
+                "label": "Minimize Acquisition Window",
+                "background": (169, 68, 66),  # Muted red
+                "foreground": (255, 255, 255),  # White text
+            },
+        )
+
+        # Connect to show/hide acquisition view
+        self.acquisition_toggle_button.toggled.connect(self._toggle_acquisition_window)
+
+        # Add to File menu
+        file_menu = self.viewer.window.file_menu
+        file_menu.addSeparator()
+
+        # Create a widget action to add the button to the menu
+        button_action = QAction("Acquisition Window", self.viewer.window._qt_window)  # noqa: SLF001
+        button_action.triggered.connect(self.acquisition_toggle_button.toggle)
+        file_menu.addAction(button_action)
+
+        # Add the button as a dock widget in right area (will be at bottom of right side)
+        self.viewer.window.add_dock_widget(self.acquisition_toggle_button, area="right", name="Acquisition Control")
+
+    def _toggle_acquisition_window(self, checked: bool) -> None:
+        """
+        Show or hide acquisition window based on toggle state.
+
+        :param checked: Whether button is checked (True = show, False = hide)
+        """
+        if self.acquisition_view:
+            if checked:
+                self.acquisition_view.show()
+                self.log.info("Acquisition window opened")
+            else:
+                self.acquisition_view.hide()
+                self.log.info("Acquisition window minimized")
+
+    def _update_acquisition_layer(self, image: np.ndarray, camera_name: str) -> None:
+        """
+        Update the acquisition image layer in the instrument viewer.
+
+        :param image: Image array to display
+        :param camera_name: Name of camera
+        """
+        if self.viewer is None:
+            return
+
+        pixel_size_um = self.instrument.cameras[camera_name].sampling_um_px
+        y_center_um = image.shape[0] // 2 * pixel_size_um
+        x_center_um = image.shape[1] // 2 * pixel_size_um
+
+        layer_name = "acquisition"
+        if layer_name in self.viewer.layers:
+            layer = self.viewer.layers[layer_name]
+            layer.data = image
+            layer.scale = np.array([pixel_size_um, pixel_size_um])
+            layer.translate = np.array([-x_center_um, y_center_um])
+        else:
+            # Get config values for display
+            intensity_min = self.config.get("instrument_view", {}).get("properties", {}).get("intensity_min", 0)
+            intensity_max = self.config.get("instrument_view", {}).get("properties", {}).get("intensity_max", 65535)
+            camera_rotation = self.config.get("instrument_view", {}).get("properties", {}).get("camera_rotation_deg", 0)
+
+            layer = self.viewer.add_image(
+                image,
+                name=layer_name,
+                contrast_limits=(intensity_min, intensity_max),
+                scale=(pixel_size_um, pixel_size_um),
+                translate=(-x_center_um, y_center_um),
+                rotate=camera_rotation,
+            )
+
+    @thread_worker
+    def create_property_worker(self, device: object, property_name: str) -> Iterator:
+        """
+        Factory for property monitoring workers.
+
+        Creates a worker that continuously polls a device property.
+        Respects the _is_closing flag for clean shutdown.
+
+        :param device: Device object to monitor
+        :param property_name: Name of property to poll
+        :return: Iterator yielding (value, property_name) tuples
+        """
+        # Use shorter sleep intervals to check _is_closing more frequently
+        sleep_interval = 0.1  # 100ms intervals
+        iterations = 5  # 5 * 100ms = 500ms total
+
+        while not self._is_closing:
+            # Sleep in small chunks so we can exit quickly
+            for _ in range(iterations):
+                if self._is_closing:
+                    return
+                time.sleep(sleep_interval)
+
+            if self._is_closing:
+                return
+
+            try:
+                value = getattr(device, property_name)
+            except ValueError:  # Some devices may return invalid data temporarily
+                value = None
+            except (RuntimeError, AttributeError):
+                # Device closed during shutdown - exit gracefully
+                return
+
+            if self._is_closing:
+                return
+
+            yield value, property_name
+
+    @thread_worker
+    def create_stage_position_worker(self) -> Iterator:
+        """
+        Factory for stage position monitoring worker.
+
+        Polls all tiling and scanning stages and aggregates their positions.
+        Respects the _is_closing flag for clean shutdown.
+
+        :return: Iterator yielding (x, y, z) position tuples
+        """
+        coordinate_plane = self._acquisition.config.get("acquisition_view", {}).get(
+            "coordinate_plane", ["-X", "Y", "Z"]
+        )
+        scalar_coord_plane = [x.strip("-") for x in coordinate_plane]
+        sleep_interval = 0.1  # 100ms intervals
+
+        while not self._is_closing:
+            fov_pos = [0.0, 0.0, 0.0]
+
+            for stage in {
+                **self.instrument.tiling_stages,
+                **self.instrument.scanning_stages,
+            }.values():
+                if self._is_closing:
+                    return
+
+                if stage.instrument_axis in scalar_coord_plane:
+                    index = scalar_coord_plane.index(stage.instrument_axis)
+                    try:
+                        pos = stage.position_mm
+                        if pos is not None:
+                            fov_pos[index] = pos
+                    except ValueError:  # Some stages may return invalid data temporarily
+                        pass
+                    except (RuntimeError, AttributeError):
+                        return  # Exit if device closed during shutdown
+
+            if self._is_closing:
+                return
+
+            yield (fov_pos[0], fov_pos[1], fov_pos[2])
+            time.sleep(sleep_interval)
 
     @property
     def filter_wheel_widget(self):
@@ -203,11 +477,15 @@ class InstrumentView[I: Instrument](QWidget):
         save_config_action.triggered.connect(self.save_config_with_backup)
         file_menu.addAction(save_config_action)
 
-        # Add Save Acquisition Config action if callback provided
-        if self.save_acquisition_config_callback:
-            save_acq_config_action = QAction("Save Acquisition Config", self.viewer.window._qt_window)  # noqa: SLF001
-            save_acq_config_action.triggered.connect(self.save_acquisition_config_callback)
-            file_menu.addAction(save_acq_config_action)
+        # Add Save Acquisition Config action (calls acquisition_view's save method)
+        save_acq_config_action = QAction("Save Acquisition Config", self.viewer.window._qt_window)  # noqa: SLF001
+        save_acq_config_action.triggered.connect(self._save_acquisition_config)
+        file_menu.addAction(save_acq_config_action)
+
+    def _save_acquisition_config(self) -> None:
+        """Save acquisition config by calling acquisition_view's save method."""
+        if self.acquisition_view:
+            self.acquisition_view.save_config_with_backup()
 
     def save_config_with_backup(self, backup_dir: str = "bak", config_prefix: str = "instrument") -> None:
         """
@@ -348,14 +626,14 @@ class InstrumentView[I: Instrument](QWidget):
         laser_combo_box = QComboBox(widget)
         laser_combo_box.addItems(self.channels.keys())
         laser_combo_box.currentTextChanged.connect(lambda value: self.change_channel(value))
-        laser_combo_box.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Minimum)
+        laser_combo_box.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
         laser_combo_box.setCurrentIndex(0)  # initialize to first channel index
         self.laser_combo_box = laser_combo_box
         self.livestream_channel = laser_combo_box.currentText()  # initialize livestream channel
         layout.addWidget(label)
         layout.addWidget(laser_combo_box)
         widget.setLayout(layout)
-        widget.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Minimum)
+        widget.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Minimum)
         self.viewer.window.add_dock_widget(widget, area="bottom", name="Channels")
 
     def setup_daq_widgets(self) -> None:
@@ -369,6 +647,7 @@ class InstrumentView[I: Instrument](QWidget):
                 daq_widget.ValueChangedInside[str].connect(
                     lambda _value, daq=self.instrument.daqs[daq_name]: self.write_waveforms(daq)
                 )
+                daq_widget.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
                 # update tasks if livestreaming task is different from data acquisition task
                 if daq_name in self.config["instrument_view"].get("livestream_tasks", {}):
                     daq_widget.ValueChangedInside[str].connect(
@@ -488,6 +767,9 @@ class InstrumentView[I: Instrument](QWidget):
         """
 
         for camera_name, camera_widget in self.camera_widgets.items():
+            # Set size policy to contract to contents
+            camera_widget.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
+
             # Add functionality to snapshot button
             self.snapshot_button = getattr(camera_widget, "snapshot_button", QPushButton())
             self.snapshot_button.pressed.connect(
@@ -863,10 +1145,7 @@ class InstrumentView[I: Instrument](QWidget):
             self.grab_frames_worker.yielded.connect(self.update_layer)
 
     @staticmethod
-    def save_image(
-        layer: Image,
-        event: QMouseEvent,
-    ) -> None:
+    def save_image(layer: Image, event: QMouseEvent) -> None:
         """
         Save image in viewer by right-clicking viewer
         :param layer: layer that was pressed
@@ -944,8 +1223,9 @@ class InstrumentView[I: Instrument](QWidget):
 
             updating_props = specs.get("updating_properties", [])
             for prop_name in updating_props:
-                worker = self.grab_property_value(device, prop_name, gui)
-                worker.yielded.connect(lambda args: self.update_property_value(*args))
+                worker = self.create_property_worker(device, prop_name)
+                # Worker yields (value, property_name), we need (value, widget, property_name)
+                worker.yielded.connect(lambda args, w=gui: self.update_property_value(args[0], w, args[1]))
                 worker.start()
                 self.property_workers.append(worker)
 
@@ -959,42 +1239,6 @@ class InstrumentView[I: Instrument](QWidget):
             self.create_device_widgets(subdevice_name, subdevice_specs)
 
         gui.setWindowTitle(f"{device_type} {device_name}")
-
-    @thread_worker
-    def grab_property_value(self, device: object, property_name: str, device_widget) -> Iterator:
-        """
-        Grab value of property and yield - uses shorter sleep intervals for faster shutdown
-        :param device: device to grab property from
-        :param property_name: name of property to get
-        :param device_widget: widget of entire device that is the parent of property widget
-        :return: value of property and widget to update
-        """
-        # Use shorter sleep intervals to check _is_closing more frequently
-        # This reduces queued "execution pending" messages during shutdown
-        sleep_interval = 0.1  # 100ms intervals
-        iterations = 5  # 5 * 100ms = 500ms total
-
-        while not self._is_closing:
-            # Sleep in small chunks so we can exit quickly
-            for _ in range(iterations):
-                if self._is_closing:
-                    return  # Exit immediately without yielding
-                time.sleep(sleep_interval)
-
-            if self._is_closing:
-                return  # Exit immediately without yielding
-
-            try:
-                value = getattr(device, property_name)
-            except ValueError:  # Tigerbox sometime coughs up garbage. Locking issue?
-                value = None
-            except (RuntimeError, AttributeError):
-                # Widget or device closed during shutdown - exit gracefully
-                return  # Exit immediately
-
-            if self._is_closing:
-                return  # Exit immediately without yielding
-            yield value, device_widget, property_name
 
     def update_property_value(self, value, device_widget, property_name: str) -> None:
         """
@@ -1086,17 +1330,21 @@ class InstrumentView[I: Instrument](QWidget):
         """
         Close instruments and end threads
         """
-        # Call quit() on all workers FIRST to stop them from accepting new yields
-        # This must happen before setting _is_closing flag
+        # Set the flag FIRST so workers stop yielding immediately
+        self._is_closing = True
+
+        # Quit all workers - they will check _is_closing flag and stop yielding
         for worker in self.property_workers:
-            with contextlib.suppress(AttributeError, RuntimeError):
+            with contextlib.suppress(AttributeError, RuntimeError, TypeError):
                 worker.quit()
 
-        with contextlib.suppress(AttributeError, RuntimeError):
-            self.grab_frames_worker.quit()
+        # Quit FOV positions worker
+        if self.fov_positions_worker is not None:
+            with contextlib.suppress(AttributeError, RuntimeError, TypeError):
+                self.fov_positions_worker.quit()
 
-        # NOW set the flag so current iterations exit quickly
-        self._is_closing = True
+        with contextlib.suppress(AttributeError, RuntimeError, TypeError):
+            self.grab_frames_worker.quit()
 
         # Wait for all workers to finish with timeout
         for worker in self.property_workers:
@@ -1111,6 +1359,8 @@ class InstrumentView[I: Instrument](QWidget):
         while self.grab_frames_worker.is_running and elapsed < max_wait:
             time.sleep(0.02)
             elapsed += 0.02
+
+        # acquisition_view will close itself via the closing signal (no need to call close here)
 
         # Close devices
         for device_name, device_specs in self.instrument.config["instrument"]["devices"].items():

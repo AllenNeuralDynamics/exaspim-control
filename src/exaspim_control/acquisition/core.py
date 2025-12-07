@@ -16,16 +16,17 @@ from gputools import get_device
 from psutil import virtual_memory
 from ruyaml import YAML
 from voxel.acquisition import Acquisition
-from voxel.instrument import Instrument
 from voxel.writers.data_structures.shared_double_buffer import SharedDoubleBuffer
+
+from exaspim_control.instrument import ExASPIM
 
 DIRECTORY = Path(__file__).parent.resolve()
 
 
-class ExASPIMAcquisition(Acquisition):
+class ExASPIMAcquisition(Acquisition[ExASPIM]):
     """Class for handling ExASPIM acquisition."""
 
-    def __init__(self, instrument: Instrument, config_filename: str, yaml_handler: YAML, log_level="INFO"):
+    def __init__(self, instrument: ExASPIM, config_filename: str, yaml_handler: YAML, log_level="INFO"):
         """
         Initialize the ExASPIMAcquisition object.
 
@@ -64,13 +65,10 @@ class ExASPIMAcquisition(Acquisition):
         # initialize threads and buffers
         file_transfer_threads = {}
 
+        for light in self.instrument.indicator_lights.values():
+            light.disable()
+
         # store devices and routines
-        if hasattr(self.instrument, "indicator_lights"):
-            self.indicator_light, _ = self._grab_first(
-                self.instrument.indicator_lights
-            )  # only 1 indicator light for exaspim
-        else:
-            self.indicator_light = None
         self.camera, camera_name = self._grab_first(self.instrument.cameras)  # only 1 camera for exaspim
         self.scanning_stage, _ = self._grab_first(self.instrument.scanning_stages)  # only 1 scanning stage for exaspim
         self.daq, _ = self._grab_first(self.instrument.daqs)  # only 1 daq for exaspim
@@ -79,23 +77,22 @@ class ExASPIMAcquisition(Acquisition):
             file_transfer, _ = self._grab_first(self.file_transfers[camera_name])  # only 1 file transfer for exaspim
         else:
             file_transfer = {}
-        if self.processes:
-            processes = self.processes[camera_name]  # processes could be > so leave as a dictionary
-        else:
-            processes = {}
+
+        processes = self.processes[camera_name] if self.processes else {}
 
         # tiling stages
-        for tiling_stage_id, tiling_stage in self.instrument.tiling_stages.items():
+        for tiling_stage in self.instrument.tiling_stages.values():
             instrument_axis = tiling_stage.instrument_axis
             self.initial_position_mm[instrument_axis] = tiling_stage.position_mm
+
         # scanning stage
         instrument_axis = self.scanning_stage.instrument_axis
         self.initial_position_mm[instrument_axis] = self.scanning_stage.position_mm
 
-        # turn on indicator light
-        if self.indicator_light:
-            self.log.info("turning on indicator light")
-            self.indicator_light.enable()
+        # turn on indicator lights
+        self.log.info("turning on indicator light")
+        for light in self.instrument.indicator_lights.values():
+            light.enable()
         for tile in self.config["acquisition"]["tiles"]:
             # number of times to repeat tile -> pulled from GUI only make sure in gui.yaml file
             if tile["repeats"] < 0:
@@ -283,8 +280,8 @@ class ExASPIMAcquisition(Acquisition):
                     # wait for them to finish, because this will free up disk space
                     elif len(file_transfer_threads) != 0:
                         # check if any transfer threads are still running, if so wait on them
-                        for tile_num, threads_dict in file_transfer_threads.items():
-                            for tile_channel, transfer_thread in threads_dict.items():
+                        for threads_dict in file_transfer_threads.values():
+                            for transfer_thread in threads_dict.values():
                                 if transfer_thread.is_alive():
                                     transfer_thread.wait_until_finished()
                     # otherwise this is the first tile and there is simply not enough disk space
@@ -316,15 +313,15 @@ class ExASPIMAcquisition(Acquisition):
 
         # wait for last tiles file transfer
         if file_transfer:
-            for tile_num, threads_dict in file_transfer_threads.items():
-                for tile_channel, repeat_dict in threads_dict.items():
-                    for repeat, thread in repeat_dict.items():
+            for threads_dict in file_transfer_threads.values():
+                for repeat_dict in threads_dict.values():
+                    for thread in repeat_dict.values():
                         if thread.is_alive():
                             thread.wait_until_finished()
 
         if getattr(self, "file_transfers", {}) != {}:  # save to external paths
             # save acquisition config
-            for device_name, transfer_dict in getattr(self, "file_transfers", {}).items():
+            for transfer_dict in getattr(self, "file_transfers", {}).values():
                 for transfer in transfer_dict.values():
                     self.update_current_state_config()
                     self.save_config(
@@ -332,7 +329,7 @@ class ExASPIMAcquisition(Acquisition):
                     )
 
             # save instrument config
-            for device_name, transfer_dict in getattr(self, "file_transfers", {}).items():
+            for transfer_dict in getattr(self, "file_transfers", {}).values():
                 for transfer in transfer_dict.values():
                     self.instrument.update_current_state_config()
                     self.instrument.save_config(
@@ -341,13 +338,13 @@ class ExASPIMAcquisition(Acquisition):
 
         else:  # no transfers so save locally
             # save acquisition config
-            for device_name, writer_dict in self.writers.items():
+            for writer_dict in self.writers.values():
                 for writer in writer_dict.values():
                     self.update_current_state_config()
                     self.save_config(Path(writer.path, writer.acquisition_name) / "acquisition_config.yaml")
 
             # save instrument config
-            for device_name, writer_dict in self.writers.items():
+            for writer_dict in self.writers.values():
                 for writer in writer_dict.values():
                     self.instrument.update_current_state_config()
                     self.instrument.save_config(Path(writer.path, writer.acquisition_name) / "instrument_config.yaml")
@@ -365,10 +362,9 @@ class ExASPIMAcquisition(Acquisition):
         self.scanning_stage.position_mm = self.initial_position_mm[instrument_axis]
         self.log.info(f"moving stage to {instrument_axis} = {self.initial_position_mm[instrument_axis]:.3f} mm")
 
-        # turn off indicator light
-        if self.indicator_light:
-            self.log.info("turning off indicator light")
-            self.indicator_light.disable()
+        self.log.info("turning off indicator light")
+        for light in self.instrument.indicator_lights.values():
+            light.disable()
 
     def acquisition_engine(
         self, tile: dict, base_filename: str, camera, daq, writer, processes: dict, scanning_stage

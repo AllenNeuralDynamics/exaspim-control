@@ -3,6 +3,7 @@ import importlib
 import inspect
 import logging
 import operator
+from abc import ABC, abstractmethod
 from collections.abc import Callable
 from functools import reduce, wraps
 from pathlib import Path
@@ -33,7 +34,7 @@ if TYPE_CHECKING:
     from voxel.devices.tunable_lens.base import BaseTunableLens
 
 
-class Instrument:
+class Instrument(ABC):
     """Represents an instrument with various devices and configurations."""
 
     def __init__(self, config_path: str, yaml_handler: YAML | None = None, log_level: str = "INFO"):
@@ -81,6 +82,14 @@ class Instrument:
 
         # construct microscope
         self._construct()
+
+        errs = self._verify_instrument()
+        if errs:
+            msg = f"Instrument verification failed with errors: {errs}"
+            raise ValueError(msg)
+
+    @abstractmethod
+    def _verify_instrument(self) -> list[str]: ...
 
     def _construct(self) -> None:
         """
@@ -239,13 +248,17 @@ class Instrument:
                     properties[attr_name] = getattr(device, attr_name)
             device_specs["properties"] = properties
 
-    def save_config(self, path: Path) -> None:
+    def save_config(self, path: Path, capture_current: bool = True) -> None:
         """
         Save the current configuration to a file.
 
         :param path: Path to save the configuration file.
         :type path: Path
+        :param capture_current: Whether to update config with current device states before saving, defaults to True
+        :type capture_current: bool, optional
         """
+        if capture_current:
+            self.update_current_state_config()
         with path.open("w") as f:
             self.yaml.dump(self.config, f)
 
@@ -253,6 +266,7 @@ class Instrument:
         """
         Close the instrument and release any resources.
         """
+        self.log.warning("Instrument close not implemented")
 
 
 def for_all_methods(lock: Lock, cls: type) -> type:
