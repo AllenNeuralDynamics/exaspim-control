@@ -44,14 +44,14 @@ class TiffWriter(BaseWriter):
         return self._frame_count_px_px
 
     @frame_count_px.setter
-    def frame_count_px(self, frame_count_px: int) -> None:
+    def frame_count_px(self, value: int) -> None:
         """Set the number of frames in the writer.
 
         :param value: Frame number in pixels
         :type value: int
         """
-        self.log.info(f"setting frame count to: {frame_count_px} [px]")
-        self._frame_count_px_px = frame_count_px
+        self.log.info(f"setting frame count to: {value} [px]")
+        self._frame_count_px_px = value
 
     @property
     def chunk_count_px(self) -> int:
@@ -72,7 +72,7 @@ class TiffWriter(BaseWriter):
         return next(key for key, value in COMPRESSIONS.items() if value == self._compression)
 
     @compression.setter
-    def compression(self, compression: str) -> None:
+    def compression(self, value: str) -> None:
         """Set the compression codec of the writer.
 
         :param value: Compression codec
@@ -80,10 +80,10 @@ class TiffWriter(BaseWriter):
         :type value: str
         """
         valid = list(COMPRESSIONS.keys())
-        if compression not in valid:
+        if value not in valid:
             raise ValueError("compression type must be one of %r." % valid)
-        self.log.info(f"setting compression mode to: {compression}")
-        self._compression = COMPRESSIONS[compression]
+        self.log.info(f"setting compression mode to: {value}")
+        self._compression = COMPRESSIONS[value]
 
     @property
     def filename(self) -> str:
@@ -96,15 +96,15 @@ class TiffWriter(BaseWriter):
         return self._filename
 
     @filename.setter
-    def filename(self, filename: str) -> None:
+    def filename(self, value: str) -> None:
         """
         The base filename of file writer.
 
         :param value: The base filename
         :type value: str
         """
-        self._filename = filename if filename.endswith(".tiff") else f"{filename}.tiff"
-        self.log.info(f"setting filename to: {filename}")
+        self._filename = value if value.endswith(".tiff") else f"{value}.tiff"
+        self.log.info(f"setting filename to: {value}")
 
     def prepare(self) -> None:
         """Prepare the writer."""

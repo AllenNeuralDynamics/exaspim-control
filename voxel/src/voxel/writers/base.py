@@ -49,7 +49,7 @@ class BaseWriter:
 
     @property
     @abstractmethod
-    def x_voxel_size_um(self) -> float:
+    def x_voxel_size_um(self) -> float | None:
         """Get x voxel size of the writer.
 
         :return: Voxel size in the x dimension in microns
@@ -70,7 +70,7 @@ class BaseWriter:
 
     @property
     @abstractmethod
-    def y_voxel_size_um(self) -> float:
+    def y_voxel_size_um(self) -> float | None:
         """Get y voxel size of the writer.
 
         :return: Voxel size in the y dimension in microns
@@ -91,7 +91,7 @@ class BaseWriter:
 
     @property
     @abstractmethod
-    def z_voxel_size_um(self) -> float:
+    def z_voxel_size_um(self) -> float | None:
         """Get z voxel size of the writer.
 
         :return: Voxel size in the z dimension in microns
@@ -112,7 +112,7 @@ class BaseWriter:
 
     @property
     @abstractmethod
-    def x_position_mm(self) -> float:
+    def x_position_mm(self) -> float | None:
         """Get x position of the writer.
 
         :return: Position in the x dimension in mm
@@ -133,7 +133,7 @@ class BaseWriter:
 
     @property
     @abstractmethod
-    def y_position_mm(self) -> float:
+    def y_position_mm(self) -> float | None:
         """Get y position of the writer.
 
         :return: Position in the y dimension in mm
@@ -154,7 +154,7 @@ class BaseWriter:
 
     @property
     @abstractmethod
-    def z_position_mm(self) -> float:
+    def z_position_mm(self) -> float | None:
         """Get z position of the writer.
 
         :return: Position in the z dimension in mm
@@ -211,7 +211,7 @@ class BaseWriter:
 
     @property
     @abstractmethod
-    def column_count_px(self) -> int:
+    def column_count_px(self) -> int | None:
         """Get the number of columns in the writer.
 
         :return: Column number in pixels
@@ -232,7 +232,7 @@ class BaseWriter:
 
     @property
     @abstractmethod
-    def row_count_px(self) -> int:
+    def row_count_px(self) -> int | None:
         """Get the number of rows in the writer.
 
         :return: Row number in pixels
@@ -280,7 +280,7 @@ class BaseWriter:
 
     @property
     @abstractmethod
-    def data_type(self) -> np.unsignedinteger:
+    def data_type(self) -> np.unsignedinteger | None:
         """Get the data type of the writer.
 
         :return: Data type
@@ -354,7 +354,7 @@ class BaseWriter:
 
     @property
     @abstractmethod
-    def channel(self) -> str:
+    def channel(self) -> str | None:
         """
         The channel of the writer.
 

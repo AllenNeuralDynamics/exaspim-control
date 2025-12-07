@@ -1,7 +1,7 @@
 line-length = 120
 show-fixes = true
 
-target-version = 'py311'
+target-version = 'py312'
 
 exclude = ["**/sdks/**", "**/sdk/**", "vendor/**"]
 
@@ -59,8 +59,16 @@ pylint = { max-statements = 75 }
 [lint.per-file-ignores]
 "!**/src/**.py" = ["D"] # 'Docstring' rules only in src
 "view/**.py" = [
-    "N802",   # Allow function names in view to be camelCase
-    "FBT003", #  Boolean positional value in function call
+    "N",       # Allow names in view to be camelCase; because of qt
+    "FBT003",  #  Boolean positional value in function call
+    "PLR0912", # Too many branches in function definition
+    "C901",    # Function is too complex
+]
+"src/exaspim_control/**.py" = [
+    "N", # Allow names in view to be camelCase; because of qt
+    # "FBT003",  #  Boolean positional value in function call
+    # "PLR0912", # Too many branches in function definition
+    # "C901",    # Function is too complex
 ]
 "**/*_widget.py" = [
     "N802",

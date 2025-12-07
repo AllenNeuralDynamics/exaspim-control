@@ -41,7 +41,7 @@ class BaseMaxProjection:
 
     @property
     @abstractmethod
-    def column_count_px(self) -> int:
+    def column_count_px(self) -> int | None:
         """Get the number of columns in the process.
 
         :return: Column number in pixels
@@ -62,7 +62,7 @@ class BaseMaxProjection:
 
     @property
     @abstractmethod
-    def row_count_px(self) -> int:
+    def row_count_px(self) -> int | None:
         """Get the number of rows in the process.
 
         :return: Row number in pixels
@@ -83,7 +83,7 @@ class BaseMaxProjection:
 
     @property
     @abstractmethod
-    def frame_count_px(self) -> int:
+    def frame_count_px(self) -> int | None:
         """Get the number of frames in the process.
 
         :return: Frame number in pixels
@@ -104,7 +104,7 @@ class BaseMaxProjection:
 
     @property
     @abstractmethod
-    def x_projection_count_px(self) -> int:
+    def x_projection_count_px(self) -> int | None:
         """Get the number pixels projected along the x dimension.
 
         :return: Projection count along x dimension in pixels
@@ -125,7 +125,7 @@ class BaseMaxProjection:
 
     @property
     @abstractmethod
-    def y_projection_count_px(self) -> int:
+    def y_projection_count_px(self) -> int | None:
         """Get the number pixels projected along the y dimension.
 
         :return: Projection count along y dimension in pixels
@@ -146,7 +146,7 @@ class BaseMaxProjection:
 
     @property
     @abstractmethod
-    def z_projection_count_px(self) -> int:
+    def z_projection_count_px(self) -> int | None:
         """Get the number pixels projected along the z dimension.
 
         :return: Projection count along z dimension in pixels
@@ -167,7 +167,7 @@ class BaseMaxProjection:
 
     @property
     @abstractmethod
-    def binning(self) -> int:
+    def binning(self) -> int | None:
         """Get the binning parameter for images.
 
         :return: Binning parameter for images
@@ -188,7 +188,7 @@ class BaseMaxProjection:
 
     @property
     @abstractmethod
-    def data_type(self) -> numpy.unsignedinteger:
+    def data_type(self) -> numpy.unsignedinteger | None:
         """Get the data type of the process.
 
         :return: Data type
@@ -240,7 +240,7 @@ class BaseMaxProjection:
 
     @property
     @abstractmethod
-    def filename(self) -> str:
+    def filename(self) -> str | None:
         """
         The base filename of file proess.
 

@@ -21,6 +21,12 @@ class BaseIndicatorLight(VoxelDevice):
         :rtype: dict
         """
 
+    @abstractmethod
+    def enable(self) -> None: ...
+
+    @abstractmethod
+    def disable(self) -> None: ...
+
     @settings.setter
     @abstractmethod
     def settings(self, value: dict) -> None:

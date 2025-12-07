@@ -484,12 +484,13 @@ class VieworksCamera(BaseCamera):
         self.grabber.realloc_buffers(self.buffer_size_frames)  # allocate RAM buffer N frames
         self.log.info(f"buffer set to: {self.buffer_size_frames} frames")
 
-    def start(self, frame_count: int = GENTL_INFINITE) -> None:
+    def start(self, frame_count: int | None = None) -> None:
         """Start the camera acquisition.
 
         :param frame_count: Number of frames to acquire, defaults to GENTL_INFINITE
         :type frame_count: int, optional
         """
+        frame_count = frame_count if frame_count else GENTL_INFINITE
         self.log.info("starting camera")
         if frame_count == float("inf"):
             frame_count = GENTL_INFINITE

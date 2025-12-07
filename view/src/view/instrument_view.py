@@ -3,21 +3,23 @@ import datetime
 import importlib
 import inspect
 import logging
+import shutil
+import time
 from collections.abc import Iterator
 from pathlib import Path
-from time import sleep
+from typing import ClassVar
 
 import inflection
 import napari
 import numpy as np
 import tifffile
+from napari.layers import Image
 from napari.qt.threading import create_worker, thread_worker
 from napari.utils.theme import get_theme
 from PyQt6.QtCore import Qt, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import QAction, QMouseEvent
 from PyQt6.QtWidgets import (
     QApplication,
-    QButtonGroup,
     QComboBox,
     QFileDialog,
     QFrame,
@@ -25,7 +27,6 @@ from PyQt6.QtWidgets import (
     QLabel,
     QMessageBox,
     QPushButton,
-    QRadioButton,
     QScrollArea,
     QSizePolicy,
     QStyle,
@@ -33,6 +34,8 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 from ruyaml import YAML
+from voxel.instrument import Instrument
+from voxel.processes.downsample.gpu.gputools.rank_downsample_2d import GPUToolsRankDownSample2D
 
 from view.widgets.base_device_widget import (
     BaseDeviceWidget,
@@ -43,18 +46,14 @@ from view.widgets.base_device_widget import (
 )
 
 
-class InstrumentView(QWidget):
+class InstrumentView[I: Instrument](QWidget):
     """ "Class to act as a general instrument view model to voxel instrument"""
 
     snapshotTaken = pyqtSignal(np.ndarray, list)
     contrastChanged = pyqtSignal(np.ndarray, list)
+    viewer_title: ClassVar[str] = "Instrument Control"
 
-    def __init__(
-        self,
-        instrument,
-        gui_config_path: Path,
-        save_acquisition_config_callback=None,
-    ):
+    def __init__(self, instrument: I, gui_config_path: Path, save_acquisition_config_callback=None):
         """
         :param instrument: voxel like instrument object
         :param gui_config_path: path to gui config yaml
@@ -72,11 +71,13 @@ class InstrumentView(QWidget):
         self.tiling_stage_widgets = {}
         self.focusing_stage_widgets = {}
         self.filter_wheel_widgets = {}
+        self.flip_mount_widgets = {}
         self.joystick_widgets = {}
 
         # Eventual threads
         self.grab_frames_worker = create_worker(lambda: None)  # dummy thread
         self.property_workers = []  # list of property workers
+        self._is_closing = False  # flag to signal workers to stop
 
         # Eventual attributes
         self.livestream_channel = None
@@ -91,7 +92,49 @@ class InstrumentView(QWidget):
         self.channels = self.instrument.config["instrument"]["channels"]
 
         # Setup napari window
-        self.viewer = napari.Viewer(title="View", ndisplay=2, axis_labels=("x", "y"))
+        self.viewer = napari.Viewer(title=self.viewer_title, ndisplay=2, axis_labels=("x", "y"))
+
+        # Initialize viewer properties from config
+        self.intensity_min = self.config["instrument_view"]["properties"].get("intensity_min", 0)
+        if self.intensity_min < 0 or self.intensity_min > 65535:
+            raise ValueError("intensity min must be between 0 and 65535")
+        self.intensity_max = self.config["instrument_view"]["properties"].get("intensity_max", 65535)
+        if self.intensity_max < self.intensity_min or self.intensity_max > 65535:
+            raise ValueError("intensity max must be between intensity min and 65535")
+        self.camera_rotation = self.config["instrument_view"]["properties"].get("camera_rotation_deg", 0)
+        if self.camera_rotation not in [0, 90, 180, 270, 360, -90, -180, -270]:
+            raise ValueError("camera rotation must be 0, 90, 180, 270, -90, -180, -270")
+        self.resolution_levels = self.config["instrument_view"]["properties"].get("resolution_levels", 1)
+        if self.resolution_levels < 1 or self.resolution_levels > 10:
+            raise ValueError("resolution levels must be between 1 and 10")
+        self.alignment_roi_size = self.config["instrument_view"]["properties"].get("alignment_roi_size", 128)
+        if self.alignment_roi_size < 2 or self.alignment_roi_size > 1024:
+            raise ValueError("alignment roi size must be between 2 and 1024")
+
+        # Setup viewer display properties
+        self.viewer.scale_bar.visible = True
+        self.viewer.scale_bar.unit = "um"
+        self.viewer.scale_bar.position = "bottom_left"
+        self.viewer.text_overlay.visible = True
+
+        # Initialize viewer state for camera management
+        self.previous_layer = None
+        self.saved_camera_center = None
+        self.saved_camera_zoom = None
+        self.viewer.camera.events.zoom.connect(self.camera_zoom)
+        self.viewer.camera.events.center.connect(self.camera_position)
+
+        # Cache canvas reference to avoid deprecated qt_viewer access
+        # Access through _qt_window (internal but stable) instead of deprecated qt_viewer
+        self._canvas = self.viewer.window._qt_window._qt_viewer.canvas  # noqa: SLF001
+        self._canvas._scene_canvas.measure_fps(callback=self.update_fps)  # noqa: SLF001
+
+        self.downsampler = GPUToolsRankDownSample2D(binning=2, rank=-2, data_type="uint16")
+
+        # Create cache for contrast limit values
+        self.contrast_limits = {}
+        for key in self.channels:
+            self.contrast_limits[key] = [self.intensity_min, self.intensity_max]
 
         # Add File menu with Save Config option
         self.setup_file_menu()
@@ -109,6 +152,7 @@ class InstrumentView(QWidget):
         self.setup_stage_widgets()
         self.setup_laser_widgets()
         self.setup_daq_widgets()
+        self.setup_flip_mount_widgets()
         self.setup_filter_wheel_widgets()
 
         # add undocked widget so everything closes together
@@ -116,9 +160,32 @@ class InstrumentView(QWidget):
 
         # Set app events
         app = QApplication.instance()
-        # Config save removed from quit - now manual via File menu
+
         self.config_save_to = self.instrument.config_path
-        app.lastWindowClosed.connect(self.close)  # shut everything down when closing
+        if isinstance(app, QApplication):
+            app.lastWindowClosed.connect(self.close)
+
+    @property
+    def filter_wheel_widget(self):
+        # return first
+        return next(iter(self.filter_wheel_widgets.values()))
+
+    def camera_position(self, _event) -> None:
+        """Store viewer state anytime camera moves and there is a layer."""
+        if self.previous_layer in self.viewer.layers:
+            self.saved_camera_center = self.viewer.camera.center
+            self.saved_camera_zoom = self.viewer.camera.zoom
+
+    def camera_zoom(self, _event) -> None:
+        """Store viewer state anytime camera zooms and there is a layer."""
+        if self.previous_layer in self.viewer.layers:
+            self.saved_camera_center = self.viewer.camera.center
+            self.saved_camera_zoom = self.viewer.camera.zoom
+
+    def viewer_contrast_limits(self, _event) -> None:
+        """Store viewer contrast limits anytime contrast limits change."""
+        if self.livestream_channel in self.viewer.layers:
+            self.contrast_limits[self.livestream_channel] = self.viewer.layers[self.livestream_channel].contrast_limits
 
     def setup_file_menu(self) -> None:
         """
@@ -132,13 +199,13 @@ class InstrumentView(QWidget):
         file_menu.addSeparator()
 
         # Add Save Config action
-        save_config_action = QAction("Save Config", self.viewer.window._qt_window)
+        save_config_action = QAction("Save Config", self.viewer.window._qt_window)  # noqa: SLF001
         save_config_action.triggered.connect(self.save_config_with_backup)
         file_menu.addAction(save_config_action)
 
         # Add Save Acquisition Config action if callback provided
         if self.save_acquisition_config_callback:
-            save_acq_config_action = QAction("Save Acquisition Config", self.viewer.window._qt_window)
+            save_acq_config_action = QAction("Save Acquisition Config", self.viewer.window._qt_window)  # noqa: SLF001
             save_acq_config_action.triggered.connect(self.save_acquisition_config_callback)
             file_menu.addAction(save_acq_config_action)
 
@@ -163,8 +230,6 @@ class InstrumentView(QWidget):
             backup_path = bak_dir / backup_filename
 
             # Copy current config to backup
-            import shutil
-
             if self.instrument.config_path.exists():
                 shutil.copy2(self.instrument.config_path, backup_path)
                 self.log.info(f"Backup created: {backup_path}")
@@ -178,7 +243,7 @@ class InstrumentView(QWidget):
             self._show_save_success(backup_filename)
 
         except Exception as e:
-            self.log.exception(f"Failed to save configuration: {e}")
+            self.log.exception("Failed to save configuration")
             self._show_save_error(str(e))
 
     def _show_save_success(self, backup_filename: str) -> None:
@@ -189,10 +254,10 @@ class InstrumentView(QWidget):
         """
         self.log.info(f"Config saved successfully with backup: {backup_filename}")
         msgBox = QMessageBox()
-        msgBox.setIcon(QMessageBox.Information)
+        msgBox.setIcon(QMessageBox.Icon.Information)
         msgBox.setText(f"Configuration saved successfully.\n\nBackup: {backup_filename}")
         msgBox.setWindowTitle("Config Saved")
-        msgBox.setStandardButtons(QMessageBox.Ok)
+        msgBox.setStandardButtons(QMessageBox.StandardButton.Ok)
         msgBox.exec()
 
     def _show_save_error(self, error_message: str) -> None:
@@ -203,10 +268,10 @@ class InstrumentView(QWidget):
         """
         self.log.error(f"Failed to save config: {error_message}")
         msgBox = QMessageBox()
-        msgBox.setIcon(QMessageBox.Critical)
+        msgBox.setIcon(QMessageBox.Icon.Critical)
         msgBox.setText(f"Failed to save configuration:\n{error_message}")
         msgBox.setWindowTitle("Save Error")
-        msgBox.setStandardButtons(QMessageBox.Ok)
+        msgBox.setStandardButtons(QMessageBox.StandardButton.Ok)
         msgBox.exec()
 
     def setup_daqs(self) -> None:
@@ -241,7 +306,7 @@ class InstrumentView(QWidget):
             layout = QVBoxLayout()
             layout.addWidget(create_widget("H", label, widget))
             frame.setLayout(layout)
-            border_color = get_theme(self.viewer.theme, as_dict=False).foreground
+            border_color = get_theme(self.viewer.theme).foreground
             frame.setStyleSheet(f".QFrame {{ border:1px solid {border_color}; }} ")
             stage_widgets.append(frame)
 
@@ -260,21 +325,38 @@ class InstrumentView(QWidget):
 
     def setup_laser_widgets(self) -> None:
         """
-        Arrange laser widgets
+        Setup laser widgets.
         """
-
         laser_widgets = []
         for name, widget in self.laser_widgets.items():
             label = QLabel(name)
-            horizontal = QFrame()
             layout = QVBoxLayout()
             layout.addWidget(create_widget("H", label, widget))
-            horizontal.setLayout(layout)
-            border_color = get_theme(self.viewer.theme, as_dict=False).foreground
-            horizontal.setStyleSheet(f".QFrame {{ border:1px solid {border_color}; }} ")
-            laser_widgets.append(horizontal)
-        laser_widget = create_widget("V", *laser_widgets)
-        self.viewer.window.add_dock_widget(laser_widget, area="bottom", name="Lasers")
+            laser_widgets.append(layout)
+        self.laser_widget = create_widget("V", *laser_widgets)
+        if (laser_layout := self.laser_widget.layout()) is not None:
+            laser_layout.setSpacing(12)
+        self.viewer.window.add_dock_widget(self.laser_widget, area="bottom", name="Lasers")
+
+    def setup_channel_widget(self) -> None:
+        """
+        Create widget to select which laser to livestream with.
+        """
+        widget = QWidget()
+        layout = QVBoxLayout()
+        label = QLabel("Active Channel")
+        laser_combo_box = QComboBox(widget)
+        laser_combo_box.addItems(self.channels.keys())
+        laser_combo_box.currentTextChanged.connect(lambda value: self.change_channel(value))
+        laser_combo_box.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Minimum)
+        laser_combo_box.setCurrentIndex(0)  # initialize to first channel index
+        self.laser_combo_box = laser_combo_box
+        self.livestream_channel = laser_combo_box.currentText()  # initialize livestream channel
+        layout.addWidget(label)
+        layout.addWidget(laser_combo_box)
+        widget.setLayout(layout)
+        widget.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Minimum)
+        self.viewer.window.add_dock_widget(widget, area="bottom", name="Channels")
 
     def setup_daq_widgets(self) -> None:
         """
@@ -285,18 +367,25 @@ class InstrumentView(QWidget):
             # if daq_widget is BaseDeviceWidget or inherits from it, update waveforms when gui is changed
             if isinstance(daq_widget, BaseDeviceWidget):
                 daq_widget.ValueChangedInside[str].connect(
-                    lambda value, daq=self.instrument.daqs[daq_name]: self.write_waveforms(daq)
+                    lambda _value, daq=self.instrument.daqs[daq_name]: self.write_waveforms(daq)
                 )
                 # update tasks if livestreaming task is different from data acquisition task
                 if daq_name in self.config["instrument_view"].get("livestream_tasks", {}):
                     daq_widget.ValueChangedInside[str].connect(
-                        lambda attr, widget=daq_widget, name=daq_name: self.update_config_waveforms(
+                        lambda attr, widget=daq_widget, daq_name=daq_name: self.update_config_waveforms(
                             widget, daq_name, attr
                         )
                     )
 
         stacked = self.stack_device_widgets("daq")
         self.viewer.window.add_dock_widget(stacked, area="right", name="DAQs", add_vertical_stretch=False)
+
+    def setup_flip_mount_widgets(self) -> None:
+        """
+        Set up flip mount widgets.
+        """
+        stacked = self.stack_device_widgets("flip_mount")
+        self.viewer.window.add_dock_widget(stacked, area="right", name="Flip Mounts")
 
     def stack_device_widgets(self, device_type: str) -> QWidget:
         """
@@ -369,24 +458,21 @@ class InstrumentView(QWidget):
 
         # update data_acquisition_tasks if value correlates
         key = path[-1]
-        try:
-            dictionary = pathGet(
-                self.config["acquisition_view"]["data_acquisition_tasks"][daq_name],
-                path[:-1],
-            )
-            if key not in dictionary:
-                raise KeyError
-            dictionary[key] = value
-            self.log.info(
-                f"Data acquisition tasks parameters updated to "
-                f"{self.config['acquisition_view']['data_acquisition_tasks'][daq_name]}"
+        dictionary = pathGet(
+            self.config["acquisition_view"]["data_acquisition_tasks"][daq_name],
+            path[:-1],
+        )
+        if key not in dictionary:
+            self.log.warning(
+                f"Key '{key}' not found in dictionary, Path {attr_name} can't be mapped into data "
+                f"acquisition tasks so changes will not be reflected in acquisition"
             )
 
-        except KeyError:
-            self.log.warning(
-                f"Path {attr_name} can't be mapped into data acquisition tasks so changes will not "
-                f"be reflected in acquisition"
-            )
+        dictionary[key] = value
+        self.log.info(
+            f"Data acquisition tasks parameters updated to "
+            f"{self.config['acquisition_view']['data_acquisition_tasks'][daq_name]}"
+        )
 
     def setup_filter_wheel_widgets(self):
         """
@@ -403,17 +489,29 @@ class InstrumentView(QWidget):
 
         for camera_name, camera_widget in self.camera_widgets.items():
             # Add functionality to snapshot button
-            snapshot_button = getattr(camera_widget, "snapshot_button", QPushButton())
-            snapshot_button.pressed.connect(
-                lambda button=snapshot_button: disable_button(button)
+            self.snapshot_button = getattr(camera_widget, "snapshot_button", QPushButton())
+            self.snapshot_button.pressed.connect(
+                lambda button=self.snapshot_button: disable_button(button)
             )  # disable to avoid spamming
-            snapshot_button.pressed.connect(lambda camera=camera_name: self.setup_live(camera, 1))
+            self.snapshot_button.pressed.connect(lambda camera=camera_name: self.setup_live(camera, 1))
 
             # Add functionality to live button
             live_button = getattr(camera_widget, "live_button", QPushButton())
             live_button.pressed.connect(lambda button=live_button: disable_button(button))  # disable to avoid spamming
             live_button.pressed.connect(lambda camera=camera_name: self.setup_live(camera))
             live_button.pressed.connect(lambda camera=camera_name: self.toggle_live_button(camera))
+
+            # Add functionality to the alignment button (edges button)
+            self.alignment_button = getattr(camera_widget, "alignment_button", QPushButton())
+            self.alignment_button.setCheckable(True)
+            self.alignment_button.released.connect(self.enable_alignment_mode)
+
+            # Add functionality to the crosshairs button
+            self.crosshairs_button = getattr(camera_widget, "crosshairs_button", QPushButton())
+            self.crosshairs_button.setCheckable(True)
+
+            self.alignment_button.setDisabled(True)  # disable alignment button
+            self.crosshairs_button.setDisabled(True)  # disable crosshairs button
 
         stacked = self.stack_device_widgets("camera")
         self.viewer.window.add_dock_widget(stacked, area="right", name="Cameras", add_vertical_stretch=False)
@@ -428,17 +526,21 @@ class InstrumentView(QWidget):
         live_button.pressed.disconnect()
         if live_button.text() == "Live":
             live_button.setText("Stop")
-            stop_icon = live_button.style().standardIcon(QStyle.StandardPixmap.SP_MediaStop)
-            live_button.setIcon(stop_icon)
+            style = live_button.style()
+            if style is not None:
+                stop_icon = style.standardIcon(QStyle.StandardPixmap.SP_MediaStop)
+                live_button.setIcon(stop_icon)
             live_button.pressed.connect(self.grab_frames_worker.quit)
         else:
             live_button.setText("Live")
-            start_icon = live_button.style().standardIcon(QStyle.StandardPixmap.SP_MediaPlay)
-            live_button.setIcon(start_icon)
-            live_button.pressed.connect(lambda camera=camera_name: self.setup_live(camera_name))
+            style = live_button.style()
+            if style is not None:
+                start_icon = style.standardIcon(QStyle.StandardPixmap.SP_MediaPlay)
+                live_button.setIcon(start_icon)
+            live_button.pressed.connect(lambda _camera=camera_name: self.setup_live(camera_name))
 
         live_button.pressed.connect(lambda button=live_button: disable_button(button))
-        live_button.pressed.connect(lambda camera=camera_name: self.toggle_live_button(camera_name))
+        live_button.pressed.connect(lambda _camera=camera_name: self.toggle_live_button(camera_name))
 
     def setup_live(self, camera_name: str, frames=float("inf")) -> None:
         """
@@ -447,10 +549,17 @@ class InstrumentView(QWidget):
         :param frames: how many frames to take
         """
 
+        layer_list = self.viewer.layers
+        layer_name = self.livestream_channel
+
+        # check if switching channels
+        if layer_list and layer_name not in layer_list:
+            self.viewer.layers.clear()
+
         if self.grab_frames_worker.is_running:
             if frames == 1:  # create snapshot layer with the latest image
                 layer = self.viewer.layers[f"{camera_name} {self.livestream_channel}"]
-                image = layer.data[0] if layer.multiscale else image.data
+                image = layer.data[0] if layer.multiscale else layer.data
                 self.update_layer((image, camera_name), snapshot=True)
             return
 
@@ -465,15 +574,28 @@ class InstrumentView(QWidget):
         self.grab_frames_worker.start()
 
         self.instrument.cameras[camera_name].prepare()
-        self.instrument.cameras[camera_name].start(frames)
+        # Only convert to int if frames is finite, otherwise pass 0 for continuous
+        frame_count = int(frames) if frames != float("inf") else None
+        self.instrument.cameras[camera_name].start(frame_count)
 
         for laser in self.channels[self.livestream_channel].get("lasers", []):
             self.log.info(f"Enabling laser {laser}")
             self.instrument.lasers[laser].enable()
+            # Disable other laser widgets during live (if laser_widget exists)
+            if hasattr(self, "laser_widget"):
+                for child in self.laser_widget.children()[1:]:  # skip first child widget
+                    laser_name = child.children()[1].text()  # first child is label widget
+                    if laser != laser_name:
+                        child.setDisabled(True)
+                        child.children()[2].setDisabled(True)
 
-        for filter in self.channels[self.livestream_channel].get("filters", []):
-            self.log.info(f"Enabling filter {filter}")
-            self.instrument.filters[filter].enable()
+        for filter_device in self.channels[self.livestream_channel].get("filters", []):
+            self.log.info(f"Enabling filter {filter_device}")
+            self.instrument.filters[filter_device].enable()
+
+        # Enable indicator lights if available
+        for light in self.instrument.indicator_lights.values():
+            light.enable()
 
         for daq in self.instrument.daqs.values():
             if daq.tasks.get("ao_task", None) is not None:
@@ -490,6 +612,18 @@ class InstrumentView(QWidget):
 
             daq.start()
 
+        # Manage widget states during live streaming
+        if hasattr(self, "filter_wheel_widget"):
+            self.filter_wheel_widget.setDisabled(True)
+        if hasattr(self, "laser_combo_box"):
+            self.laser_combo_box.setDisabled(True)
+        if hasattr(self, "alignment_button"):
+            self.alignment_button.setDisabled(False)
+        if hasattr(self, "crosshairs_button"):
+            self.crosshairs_button.setDisabled(False)
+        if hasattr(self, "snapshot_button"):
+            self.snapshot_button.setDisabled(True)
+
     def dismantle_live(self, camera_name: str) -> None:
         """
         Safely shut down live
@@ -498,61 +632,239 @@ class InstrumentView(QWidget):
 
         self.instrument.cameras[camera_name].abort()
         for daq in self.instrument.daqs.values():
-            daq.stop()
+            # wait for daq tasks to finish - prevents devices from stopping in
+            # unsafe state, i.e. lasers still on
+            if hasattr(daq, "co_task") and daq.co_task is not None:
+                daq.co_task.stop()
+                # sleep to allow last ao to play with 10% buffer
+                if hasattr(daq, "co_frequency_hz"):
+                    time.sleep(1.0 / daq.co_frequency_hz * 1.1)
+                # stop the ao task
+                if hasattr(daq, "ao_task") and daq.ao_task is not None:
+                    daq.ao_task.stop()
+                # close the tasks
+                daq.co_task.close()
+                if hasattr(daq, "ao_task") and daq.ao_task is not None:
+                    daq.ao_task.close()
+            else:
+                daq.stop()
+
         for laser_name in self.channels[self.livestream_channel].get("lasers", []):
             self.instrument.lasers[laser_name].disable()
+            # Re-enable laser widgets after live (if laser_widget exists)
+            if hasattr(self, "laser_widget"):
+                for child in self.laser_widget.children()[1:]:  # skip first child widget
+                    child_laser_name = child.children()[1].text()  # first child is label widget
+                    if laser_name != child_laser_name:
+                        child.setDisabled(False)
+                        child.children()[2].setDisabled(False)
+
+        # Disable indicator lights if available
+        for light in self.instrument.indicator_lights.values():
+            light.disable()
+
+        # Re-enable widgets after live streaming
+        if hasattr(self, "filter_wheel_widget"):
+            self.filter_wheel_widget.setDisabled(False)
+        if hasattr(self, "laser_combo_box"):
+            self.laser_combo_box.setDisabled(False)
+        if hasattr(self, "alignment_button"):
+            self.alignment_button.setDisabled(True)
+            self.alignment_button.setChecked(False)
+        if hasattr(self, "crosshairs_button"):
+            self.crosshairs_button.setDisabled(True)
+            self.crosshairs_button.setChecked(False)
+        if hasattr(self, "snapshot_button"):
+            self.snapshot_button.setDisabled(False)
 
     @thread_worker
-    def grab_frames(self, camera_name: str, frames=float("inf")) -> Iterator[tuple[np.ndarray, str]]:
+    def grab_frames(self, camera_name: str, frames=float("inf")) -> Iterator[tuple[list[np.ndarray], str]]:
         """
-        Grab frames from camera
+        Grab frames from camera with multiscale pyramid
         :param frames: how many frames to take
         :param camera_name: name of camera
         """
 
         i = 0
         while i < frames:  # while loop since frames can == inf
-            sleep(0.1)
-            yield self.instrument.cameras[camera_name].grab_frame(), camera_name
+            time.sleep(0.5)
+            multiscale = [self.instrument.cameras[camera_name].grab_frame()]
+            for _ in range(1, self.resolution_levels):
+                downsampled_frame = multiscale[-1][::2, ::2]
+                multiscale.append(downsampled_frame)
+            yield multiscale, camera_name
             i += 1
 
-    def update_layer(self, args, snapshot: bool = False) -> None:
+    def update_layer(self, args: tuple, snapshot: bool = False) -> None:
         """
-        Update viewer with new camera frame
-        :param args: tuple of image and camera name
-        :param snapshot: if image taken is a snapshot or not
+        Update the image layer in the viewer with multiscale support.
+
+        :param args: tuple containing image and camera name
+        :type args: tuple
+        :param snapshot: Whether the image is a snapshot, defaults to False
+        :type snapshot: bool, optional
         """
 
         (image, camera_name) = args
 
+        # calculate centroid of image
+        pixel_size_um = self.instrument.cameras[camera_name].sampling_um_px
+        y_center_um = image[0].shape[0] // 2 * pixel_size_um
+        x_center_um = image[0].shape[1] // 2 * pixel_size_um
+
+        layer_list = self.viewer.layers
+
         if image is not None:
-            layer_name = (
-                f"{camera_name} {self.livestream_channel}"
-                if not snapshot
-                else f"{camera_name} {self.livestream_channel} snapshot"
-            )
-            if layer_name in self.viewer.layers and not snapshot:
-                layer = self.viewer.layers[layer_name]
-                layer.data = image
-            else:
-                # Add image to a new layer if layer doesn't exist yet or image is snapshot
-                layer = self.viewer.add_image(image, name=layer_name)
-                layer.mouse_drag_callbacks.append(self.save_image)
-                if snapshot:  # emit pyqtSignal if snapshot
-                    image = image if not layer.multiscale else image[-3]
-                    self.snapshotTaken.emit(image, layer.contrast_limits)
-                    if layer.multiscale:  # emit most down sampled image if multiscale
-                        layer.events.contrast_limits.connect(
-                            lambda event: self.contrastChanged.emit(layer.data[-3], layer.contrast_limits)
-                        )
+            layer_name = self.livestream_channel if not snapshot else f"{self.livestream_channel} snapshot"
+            if not snapshot:
+                if layer_name in layer_list:
+                    layer = layer_list[layer_name]
+                    layer.data = image
+                    layer.scale = (pixel_size_um, pixel_size_um)
+                    layer.translate = (-x_center_um, y_center_um)
+                else:
+                    contrast_limits = self.contrast_limits[self.livestream_channel]
+                    layer = self.viewer.add_image(
+                        image,
+                        name=layer_name,
+                        contrast_limits=(contrast_limits[0], contrast_limits[1]),
+                        scale=(pixel_size_um, pixel_size_um),
+                        translate=(-x_center_um, y_center_um),
+                        rotate=self.camera_rotation,
+                    )
+                    # connect contrast limits event
+                    layer.events.contrast_limits.connect(self.viewer_contrast_limits)
+                    # only reset camera state if there is a previous layer, otherwise pass
+                    if self.previous_layer and self.saved_camera_center is not None:
+                        self.viewer.camera.center = self.saved_camera_center
+                        if self.saved_camera_zoom is not None:
+                            self.viewer.camera.zoom = self.saved_camera_zoom
+                    # update previous layer name
+                    self.previous_layer = layer_name
+                    layer.mouse_drag_callbacks.append(self.save_image)
+                for layer in layer_list:
+                    if layer.name == layer_name:
+                        layer.selected = True
+                        layer.visible = True
                     else:
-                        layer.events.contrast_limits.connect(
-                            lambda event: self.contrastChanged.emit(layer.data, layer.contrast_limits)
-                        )
+                        layer.selected = False
+                        layer.visible = False
+            else:
+                layer = self.viewer.add_image(
+                    image[-1],
+                    name=layer_name,
+                    contrast_limits=(self.intensity_min, self.intensity_max),
+                    scale=(
+                        pixel_size_um * 2 ** (self.resolution_levels - 1),
+                        pixel_size_um * 2 ** (self.resolution_levels - 1),
+                    ),
+                    translate=(-x_center_um, y_center_um),
+                    rotate=self.camera_rotation,
+                )
+                self.snapshotTaken.emit(np.copy(np.rot90(image[-1], k=2)), layer.contrast_limits)
+                layer.selected = False
+                layer.visible = False
+
+    def dissect_image(self, args: tuple) -> None:
+        """
+        Dissect the image and add to the viewer for alignment mode.
+
+        :param args: tuple containing image and camera name
+        :type args: tuple
+        """
+        (image, camera_name) = args
+
+        # calculate centroid of image
+        pixel_size_um = self.instrument.cameras[camera_name].sampling_um_px
+        y_center_um = image[0].shape[0] // 2 * pixel_size_um
+        x_center_um = image[1].shape[1] // 2 * pixel_size_um
+
+        if image is not None:
+            # Dissect image and add to viewer
+            alignment_roi = self.alignment_roi_size
+            combined_roi = np.zeros((alignment_roi * 3, alignment_roi * 3))
+            # top left corner
+            top_left = image[0][0:alignment_roi, 0:alignment_roi]
+            combined_roi[0:alignment_roi, 0:alignment_roi] = top_left
+            # top right corner
+            top_right = image[0][0:alignment_roi, -alignment_roi:]
+            combined_roi[0:alignment_roi, alignment_roi * 2 : alignment_roi * 3] = top_right
+            # bottom left corner
+            bottom_left = image[0][-alignment_roi:, 0:alignment_roi]
+            combined_roi[alignment_roi * 2 : alignment_roi * 3, 0:alignment_roi] = bottom_left
+            # bottom right corner
+            bottom_right = image[0][-alignment_roi:, -alignment_roi:]
+            combined_roi[alignment_roi * 2 : alignment_roi * 3, alignment_roi * 2 : alignment_roi * 3] = bottom_right
+            # center left
+            center_left = image[0][
+                round((image[0].shape[0] / 2) - alignment_roi / 2) : round((image[0].shape[0] / 2) + alignment_roi / 2),
+                0:alignment_roi,
+            ]
+            combined_roi[alignment_roi : alignment_roi * 2, 0:alignment_roi] = center_left
+            # center right
+            center_right = image[0][
+                round((image[0].shape[0] / 2) - alignment_roi / 2) : round((image[0].shape[0] / 2) + alignment_roi / 2),
+                -alignment_roi:,
+            ]
+            combined_roi[alignment_roi : alignment_roi * 2, alignment_roi * 2 : alignment_roi * 3] = center_right
+            # center top
+            center_top = image[0][
+                0:alignment_roi,
+                round((image[0].shape[1] / 2) - alignment_roi / 2) : round((image[0].shape[1] / 2) + alignment_roi / 2),
+            ]
+            combined_roi[0:alignment_roi, alignment_roi : alignment_roi * 2] = center_top
+            # center bottom
+            center_bottom = image[0][
+                -alignment_roi:,
+                round((image[0].shape[1] / 2) - alignment_roi / 2) : round((image[0].shape[1] / 2) + alignment_roi / 2),
+            ]
+            combined_roi[alignment_roi * 2 : alignment_roi * 3, alignment_roi : alignment_roi * 2] = center_bottom
+            # center roi
+            center = image[0][
+                round((image[0].shape[0] / 2) - alignment_roi / 2) : round((image[0].shape[0] / 2) + alignment_roi / 2),
+                round((image[0].shape[1] / 2) - alignment_roi / 2) : round((image[0].shape[1] / 2) + alignment_roi / 2),
+            ]
+            combined_roi[alignment_roi : alignment_roi * 2, alignment_roi : alignment_roi * 2] = center
+
+            # add crosshairs to image
+            combined_roi[alignment_roi - 2 : alignment_roi + 2, :] = 1 << 16 - 1
+            combined_roi[alignment_roi * 2 - 2 : alignment_roi * 2 + 2, :] = 1 << 16 - 1
+            combined_roi[:, alignment_roi - 2 : alignment_roi + 2] = 1 << 16 - 1
+            combined_roi[:, alignment_roi * 2 - 2 : alignment_roi * 2 + 2] = 1 << 16 - 1
+
+            layer_name = f"{self.livestream_channel} alignment"
+            if layer_name in self.viewer.layers:
+                layer = self.viewer.layers[layer_name]
+                layer.data = combined_roi
+            else:
+                layer = self.viewer.add_image(
+                    combined_roi,
+                    name=layer_name,
+                    contrast_limits=(self.intensity_min, self.intensity_max),
+                    scale=(pixel_size_um, pixel_size_um),
+                    translate=(-x_center_um, y_center_um),
+                    rotate=self.camera_rotation,
+                )
+
+    def enable_alignment_mode(self) -> None:
+        """
+        Enable alignment mode.
+        """
+        if not self.grab_frames_worker.is_running:
+            return
+
+        self.viewer.layers.clear()
+
+        if self.alignment_button.isChecked():
+            self.grab_frames_worker.yielded.disconnect()
+            self.grab_frames_worker.yielded.connect(self.dissect_image)
+        else:
+            self.grab_frames_worker.yielded.disconnect()
+            self.grab_frames_worker.yielded.connect(self.update_layer)
 
     @staticmethod
     def save_image(
-        layer: napari.layers.image.image.Image | list[napari.layers.image.image.Image],
+        layer: Image,
         event: QMouseEvent,
     ) -> None:
         """
@@ -573,25 +885,6 @@ class InstrumentView(QWidget):
             if folder[0] != "":  # user pressed cancel
                 tifffile.imwrite(f"{folder[0]}.tiff", image, imagej=True)
 
-    def setup_channel_widget(self) -> None:
-        """
-        Create widget to select which laser to livestream with
-        """
-
-        widget = QWidget()
-        widget_layout = QVBoxLayout()
-
-        laser_button_group = QButtonGroup(widget)
-        for channel in self.channels:
-            button = QRadioButton(str(channel))
-            button.toggled.connect(lambda value, ch=channel: self.change_channel(value, ch))
-            laser_button_group.addButton(button)
-            widget_layout.addWidget(button)
-        button.setChecked(True)  # Arbitrarily set last button checked
-        widget.setLayout(widget_layout)
-        widget.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Minimum)
-        self.viewer.window.add_dock_widget(widget, area="bottom", name="Channels")
-
     def change_channel(self, channel: str) -> None:
         """
         Change the livestream channel.
@@ -611,9 +904,9 @@ class InstrumentView(QWidget):
                 self.instrument.lasers[new_laser_name].enable()
         self.livestream_channel = channel
         # change filter
-        for filter in self.channels[self.livestream_channel].get("filters", []):
-            self.log.info(f"Enabling filter {filter}")
-            self.instrument.filters[filter].enable()
+        for filter_device in self.channels[self.livestream_channel].get("filters", []):
+            self.log.info(f"Enabling filter {filter_device}")
+            self.instrument.filters[filter_device].enable()
 
     def update_fps(self, fps: float) -> None:
         """
@@ -670,22 +963,37 @@ class InstrumentView(QWidget):
     @thread_worker
     def grab_property_value(self, device: object, property_name: str, device_widget) -> Iterator:
         """
-        Grab value of property and yield
+        Grab value of property and yield - uses shorter sleep intervals for faster shutdown
         :param device: device to grab property from
         :param property_name: name of property to get
         :param device_widget: widget of entire device that is the parent of property widget
         :return: value of property and widget to update
         """
+        # Use shorter sleep intervals to check _is_closing more frequently
+        # This reduces queued "execution pending" messages during shutdown
+        sleep_interval = 0.1  # 100ms intervals
+        iterations = 5  # 5 * 100ms = 500ms total
 
-        while True:  # best way to do this or have some sort of break?
-            sleep(0.5)
+        while not self._is_closing:
+            # Sleep in small chunks so we can exit quickly
+            for _ in range(iterations):
+                if self._is_closing:
+                    return  # Exit immediately without yielding
+                time.sleep(sleep_interval)
+
+            if self._is_closing:
+                return  # Exit immediately without yielding
+
             try:
                 value = getattr(device, property_name)
             except ValueError:  # Tigerbox sometime coughs up garbage. Locking issue?
                 value = None
             except (RuntimeError, AttributeError):
                 # Widget or device closed during shutdown - exit gracefully
-                break
+                return  # Exit immediately
+
+            if self._is_closing:
+                return  # Exit immediately without yielding
             yield value, device_widget, property_name
 
     def update_property_value(self, value, device_widget, property_name: str) -> None:
@@ -695,14 +1003,8 @@ class InstrumentView(QWidget):
         :param value: value to update with
         :param property_name: name of property to set
         """
-
-        try:
+        with contextlib.suppress(RuntimeError, AttributeError):
             setattr(device_widget, property_name, value)  # setting attribute value will update widget
-        except (
-            RuntimeError,
-            AttributeError,
-        ):  # Pass when window's closed or widget doesn't have position_mm_widget
-            pass
 
     @pyqtSlot(str)
     def device_property_changed(self, attr_name: str, device: object, widget) -> None:
@@ -723,9 +1025,9 @@ class InstrumentView(QWidget):
 
             # attempt to pass in correct value of correct type
             descriptor = getattr(type(device), name_lst[0])
-            fset = getattr(descriptor, "fset")
+            fset = descriptor.fset
             input_type = list(inspect.signature(fset).parameters.values())[-1].annotation
-            if input_type != inspect._empty:
+            if input_type != inspect.Parameter.empty:
                 setattr(device, name_lst[0], input_type(value))
             else:
                 setattr(device, name_lst[0], value)
@@ -751,17 +1053,17 @@ class InstrumentView(QWidget):
             if "_widgets" in key:
                 widgets.extend(dictionary.values())
         for widget in widgets:
-            if widget not in self.viewer.window._qt_window.findChildren(type(widget)):
+            if widget not in self.viewer.window._qt_window.findChildren(type(widget)):  # noqa: SLF001
                 undocked_widget = self.viewer.window.add_dock_widget(widget, name=widget.windowTitle())
                 undocked_widget.setFloating(True)
                 # hide widget if empty property widgets
                 if getattr(widget, "property_widgets", False) == {}:
                     undocked_widget.setVisible(False)
 
-    def setDisabled(self, disable: bool) -> None:
+    def setDisabled(self, a0: bool) -> None:
         """
         Enable/disable viewer
-        :param disable: boolean specifying whether to disable
+        :param a0: boolean specifying whether to disable
         """
 
         widgets = []
@@ -770,23 +1072,45 @@ class InstrumentView(QWidget):
                 widgets.extend(dictionary.values())
         for widget in widgets:
             with contextlib.suppress(AttributeError):
-                widget.setDisabled(disable)
+                widget.setDisabled(a0)
 
-    def close(self) -> None:
+    def closeEvent(self, a0) -> None:
+        """
+        Handle window close event to ensure proper cleanup
+        """
+        self.close()
+        if a0 is not None:
+            a0.accept()
+
+    def close(self) -> bool:
         """
         Close instruments and end threads
         """
-        import time
-
-        # Request all workers to quit
+        # Call quit() on all workers FIRST to stop them from accepting new yields
+        # This must happen before setting _is_closing flag
         for worker in self.property_workers:
-            worker.quit()
-        self.grab_frames_worker.quit()
+            with contextlib.suppress(AttributeError, RuntimeError):
+                worker.quit()
 
-        # Give workers a brief time to finish gracefully (non-blocking)
-        # Workers are stuck in while True loops, so they won't actually stop
-        # but this gives any in-flight operations a chance to complete
-        time.sleep(0.5)
+        with contextlib.suppress(AttributeError, RuntimeError):
+            self.grab_frames_worker.quit()
+
+        # NOW set the flag so current iterations exit quickly
+        self._is_closing = True
+
+        # Wait for all workers to finish with timeout
+        for worker in self.property_workers:
+            max_wait = 0.5  # seconds
+            elapsed = 0.0
+            while worker.is_running and elapsed < max_wait:
+                time.sleep(0.02)
+                elapsed += 0.02
+
+        max_wait = 0.5
+        elapsed = 0.0
+        while self.grab_frames_worker.is_running and elapsed < max_wait:
+            time.sleep(0.02)
+            elapsed += 0.02
 
         # Close devices
         for device_name, device_specs in self.instrument.config["instrument"]["devices"].items():
@@ -797,3 +1121,5 @@ class InstrumentView(QWidget):
             except AttributeError:
                 self.log.debug(f"{device_name} does not have close function")
         self.instrument.close()
+
+        return super().close()

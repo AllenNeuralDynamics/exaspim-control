@@ -7,13 +7,30 @@ from collections.abc import Callable
 from functools import reduce, wraps
 from pathlib import Path
 from threading import Lock, RLock
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import inflection
 from ruyaml import YAML
 from serial import Serial
 
 from voxel.descriptors.deliminated_property import _DeliminatedProperty
+
+if TYPE_CHECKING:
+    from voxel.devices.aotf.base import BaseAOTF
+    from voxel.devices.base import VoxelDevice
+    from voxel.devices.camera.base import BaseCamera
+    from voxel.devices.daq.ni import NIDAQ
+    from voxel.devices.filter.base import BaseFilter
+    from voxel.devices.filterwheel.base import BaseFilterWheel
+    from voxel.devices.flip_mount.base import BaseFlipMount
+    from voxel.devices.indicator_light.base import BaseIndicatorLight
+    from voxel.devices.joystick.base import BaseJoystick
+    from voxel.devices.laser.base import BaseLaser
+    from voxel.devices.power_meter.base import BasePowerMeter
+    from voxel.devices.rotation_mount.base import BaseRotationMount
+    from voxel.devices.stage.base import BaseStage
+    from voxel.devices.temperature_sensor.base import BaseTemperatureSensor
+    from voxel.devices.tunable_lens.base import BaseTunableLens
 
 
 class Instrument:
@@ -39,6 +56,25 @@ class Instrument:
         self.config_path = Path(config_path)
         self.config = self.yaml.load(self.config_path)
 
+        # Initialize device dictionaries with proper types
+        self.aotfs: dict[str, BaseAOTF] = {}
+        self.cameras: dict[str, BaseCamera] = {}
+        self.controllers: dict[str, VoxelDevice] = {}
+        self.daqs: dict[str, NIDAQ] = {}
+        self.filters: dict[str, BaseFilter] = {}
+        self.filter_wheels: dict[str, BaseFilterWheel] = {}
+        self.flip_mounts: dict[str, BaseFlipMount] = {}
+        self.focusing_stages: dict[str, BaseStage] = {}
+        self.indicator_lights: dict[str, BaseIndicatorLight] = {}
+        self.joysticks: dict[str, BaseJoystick] = {}
+        self.lasers: dict[str, BaseLaser] = {}
+        self.power_meters: dict[str, BasePowerMeter] = {}
+        self.rotation_mounts: dict[str, BaseRotationMount] = {}
+        self.scanning_stages: dict[str, BaseStage] = {}
+        self.temperature_sensors: dict[str, BaseTemperatureSensor] = {}
+        self.tiling_stages: dict[str, BaseStage] = {}
+        self.tunable_lenses: dict[str, BaseTunableLens] = {}
+
         # store a dict of {device name: device type} for convenience
         self.channels: dict[str, Any] = {}
         self.stage_axes: list = []
@@ -56,8 +92,8 @@ class Instrument:
         # grab instrument id
         try:
             self.id = self.config["instrument"]["id"]
-        except KeyError:
-            raise ValueError("no instrument id defined. check yaml file.")
+        except KeyError as e:
+            raise ValueError("no instrument id defined. check yaml file.") from e
         # construct devices
         for device_name, device_specs in self.config["instrument"]["devices"].items():
             self._construct_device(device_name, device_specs)
@@ -104,9 +140,7 @@ class Instrument:
         properties = device_specs.get("properties", {})
         self._setup_device(device_object, properties)
 
-        # create device dictionary if it doesn't already exist and add device to dictionary
-        if not hasattr(self, device_type):
-            setattr(self, device_type, {})
+        # Add device to the pre-initialized device dictionary
         getattr(self, device_type)[device_name] = device_object
 
         # added logic for stages to store and check stage axes

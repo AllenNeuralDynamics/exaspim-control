@@ -66,14 +66,14 @@ class BDVWriter(BaseWriter):
         return self._theta_deg
 
     @theta_deg.setter
-    def theta_deg(self, theta_deg: float) -> None:
+    def theta_deg(self, value: float) -> None:
         """Set the theta value of the writer.
 
-        :param theta_deg: Theta value in deg
-        :type theta_deg: float
+        :param value: Theta value in deg
+        :type value: float
         """
-        self.log.info(f"setting theta to: {theta_deg} [deg]")
-        self._theta_deg = theta_deg
+        self.log.info(f"setting theta to: {value} [deg]")
+        self._theta_deg = value
 
     @property
     def frame_count_px(self) -> int:
@@ -117,15 +117,15 @@ class BDVWriter(BaseWriter):
         return self._filename
 
     @filename.setter
-    def filename(self, filename: str) -> None:
+    def filename(self, value: str) -> None:
         """
         The base filename of file writer.
 
-        :param filename: The base filename
-        :type filename: str
+        :param value: The base filename
+        :type value: str
         """
-        self._filename = filename if filename.endswith(".h5") else f"{filename}.h5"
-        self.log.info(f"setting filename to: {filename}")
+        self._filename = value if value.endswith(".h5") else f"{value}.h5"
+        self.log.info(f"setting filename to: {value}")
 
     @property
     def compression(self) -> str:
@@ -137,27 +137,27 @@ class BDVWriter(BaseWriter):
         return next(key for key, value in COMPRESSIONS.items() if value == self._compression)
 
     @compression.setter
-    def compression(self, compression: str) -> None:
+    def compression(self, value: str) -> None:
         """Set the compression codec of the writer.
 
-        :param compression: Compression codec
+        :param value: Compression codec
         * **gzp**
         * **lzf**
         * **b3d**
         * **none**
-        :type compression: str
+        :type value: str
         :raises ValueError: Invalid compression codec
         :raises ValueError: B3D compression only supported on Windows
         :raises ValueError: HDF5 is not installed
         :raises ValueError: HDF5 version is >1.8.xx
         """
         valid = list(COMPRESSIONS.keys())
-        if compression not in valid:
+        if value not in valid:
             raise ValueError("compression type must be one of %r." % valid)
-        self.log.info(f"setting compression mode to: {compression}")
-        self._compression = COMPRESSIONS[compression]
+        self.log.info(f"setting compression mode to: {value}")
+        self._compression = COMPRESSIONS[value]
         # handle compresion opts for b3d
-        if compression == "b3d":
+        if value == "b3d":
             # check for windows os
             if os.name != "nt":
                 raise ValueError("b3d compression is only supported on windows")

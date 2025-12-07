@@ -73,14 +73,14 @@ class ZarrWriter(BaseWriter):
         return self._chunk_size_x_px
 
     @chunk_size_x_px.setter
-    def chunk_size_x_px(self, chunk_size_x_px: int) -> None:
+    def chunk_size_x_px(self, value: int) -> None:
         """Set the chunk size in x of the writer.
 
         :param value: Chunk size in x in pixels
         :type value: int
         """
-        self.log.info(f"setting chunk size in x to: {chunk_size_x_px} [px]")
-        self._chunk_size_x_px = chunk_size_x_px
+        self.log.info(f"setting chunk size in x to: {value} [px]")
+        self._chunk_size_x_px = value
 
     @property
     def chunk_size_y_px(self) -> int:
@@ -92,14 +92,14 @@ class ZarrWriter(BaseWriter):
         return self._chunk_size_y_px
 
     @chunk_size_y_px.setter
-    def chunk_size_y_px(self, chunk_size_y_px: int) -> None:
+    def chunk_size_y_px(self, value: int) -> None:
         """Set the chunk size in y of the writer.
 
         :param value: Chunk size in y in pixels
         :type value: int
         """
-        self.log.info(f"setting chunk size in y to: {chunk_size_y_px} [px]")
-        self._chunk_size_y_px = chunk_size_y_px
+        self.log.info(f"setting chunk size in y to: {value} [px]")
+        self._chunk_size_y_px = value
 
     @property
     def chunk_size_z_px(self) -> int:
@@ -111,14 +111,14 @@ class ZarrWriter(BaseWriter):
         return self._chunk_size_z_px
 
     @chunk_size_z_px.setter
-    def chunk_size_z_px(self, chunk_size_z_px: int) -> None:
+    def chunk_size_z_px(self, value: int) -> None:
         """Set the chunk size in z of the writer.
 
         :param value: Chunk size in z in pixels
         :type value: int
         """
-        self.log.info(f"setting chunk size in z to: {chunk_size_z_px} [px]")
-        self._chunk_size_z_px = chunk_size_z_px
+        self.log.info(f"setting chunk size in z to: {value} [px]")
+        self._chunk_size_z_px = value
 
     @property
     def frame_count_px(self) -> int:
@@ -130,17 +130,17 @@ class ZarrWriter(BaseWriter):
         return self._frame_count_px
 
     @frame_count_px.setter
-    def frame_count_px(self, frame_count_px: int) -> None:
+    def frame_count_px(self, value: int) -> None:
         """Set the number of frames in the writer.
 
         :param value: Frame number in pixels
         :type value: int
         """
-        self.log.info(f"setting frame count to: {frame_count_px} [px]")
-        if frame_count_px % DIVISIBLE_FRAME_COUNT_PX != 0:
-            frame_count_px = ceil(frame_count_px / DIVISIBLE_FRAME_COUNT_PX) * DIVISIBLE_FRAME_COUNT_PX
-            self.log.info(f"adjusting frame count to: {frame_count_px} [px]")
-        self._frame_count_px = frame_count_px
+        self.log.info(f"setting frame count to: {value} [px]")
+        if value % DIVISIBLE_FRAME_COUNT_PX != 0:
+            value = ceil(value / DIVISIBLE_FRAME_COUNT_PX) * DIVISIBLE_FRAME_COUNT_PX
+            self.log.info(f"adjusting frame count to: {value} [px]")
+        self._frame_count_px = value
 
     @property
     def chunk_count_px(self) -> int:
@@ -161,19 +161,19 @@ class ZarrWriter(BaseWriter):
         return self._mode
 
     @mode.setter
-    def mode(self, mode: str) -> None:
+    def mode(self, value: str) -> None:
         """Set the mode.
 
-        :param mode: Mode
+        :param value: Mode
         * **local**
         * **s3**
-        :type mode: str
+        :type value: str
         """
         valid = MODES
-        if mode not in MODES:
+        if value not in MODES:
             raise ValueError("mode must be one of %r." % valid)
-        self.log.info(f"setting mode to: {mode}")
-        self._mode = mode
+        self.log.info(f"setting mode to: {value}")
+        self._mode = value
 
     @property
     def access_key_id(self) -> str:
@@ -185,14 +185,14 @@ class ZarrWriter(BaseWriter):
         return self._access_key_id
 
     @access_key_id.setter
-    def access_key_id(self, access_key_id: str) -> None:
+    def access_key_id(self, value: str) -> None:
         """Set the access key ID setting of the zarr writer.
 
         :param value: Access key ID setting
         :type value: str
         """
-        self.log.info(f"setting access key id setting to: {access_key_id}")
-        self._access_key_id = access_key_id
+        self.log.info(f"setting access key id setting to: {value}")
+        self._access_key_id = value
 
     @property
     def secret_access_key(self) -> str:
@@ -204,14 +204,14 @@ class ZarrWriter(BaseWriter):
         return self._secret_access_key
 
     @secret_access_key.setter
-    def secret_access_key(self, secret_access_key: str) -> None:
+    def secret_access_key(self, value: str) -> None:
         """Set the secret access key setting of the zarr writer.
 
         :param value: Secret access key setting
         :type value: str
         """
-        self.log.info(f"setting secret access key setting to: {secret_access_key}")
-        self._secret_access_key = secret_access_key
+        self.log.info(f"setting secret access key setting to: {value}")
+        self._secret_access_key = value
 
     @property
     def bucket_name(self) -> str:
@@ -223,14 +223,14 @@ class ZarrWriter(BaseWriter):
         return self._bucket_name
 
     @bucket_name.setter
-    def bucket_name(self, bucket_name: str) -> None:
+    def bucket_name(self, value: str) -> None:
         """Set the bucket name setting of the zarr writer.
 
         :param value: Bucket name setting
         :type value: str
         """
-        self.log.info(f"setting bucket name setting to: {bucket_name}")
-        self._bucket_name = bucket_name
+        self.log.info(f"setting bucket name setting to: {value}")
+        self._bucket_name = value
 
     @property
     def endpoint_url(self) -> str:
@@ -242,14 +242,14 @@ class ZarrWriter(BaseWriter):
         return self._endpoint_url
 
     @endpoint_url.setter
-    def endpoint_url(self, endpoint_url: str) -> None:
+    def endpoint_url(self, value: str) -> None:
         """Set the endpoint URL setting of the zarr writer.
 
         :param value: Endpoint URL setting
         :type value: str
         """
-        self.log.info(f"setting endpoint url setting to: {endpoint_url}")
-        self._endpoint_url = endpoint_url
+        self.log.info(f"setting endpoint url setting to: {value}")
+        self._endpoint_url = value
 
     @property
     def region(self) -> str:
@@ -261,14 +261,14 @@ class ZarrWriter(BaseWriter):
         return self._region
 
     @region.setter
-    def region(self, region: str) -> None:
+    def region(self, value: str) -> None:
         """Set the region setting of the zarr writer.
 
         :param value: Region setting
         :type value: str
         """
-        self.log.info(f"setting region setting to: {region}")
-        self._region = region
+        self.log.info(f"setting region setting to: {value}")
+        self._region = value
 
     @property
     def multiscale(self) -> bool:
@@ -280,16 +280,16 @@ class ZarrWriter(BaseWriter):
         return self._multiscale
 
     @multiscale.setter
-    def multiscale(self, multiscale: bool) -> None:
+    def multiscale(self, value: bool) -> None:
         """Set the multiscale setting of the zarr writer.
 
         :param value: Multiscale setting
         :type value: bool
         """
-        if type(multiscale) is not bool:
+        if type(value) is not bool:
             raise ValueError("multiscale setting must be true or false")
-        self.log.info(f"setting multiscale setting to: {multiscale}")
-        self._multiscale = multiscale
+        self.log.info(f"setting multiscale setting to: {value}")
+        self._multiscale = value
 
     @property
     def clevel(self) -> str:
@@ -301,13 +301,13 @@ class ZarrWriter(BaseWriter):
         return self._clevel
 
     @clevel.setter
-    def clevel(self, clevel: int) -> None:
+    def clevel(self, value: int) -> None:
         """Set the compression level.
 
-        :param clevel: Compression level
-        :type shuffle: int
+        :param value: Compression level
+        :type value: int
         """
-        self._clevel = clevel
+        self._clevel = value
 
     @property
     def shuffle(self) -> str:
@@ -319,19 +319,19 @@ class ZarrWriter(BaseWriter):
         return self._shuffle
 
     @shuffle.setter
-    def shuffle(self, shuffle: str) -> None:
+    def shuffle(self, value: str) -> None:
         """Set the compression shuffle mode.
 
-        :param shuffle: Shuffle mode
+        :param value: Shuffle mode
         * **on**
         * **off**
-        :type shuffle: str
+        :type value: str
         """
         valid = list(SHUFFLES.keys())
-        if shuffle not in valid:
+        if value not in valid:
             raise ValueError("shuffle must be one of %r." % valid)
-        self.log.info(f"setting zarr shuffle to: {shuffle}")
-        self._shuffle = SHUFFLES[shuffle]
+        self.log.info(f"setting zarr shuffle to: {value}")
+        self._shuffle = SHUFFLES[value]
 
     @property
     def version(self) -> str:
@@ -343,7 +343,7 @@ class ZarrWriter(BaseWriter):
         return self._version
 
     @version.setter
-    def version(self, version: str) -> None:
+    def version(self, value: str) -> None:
         """Set the version of the zarr writer.
 
         :param value: Zarr version
@@ -352,10 +352,10 @@ class ZarrWriter(BaseWriter):
         :type value: str
         """
         valid = list(VERSIONS.keys())
-        if version not in valid:
+        if value not in valid:
             raise ValueError("version must be one of %r." % valid)
-        self.log.info(f"setting zarr version to: {version}")
-        self._version = version
+        self.log.info(f"setting zarr version to: {value}")
+        self._version = value
 
     @property
     def compression(self) -> str:
@@ -367,7 +367,7 @@ class ZarrWriter(BaseWriter):
         return next(key for key, value in COMPRESSIONS.items() if value == self._compression)
 
     @compression.setter
-    def compression(self, compression: str) -> None:
+    def compression(self, value: str) -> None:
         """Set the compression codec of the writer.
 
         :param value: Compression codec
@@ -377,10 +377,10 @@ class ZarrWriter(BaseWriter):
         :type value: str
         """
         valid = list(COMPRESSIONS.keys())
-        if compression not in valid:
+        if value not in valid:
             raise ValueError("compression type must be one of %r." % valid)
-        self.log.info(f"setting compression mode to: {compression}")
-        self._compression = COMPRESSIONS[compression]
+        self.log.info(f"setting compression mode to: {value}")
+        self._compression = COMPRESSIONS[value]
 
     @property
     def filename(self) -> str:
@@ -393,15 +393,15 @@ class ZarrWriter(BaseWriter):
         return self._filename
 
     @filename.setter
-    def filename(self, filename: str) -> None:
+    def filename(self, value: str) -> None:
         """
         The base filename of file writer.
 
         :param value: The base filename
         :type value: str
         """
-        self._filename = filename if filename.endswith(".zarr") else f"{filename}.zarr"
-        self.log.info(f"setting filename to: {filename}")
+        self._filename = value if value.endswith(".zarr") else f"{value}.zarr"
+        self.log.info(f"setting filename to: {value}")
 
     def delete_files(self) -> None:
         """Delete all files generated by the writer."""

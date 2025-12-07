@@ -9,8 +9,8 @@ import numpy as np
 from aind_data_schema.core import acquisition
 
 from exaspim_control.acquisition import ExASPIMAcquisition
-from exaspim_control.instrument import ExASPIM
-from exaspim_control.view import ExASPIMAcquisitionView, ExASPIMInstrumentView
+from exaspim_control.acquisition.view import ExASPIMAcquisitionView
+from exaspim_control.instrument import ExASPIM, ExASPIMInstrumentView
 
 X_ANATOMICAL_DIRECTIONS = {"Left to Right": "Right_to_left", "Right to Left": "Left_to_right"}
 

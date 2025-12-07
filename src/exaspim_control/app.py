@@ -22,9 +22,9 @@ from rich.logging import RichHandler
 from ruyaml import YAML
 
 from exaspim_control.acquisition import ExASPIMAcquisition
-from exaspim_control.instrument import ExASPIM
+from exaspim_control.acquisition.view import ExASPIMAcquisitionView
+from exaspim_control.instrument import ExASPIM, ExASPIMInstrumentView
 from exaspim_control.metadata_launch import MetadataLaunch
-from exaspim_control.view import ExASPIMAcquisitionView, ExASPIMInstrumentView
 
 
 class ExASPIMApplication(QObject):
@@ -245,7 +245,7 @@ class ExASPIMApplication(QObject):
         :param filename: Output filename (optional, will generate from metadata if not provided)
         """
 
-        from exaspim_control.view import NonAliasingRTRepresenter
+        from exaspim_control.acquisition.view import NonAliasingRTRepresenter
 
         # Create YAML handler with non-aliasing representer
         yaml = ruyaml.YAML()

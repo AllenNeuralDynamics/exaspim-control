@@ -1,7 +1,9 @@
 import logging
 from pathlib import Path
+from typing import ClassVar
 
 from ruyaml import YAML
+from view.instrument_view import InstrumentView
 from voxel.instrument import Instrument
 
 DIRECTORY = Path(__file__).parent.resolve()
@@ -65,3 +67,9 @@ class ExASPIM(Instrument):
             raise ValueError("x tiling stage is required")
         if not self.tiling_stages["y"]:
             raise ValueError("y tiling stage is required")
+
+
+class ExASPIMInstrumentView[ExASPIM](InstrumentView):
+    """Class for handling ExASPIM instrument view."""
+
+    viewer_title: ClassVar[str] = "ExA-SPIM control"
