@@ -139,16 +139,15 @@ class DcamapiSingleton(Dcamapi, metaclass=Singleton):
 class DCAMCamera(BaseCamera):
     """Camera class for handling Hamamatsu DCAM operations."""
 
-    def __init__(self, id: str) -> None:
+    def __init__(self, uid: str) -> None:
         """Initialize the Camera instance.
 
-        :param id: Camera ID
-        :type id: str
+        :param uid: Camera ID
+        :type uid: str
         :raises ValueError: If no camera is found for the given ID
         """
-        super().__init__()
-        self.log = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
-        self.id = str(id)  # convert to string in case serial # is entered as int
+        super().__init__(uid)
+        self.uid = str(uid)  # convert to string in case serial # is entered as int
 
         self._latest_frame = None
 
@@ -157,15 +156,15 @@ class DCAMCamera(BaseCamera):
             for cam in range(num_cams):
                 dcam = Dcam(cam)
                 cam_id = dcam.dev_getstring(DCAM_IDSTR.CAMERAID)
-                if cam_id.replace("S/N: ", "") == self.id:
-                    self.log.info(f"camera found for S/N: {self.id}")
+                if cam_id.replace("S/N: ", "") == self.uid:
+                    self.log.info(f"camera found for S/N: {self.uid}")
                     self.dcam = dcam
                     self.cam_num = cam
                     # open camera
                     self.dcam.dev_open()
                     break
-                self.log.error(f"no camera found for S/N: {self.id}")
-                msg = f"no camera found for S/N: {self.id}"
+                self.log.error(f"no camera found for S/N: {self.uid}")
+                msg = f"no camera found for S/N: {self.uid}"
                 raise ValueError(msg)
             del dcam
         else:
@@ -587,7 +586,7 @@ class DCAMCamera(BaseCamera):
         state["Data Rate [MB/s]"] = data_rate
         state["Frame Rate [fps]"] = frame_rate
         self.log.info(
-            f"id: {self.id}, "
+            f"id: {self.uid}, "
             f"frame: {state['Frame Index']}, "
             f"input: {state['Input Buffer Size']}, "
             f"output: {state['Output Buffer Size']}, "

@@ -17,20 +17,20 @@ class TGTLCTunableLens(BaseTunableLens):
     TunableLens class for handling ASI tunable lens devices.
     """
 
-    def __init__(self, tigerbox: TigerController, hardware_axis: str) -> None:
+    def __init__(self, uid: str, tigerbox: TigerController, hardware_axis: str) -> None:
         """
         Initialize the TunableLens object.
 
+        :param uid: unique identifier for the device
+        :type uid: str
         :param tigerbox: TigerController object
         :type tigerbox: TigerController
         :param hardware_axis: Hardware axis
         :type hardware_axis: str
         """
-        self.log = logging.getLogger(__name__ + "." + self.__class__.__name__)
-        self.tigerbox = TigerControllerSingleton(com_port=port)
+        super().__init__(uid)
+        self.tigerbox = tigerbox
         self.hardware_axis = hardware_axis.upper()
-        # TODO change this, but self.id for consistency in lookup
-        self.id = self.hardware_axis
 
     @property
     def mode(self) -> str:

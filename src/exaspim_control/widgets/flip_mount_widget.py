@@ -1,11 +1,12 @@
 from PyQt6.QtWidgets import QSizePolicy
 from view.widgets.base_device_widget import BaseDeviceWidget, create_widget, scan_for_properties
+from voxel.devices.flip_mount.base import BaseFlipMount
 
 
 class FlipMountWidget(BaseDeviceWidget):
     """Widget for handling flip mount properties and controls."""
 
-    def __init__(self, flip_mount: object):
+    def __init__(self, flip_mount: BaseFlipMount):
         """
         Initialize the FlipMountWidget object.
 

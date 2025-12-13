@@ -6,6 +6,7 @@ from PyQt6.QtGui import QColor, QFont
 from PyQt6.QtWidgets import QGraphicsEllipseItem, QSizePolicy
 from pyqtgraph import PlotWidget, ScatterPlotItem, TextItem, mkBrush, mkPen, setConfigOptions
 from view.widgets.base_device_widget import BaseDeviceWidget, scan_for_properties
+from voxel.devices.filterwheel.base import BaseFilterWheel
 
 setConfigOptions(antialias=True)
 
@@ -13,7 +14,7 @@ setConfigOptions(antialias=True)
 class FilterWheelWidget(BaseDeviceWidget):
     """Widget for controlling a filter wheel device."""
 
-    def __init__(self, filter_wheel: object, colors: dict | None = None, advanced_user: bool = True):
+    def __init__(self, filter_wheel: BaseFilterWheel, colors: dict | None = None, advanced_user: bool = True):
         """
         Initialize the FilterWheelWidget.
 

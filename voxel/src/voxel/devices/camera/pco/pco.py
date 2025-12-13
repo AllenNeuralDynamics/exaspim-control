@@ -45,20 +45,19 @@ class PCOCamera(BaseCamera):
     :type BaseCamera: BaseCamera
     """
 
-    def __init__(self, id: str) -> None:
+    def __init__(self, uid: str) -> None:
         """
         Initialize the Camera instance.
 
-        :param id: Camera ID
-        :type id: str
+        :param uid: Camera ID
+        :type uid: str
         """
-        super().__init__()
-        self.log = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
-        self.id = id
-        # note self.id here is the interface, not a unique camera id
+        super().__init__(uid)
+        self.uid = uid
+        # note self.uid here is the interface, not a unique camera id
         # potential to do -> this could be hardcoded and changed in the pco sdk
         # error handling is taken care of within pco api
-        self.pco = pcoSingleton.Camera(id=self.id)
+        self.pco = pcoSingleton.Camera(id=self.uid)
         # grab min/max parameter values
         self._get_min_max_step_values()
         # check valid trigger modes
@@ -75,7 +74,7 @@ class PCOCamera(BaseCamera):
         if self.pco:
             self.pco.close()
             del self.pco
-        self.pco = pcoSingleton.Camera(id=self.id)
+        self.pco = pcoSingleton.Camera(id=self.uid)
 
     @DeliminatedProperty(minimum=float("-inf"), maximum=float("inf"))
     def exposure_time_ms(self) -> float:
@@ -464,7 +463,7 @@ class PCOCamera(BaseCamera):
         # state['Dropped Frames'] = dropped_frames
         # state['Data Rate [MB/s]'] = frame_rate
         # state['Frame Rate [fps]'] = data_rate
-        # self.log.info(f"id: {self.id}, "
+        # self.log.info(f"id: {self.uid}, "
         #               f"frame: {state['Frame Index']}, "
         #               f"input: {state['Input Buffer Size']}, "
         #               f"output: {state['Output Buffer Size']}, "

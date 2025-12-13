@@ -2,6 +2,7 @@ import inspect
 import logging
 import sys
 from pathlib import Path
+from typing import Any
 
 import inflection
 from ruyaml import YAML
@@ -9,7 +10,7 @@ from ruyaml import YAML
 from voxel.instrument import Instrument
 
 
-class Acquisition[I: Instrument]:
+class Acquisition[I: Instrument | Any]:
     """Handles the acquisition process for the instrument."""
 
     def __init__(self, instrument: I, config_filename: str, yaml_handler: YAML | None = None, log_level: str = "INFO"):

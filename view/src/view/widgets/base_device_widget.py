@@ -62,11 +62,14 @@ class BaseDeviceWidget(QMainWindow):
         :param properties: dictionary containing properties within a class and mapping to values
         :param widget_group: attribute name for dictionary of widgets"""
 
-        widgets = {}
+        widgets: dict[str, QWidget] = {}
         for name, value in properties.items():
             setattr(self, name, value)  # Add device properties as widget properties
             attr = getattr(self.device_type, name, None)
-            unit = f"[{getattr(attr, 'unit')}]" if getattr(attr, "unit", None) is not None else ""
+            try:
+                unit = f"[{attr.unit}]" if attr is not None and attr.unit is not None else ""
+            except AttributeError:
+                unit = ""
             arg_type = type(value)
             search_name = arg_type.__name__ if arg_type.__name__ in dir(self.device_driver) else name.split(".")[-1]
 

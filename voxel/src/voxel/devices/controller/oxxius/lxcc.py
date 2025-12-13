@@ -1,4 +1,3 @@
-import logging
 import threading
 from collections.abc import Callable
 from enum import IntEnum, StrEnum
@@ -6,6 +5,7 @@ from time import perf_counter
 from typing import Any
 
 from serial import EIGHTBITS, PARITY_NONE, STOPBITS_ONE, Serial, SerialTimeoutException
+from voxel.devices.base import VoxelDevice
 
 
 class CombinerCmd(StrEnum):
@@ -142,12 +142,12 @@ def thread_locked(function: Callable) -> Callable:
     return wrapper
 
 
-class OxxiusController:
+class OxxiusController(VoxelDevice):
     """
     Controller class for Oxxius L6CC laser combiner.
     """
 
-    def __init__(self, port: str | Serial, model: str) -> None:
+    def __init__(self, uid: str, port: str | Serial, model: str) -> None:
         """
         Initialize the L6ccController.
 
@@ -157,7 +157,7 @@ class OxxiusController:
         :type model: str
         :raises SerialTimeoutException: If the device does not respond.
         """
-        self.log = logging.getLogger(__name__ + "." + self.__class__.__name__)
+
         self.ser: Serial = Serial(port, **OXXIUS_COM_SETUP) if not isinstance(port, Serial) else port
         self.ser.reset_input_buffer()
         # build laser dictionary

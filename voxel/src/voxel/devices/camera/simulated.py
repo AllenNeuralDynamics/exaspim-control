@@ -49,15 +49,13 @@ class SimulatedCamera(BaseCamera):
     :rtype: Camera
     """
 
-    def __init__(self, id: str) -> None:
+    def __init__(self, uid: str) -> None:
         """Initialize the Camera instance.
 
-        :param id: Identifier for the camera
-        :type id: str
+        :param uid: Identifier for the camera
+        :type uid: str
         """
-        super().__init__()
-        self.log = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
-        self.id = id
+        super().__init__(uid)
         self.terminate_frame_grab = Event()
         self.terminate_frame_grab.clear()
         self._pixel_type = "mono16"

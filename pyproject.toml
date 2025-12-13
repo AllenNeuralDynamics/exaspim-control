@@ -33,6 +33,7 @@ dependencies = [
     "voxel[all]",
     "view",
     "ruyaml>=0.91.0",
+    "pydantic>=2.11.10",
 ]
 
 [dependency-groups]
@@ -44,7 +45,7 @@ dev = ["pytest>=8.2.1", "ruff", "coverage", "interrogate", "Sphinx", "furo"]
 "view" = { workspace = true }
 
 [project.scripts]
-"exaspim" = "exaspim_control.cli:main"
+"exaspim" = "exaspim_control.app:main"
 
 [project.urls]
 "Homepage" = "https://github.com/AllenNeuralDynamics/exaspim-control"

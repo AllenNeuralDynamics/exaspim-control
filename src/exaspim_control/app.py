@@ -1,167 +1,158 @@
 import logging
 import sys
+import traceback
 from datetime import datetime
 from logging import FileHandler
-from pathlib import Path, WindowsPath
+from pathlib import Path
+from typing import Self
 
-import numpy as np
+import click
 from PyQt6.QtWidgets import QApplication
+from rich.console import Console
 from rich.logging import RichHandler
-from ruyaml import YAML
-from view.instrument_view import InstrumentView
+from rich.table import Table
 
-from exaspim_control.acquisition import ExASPIMAcquisition
+from exaspim_control.gui import InstrumentUI
 from exaspim_control.instrument import ExASPIM
+
+root_logger = logging.getLogger()
+rich_handler = RichHandler(
+    rich_tracebacks=True,
+    markup=True,
+    show_time=True,
+    show_level=True,
+    show_path=True,
+)
+root_logger.addHandler(rich_handler)
 
 logger = logging.getLogger(__name__)
 
-yaml = YAML()
-yaml.representer.add_representer(np.int64, lambda obj, val: obj.represent_int(int(val)))
-yaml.representer.add_representer(np.int32, lambda obj, val: obj.represent_int(int(val)))
-yaml.representer.add_representer(np.str_, lambda obj, val: obj.represent_str(str(val)))
-yaml.representer.add_representer(np.float64, lambda obj, val: obj.represent_float(float(val)))
-yaml.representer.add_representer(Path, lambda obj, val: obj.represent_str(str(val)))
-yaml.representer.add_representer(WindowsPath, lambda obj, val: obj.represent_str(str(val)))
 
+class Launcher:
+    INSTRUMENTS_DIR = Path(__file__).parent.parent.parent / "instruments"
 
-class ExASPIMApplication:
-    """Application coordinator for ExASPIM control software."""
-
-    def __init__(self, instrument_dir: Path, log_level: str = "INFO"):
-        self.instrument_dir = instrument_dir
-        self.log_level = log_level
-
-        # Load configuration files
-        self.acquisition_yaml = instrument_dir / "acquisition.yaml"
-        self.instrument_yaml = instrument_dir / "instrument.yaml"
-        self.gui_yaml = instrument_dir / "gui_config.yaml"
-
-        self._validate_config_files()
-
-        # Setup logging
-        self.log_dir = instrument_dir / "logs"
-        self.log_filename = self._setup_logging()
-
-        # Setup YAML handler
-        self.yaml = yaml
-
-        # Create models (no view dependencies)
-        self.instrument = ExASPIM(config_path=str(self.instrument_yaml), yaml_handler=self.yaml)
-
-        self.acquisition = ExASPIMAcquisition(
-            instrument=self.instrument,
-            config_filename=str(self.acquisition_yaml),
-            yaml_handler=self.yaml,
-            log_level=log_level,
-        )
-
-        # View will be created in run() after QApplication is instantiated
-        self.instrument_view = None
-
-    def _validate_config_files(self) -> None:
-        """
-        Ensure all required config files exist.
-
-        :raises FileNotFoundError: If any required config file is missing
-        """
-        missing = [
-            config_file.name
-            for config_file in [self.acquisition_yaml, self.instrument_yaml, self.gui_yaml]
-            if not config_file.exists()
-        ]
-
-        if missing:
-            msg = f"Missing configuration files in {self.instrument_dir}: {', '.join(missing)}"
-            raise FileNotFoundError(msg)
-
-    def _setup_logging(self) -> Path:
-        """
-        Setup file and console logging.
-
-        :return: Path to log file
-        """
-        logger = logging.getLogger()
-        logging.getLogger().handlers.clear()
-        logger.setLevel(logging.DEBUG)
-
-        self.log_dir.mkdir(exist_ok=True)
-        log_filename = self.log_dir / f"output_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.log"
+    def __init__(self, config_path: Path):
+        self.config_path = config_path
 
         # File handler
+        log_dir = config_path.parent / "logs"
+        log_dir.mkdir(exist_ok=True)
+        self.log_filename = log_dir / f"output_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.log"
         fmt = "%(asctime)s.%(msecs)03d %(levelname)s %(name)s: %(message)s"
-        datefmt = "%Y-%m-%d,%H:%M:%S"
-        log_formatter = logging.Formatter(fmt=fmt, datefmt=datefmt)
+        file_handler = FileHandler(self.log_filename, "w")
+        file_handler.setFormatter(logging.Formatter(fmt=fmt, datefmt="%Y-%m-%d,%H:%M:%S"))
+        root_logger.addHandler(file_handler)
 
-        file_handler = FileHandler(log_filename, "w")
-        file_handler.setLevel("INFO")
-        file_handler.setFormatter(log_formatter)
+        logger.info(f"Starting ExASPIM Control for instrument: {self.config_path.parent.name}")
 
-        # Rich console handler
-        rich_handler = RichHandler(
-            rich_tracebacks=True,
-            markup=True,
-            show_time=True,
-            show_level=True,
-            show_path=True,
-        )
-        rich_handler.setLevel("INFO")
+        self.instrument = ExASPIM(config_path=self.config_path)
 
-        logger.addHandler(file_handler)
-        logger.addHandler(rich_handler)
-
-        logger.info(f"Starting ExASPIM Control for instrument: {self.instrument_dir.name}")
-        logger.info(f"Configuration files loaded from: {self.instrument_dir}")
-
-        return log_filename
+        # View will be created in show() after QApplication is instantiated
+        self.instrument_ui = None
 
     def _cleanup(self) -> None:
-        """
-        Final cleanup before application exits.
-
-        Closes hardware connections and releases resources.
-        """
         logger.info("Application shutting down - cleaning up resources")
-
-        # Set closing flag in instrument_view (which manages all property workers)
-        if self.instrument_view:
-            self.instrument_view._is_closing = True
-
-        # Close hardware connections
         try:
-            if hasattr(self.instrument, "close"):
-                self.instrument.close()
+            self.instrument.close()
         except Exception as e:
             logger.exception(f"Error closing instrument: {e}")
 
-        try:
-            if hasattr(self.acquisition, "close"):
-                self.acquisition.close()
-        except Exception as e:
-            logger.exception(f"Error closing acquisition: {e}")
-
-    def run(self, argv=None) -> int:
-        """
-        Create QApplication, initialize views, and start the event loop.
-
-        :param argv: Command line arguments (defaults to sys.argv)
-        :return: Application exit code
-        """
+    def show(self, argv=None) -> int:
+        """Create QApplication, initialize views, and start the event loop."""
         if argv is None:
             argv = sys.argv
 
-        # Create QApplication first
         app = QApplication(argv)
-
-        # Connect cleanup before creating views
         app.aboutToQuit.connect(self._cleanup)
 
-        # Create instrument view - it creates acquisition_view internally
-        self.instrument_view = InstrumentView(
-            acquisition=self.acquisition,
-            gui_config_path=self.gui_yaml,
-            log_filename=str(self.log_filename),
-            viewer_title="ExA-SPIM control",
-        )
+        self.instrument_ui = InstrumentUI(instrument=self.instrument)
+
+        # Show the main window
+        self.instrument_ui.show()
 
         # Start event loop
         return app.exec()
+
+    @classmethod
+    def from_name(cls, instrument_name: str) -> Self:
+        available = cls.get_available_instruments()
+        if available[instrument_name]:
+            config_path = cls.INSTRUMENTS_DIR / instrument_name / "exaspim.yaml"
+            return cls(config_path=config_path)
+        available_str = ", ".join(f"{name}: {is_valid}" for name, is_valid in available.items())
+        msg = f"Attempting to launch an invalid instrument. Dir: {cls.INSTRUMENTS_DIR} Instruments: {available_str}"
+        raise RuntimeError(msg)
+
+    @classmethod
+    def get_available_instruments(cls) -> dict[str, bool]:
+        if not cls.INSTRUMENTS_DIR.exists():
+            logger.error(f"Instruments dir: {cls.INSTRUMENTS_DIR} does not exist")
+            return {}
+
+        instruments = {}
+        for item in cls.INSTRUMENTS_DIR.iterdir():
+            if item.is_dir() and not item.name.startswith("."):
+                instruments[item.name] = (item / "exaspim.yaml").exists()
+        return instruments
+
+
+console = Console()
+
+
+@click.command()
+@click.option("--list", "-l", "show_list", is_flag=True, help="list all available instruments")
+@click.argument("instrument_name", required=False)
+def main(show_list: bool, instrument_name: str | None) -> None:
+    instruments = Launcher.get_available_instruments()
+    if not instruments:
+        console.print("[yellow]No instruments found in the instruments/ directory.[/yellow]")
+        return
+    if show_list:
+        table = Table(title="Available ExASPIM Instruments")
+        table.add_column("Instrument", style="cyan", no_wrap=True)
+        table.add_column("Status", style="green")
+
+        for name, is_valid in sorted(instruments.items()):
+            status_display = "[green]✓ Valid[/green]" if is_valid else "[red]✗ Invalid[/red]"
+            table.add_row(name, status_display)
+
+        console.print(table)
+
+        if valid_instruments := [name for name, is_valid in instruments.items() if is_valid]:
+            console.print("\n[bold]To launch an instrument:[/bold] exaspim <instrument_name>")
+            console.print(f"[dim]Example:[/dim] exaspim {valid_instruments[0]}")
+
+    elif instrument_name:
+        if instrument_name not in instruments or not instruments[instrument_name]:
+            console.print(f"[red]Error: Instrument '{instrument_name}' not found.[/red]")
+            console.print("\n[bold]Available instruments:[/bold]")
+            for name in sorted(instruments.keys()):
+                console.print(f"  - {name}")
+            console.print("\n[dim]Use 'exaspim --list' to see detailed status.[/dim]")
+            return
+
+        console.print(f"[green]Starting ExASPIM for instrument: {instrument_name}[/green]")
+
+        try:
+            app = Launcher.from_name(instrument_name)
+            sys.exit(app.show(sys.argv))
+
+        except FileNotFoundError as e:
+            console.print(f"[red]Error: {e}[/red]")
+            sys.exit(1)
+        except (KeyboardInterrupt, SystemExit):
+            raise  # Don't catch normal exit or Ctrl+C
+        except BaseException as e:
+            console.print(f"[red]Unexpected error: {e}[/red]")
+
+            traceback.print_exc()
+            sys.exit(1)
+    else:
+        console.print("[yellow]Usage:[/yellow]")
+        console.print("  exaspim --list              list all available instruments")
+        console.print("  exaspim <instrument_name>   Launch a specific instrument")
+        console.print("\n[dim]Example:[/dim] exaspim beta1")
+
+
+if __name__ == "__main__":
+    main()

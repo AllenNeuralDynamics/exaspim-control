@@ -1,108 +1,61 @@
-import logging
-
-import nidaqmx
-import numpy as np
-from nidaqmx.constants import AcquisitionType as AcqType
-from voxel.devices.daq.ni import NIDAQ
+from voxel.devices.daq.base import VoxelDAQ
 from voxel.devices.filterwheel.base import BaseFilterWheel
 
-MAX_VOLTS = 5.0
-SAMPLING_FREQUENCY_HZ = 10000
-PERIOD_TIME_MS = 100
-DUTY_CYCLE_PERCENT = 50
-
-FILTERS = []
+# These can be made configurable through the device's 'init' block in YAML
+PULSE_VOLTAGE_V = 5.0
+PULSE_DURATION_S = 0.05  # 50ms
 
 
 class DAQFilterWheel(BaseFilterWheel):
     """
-    FilterWheel class for handling simulated filter wheel devices.
+    A FilterWheel that sends a trigger pulse via a VoxelDAQ device to switch filters.
     """
 
-    def __init__(self, filters: dict, ports: dict, daq: NIDAQ = None) -> None:
+    def __init__(self, uid: str, filters: dict[str, str], daq: VoxelDAQ):
         """
-        Initialize the FilterWheel object.
-
-        :param filters: Dictionary of filters
-        :type filters: dict
-        :param ports: Dictionary of filter ports
-        :type ports: dict
-        :param daq: NI-DAQmx device
-        :type daq: NIDAQ
+        Args:
+            uid: Unique identifier for this filter wheel.
+            filters: A dictionary mapping filter names to the DAQ port to be pulsed.
+            daq: An instance of a configured VoxelDAQ device.
         """
-        self.log = logging.getLogger(__name__ + "." + self.__class__.__name__)
-        self.id = daq.id
-        self.dev = daq
-        self.ports = ports
+        super().__init__(uid=uid)
+        self.daq = daq
         self.filters = filters
-        for filter in filters:
-            FILTERS.append(filter)
-            if filter not in list(ports.keys()):
-                msg = f"Filter {filter} not in port keys: {list(ports.keys())}"
-                raise ValueError(msg)
-        for key, value in list(ports.items()):
-            if key not in filters:
-                msg = f"Port {key} not in filter list: {filters}"
-                raise ValueError(msg)
-            if f"{daq.id}/{value}" not in daq.dev.ao_physical_chans.channel_names:
-                msg = f"Port {value} not in device channels: {daq.dev.ao_physical_chans.channel_names}"
-                raise ValueError(msg)
-        # force homing of the wheel to first position
-        self.filter = FILTERS[0]
+        first_filter = next(iter(self.filters.keys()))
+        self._set_filter(first_filter)
+        self._filter: str = first_filter
 
     @property
     def filter(self) -> str:
-        """
-        Get the current filter.
-
-        :return: Current filter name
-        :rtype: str
-        """
+        """Get the current filter name."""
         return self._filter
 
     @filter.setter
     def filter(self, filter_name: str) -> None:
-        """
-        Set the current filter.
-
-        :param filter_name: Filter name
-        :type filter_name: str
-        """
-        self.log.info(f"setting filter to {filter_name}")
-        if filter_name not in FILTERS:
-            msg = f"Filter {filter_name} not in filter list: {FILTERS}"
+        """Set the filter by sending a pulse on the corresponding DAQ port."""
+        if filter_name not in self.filters:
+            msg = f"Filter '{filter_name}' is not a valid option."
             raise ValueError(msg)
-        channel_port = self.ports[filter_name]
-        self._filter = filter_name
-        self.log.info("creating change position task")
-        filter_position_task = nidaqmx.Task("filter_position_task")
-        physical_name = f"/{self.id}/{channel_port}"
-        self.log.info("adding port to change position task")
-        filter_position_task.ao_channels.add_ao_voltage_chan(physical_name)
-        # channel_options.ao_idle_output_behavior = AOIdleOutputBehavior.ZERO_VOLTS
-        self.log.info("configuring change position task timing")
-        period_samples = int(PERIOD_TIME_MS / 1000 * SAMPLING_FREQUENCY_HZ)
-        filter_position_task.timing.cfg_samp_clk_timing(
-            rate=SAMPLING_FREQUENCY_HZ,
-            sample_mode=AcqType.FINITE,
-            samps_per_chan=period_samples,
-        )
-        ao_voltages = np.zeros(period_samples)
-        ao_voltages[0 : int(period_samples * DUTY_CYCLE_PERCENT / 100)] = MAX_VOLTS
-        self.log.info("writing change position voltages to task")
-        filter_position_task.write(ao_voltages)
-        self.log.info("starting change position task")
-        filter_position_task.start()
-        self.log.info("waiting on change position task")
-        filter_position_task.wait_until_done()
-        self.log.info("stopping change position task")
-        filter_position_task.stop()
-        self.log.info("closing change position task")
-        filter_position_task.close()
-        self.log.info(f"filter set to {filter_name}")
+
+        if filter_name == self._filter:
+            return
+
+        self._set_filter(filter_name=filter_name)
+
+    def _set_filter(self, filter_name: str) -> None:
+        self.log.info(f"Switching filter to '{filter_name}'...")
+
+        port_to_pulse = self.filters[filter_name]
+
+        try:
+            # Use the high-level pulse method on the DAQ interface
+            self.daq.pulse(pin=port_to_pulse, duration_s=PULSE_DURATION_S, voltage_v=PULSE_VOLTAGE_V)
+            self._filter = filter_name
+            self.log.info(f"Successfully set filter to '{filter_name}'.")
+        except Exception:
+            self.log.error(f"Failed to switch filter to '{filter_name}'.", exc_info=True)
+            raise
 
     def close(self) -> None:
-        """
-        Close the filter wheel device.
-        """
-        self.log.info("closing filter wheel.")
+        """Close the filter wheel device."""
+        self.log.info(f"Closing filter wheel {self.uid}.")

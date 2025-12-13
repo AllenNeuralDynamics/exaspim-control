@@ -8,12 +8,6 @@ class BaseFilterWheel(VoxelDevice):
     Base class for filter wheel devices.
     """
 
-    def __init__(self) -> None:
-        """
-        Initialize the BaseFilterWheel object.
-        """
-        self.filter_list: list = []
-
     @property
     @abstractmethod
     def filter(self) -> str:

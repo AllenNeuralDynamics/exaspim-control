@@ -1,12 +1,12 @@
 import logging
 import time
 
-from voxel.devices.stage.base import BaseStage
+from voxel.devices.stage.base import VoxelAxis
 
 MODES = ["step shoot", "off", "stage scan"]
 
 
-class SimulatedStage(BaseStage):
+class SimulatedStage(VoxelAxis):
     """
     Simulated stage class for handling simulated stage devices.
     """

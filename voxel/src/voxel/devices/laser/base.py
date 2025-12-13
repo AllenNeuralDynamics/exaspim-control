@@ -6,15 +6,6 @@ from voxel.devices.base import VoxelDevice
 class BaseLaser(VoxelDevice):
     """Base class for all voxel laser devices."""
 
-    def __init__(self, id: str) -> None:
-        """
-        Initialize the BaseLaser object.
-
-        :param id: Laser ID
-        :type id: str
-        """
-        super().__init__(id)
-
     @abstractmethod
     def enable(self) -> None:
         """

@@ -19,8 +19,7 @@ instrument:
   devices:
     vp-151mx:
       type: camera
-      driver: voxel.devices.camera.vieworks.egrabber
-      module: VieworksCamera
+      driver: voxel.devices.camera.vieworks.egrabber.VieworksCamera
       init:
         id: MP151BDZ014
       properties:
@@ -37,8 +36,7 @@ instrument:
         um_px: 0.748
     488 nm:
       type: laser
-      driver: voxel.devices.laser.coherent.genesis_mx
-      module: GenesisMXLaser
+      driver: voxel.devices.laser.coherent.genesis_mx.GenesisMXLaser
       color: blue
       init:
         id: A679409EM263
@@ -46,8 +44,7 @@ instrument:
         maximum_power_mw: 1000
     561 nm:
       type: laser
-      driver: voxel.devices.laser.coherent.genesis_mx
-      module: GenesisMXLaser
+      driver: voxel.devices.laser.coherent.genesis_mx.GenesisMXLaser
       color: blue
       init:
         id: J718583CM887
@@ -55,8 +52,7 @@ instrument:
         maximum_power_mw: 1000
     639 nm:
       type: laser
-      driver: voxel.devices.laser.coherent.genesis_mx
-      module: GenesisMXLaser
+      driver: voxel.devices.laser.coherent.genesis_mx.GenesisMXLaser
       color: blue
       init:
         id: R689368EQ167
@@ -64,15 +60,13 @@ instrument:
         maximum_power_mw: 1000
     tiger controller:
       type: stage
-      driver: voxel.devices.controller.asi.tiger
-      module: TigerController
+      driver: voxel.devices.controller.asi.tiger.TigerController
       init:
         com_port: COM3
       subdevices:
         z:
           type: scanning_stage
-          driver: voxel.devices.stage.asi.tiger
-          module: TigerStage
+          driver: voxel.devices.stage.asi.tiger.TigerStage
           init:
             hardware_axis: z
             instrument_axis: z
@@ -83,8 +77,7 @@ instrument:
             acceleration_ms: 200.0
         x:
           type: tiling_stage
-          driver: voxel.devices.stage.asi.tiger
-          module: TigerStage
+          driver: voxel.devices.stage.asi.tiger.TigerStage
           init:
             hardware_axis: x
             instrument_axis: x
@@ -95,8 +88,7 @@ instrument:
             acceleration_ms: 200.0
         y:
           type: tiling_stage
-          driver: voxel.devices.stage.asi.tiger
-          module: TigerStage
+          driver: voxel.devices.stage.asi.tiger.TigerStage
           init:
             hardware_axis: v
             instrument_axis: y
@@ -107,8 +99,7 @@ instrument:
             acceleration_ms: 200.0
         theta:
           type: focusing_stage
-          driver: voxel.devices.stage.asi.tiger
-          module: TigerStage
+          driver: voxel.devices.stage.asi.tiger.TigerStage
           init:
             hardware_axis: t
             instrument_axis: t
@@ -119,8 +110,7 @@ instrument:
             acceleration_ms: 200.0
         left:
           type: focusing_stage
-          driver: voxel.devices.stage.asi.tiger
-          module: TigerStage
+          driver: voxel.devices.stage.asi.tiger.TigerStage
           init:
             hardware_axis: a
             instrument_axis: a
@@ -131,8 +121,7 @@ instrument:
             acceleration_ms: 5.0
         right:
           type: focusing_stage
-          driver: voxel.devices.stage.asi.tiger
-          module: TigerStage
+          driver: voxel.devices.stage.asi.tiger.TigerStage
           init:
             hardware_axis: b
             instrument_axis: b
@@ -143,8 +132,7 @@ instrument:
             acceleration_ms: 5.0
         camera:
           type: focusing_stage
-          driver: voxel.devices.stage.asi.tiger
-          module: TigerStage
+          driver: voxel.devices.stage.asi.tiger.TigerStage
           init:
             hardware_axis: m
             instrument_axis: m
@@ -231,15 +219,13 @@ instrument:
     #     mode: external
     pcie-6738:
       type: daq
-      driver: voxel.devices.daq.ni
-      module: NIDAQ
+      driver: voxel.devices.daq.ni.NIDAQ
       init:
         dev: Dev3
       subdevices:
         filter wheel:
           type: filter_wheel
-          driver: voxel.devices.filterwheel.ni
-          module: DAQFilterWheel
+          driver: voxel.devices.filterwheel.ni.DAQFilterWheel
           init:
             filters:
               - 500LP
@@ -258,38 +244,32 @@ instrument:
           subdevices:
             500LP:
               type: filter
-              driver: voxel.devices.filter.ni
-              module: Filter
+              driver: voxel.devices.filter.ni.Filter
               init:
                 id: 500LP
             535/70M:
               type: filter
-              driver: voxel.devices.filter.ni
-              module: Filter
+              driver: voxel.devices.filter.ni.Filter
               init:
                 id: 535/70M
             Multiband:
               type: filter
-              driver: voxel.devices.filter.ni
-              module: Filter
+              driver: voxel.devices.filter.ni.Filter
               init:
                 id: Multiband
             655LP:
               type: filter
-              driver: voxel.devices.filter.ni
-              module: Filter
+              driver: voxel.devices.filter.ni.Filter
               init:
                 id: 655LP
             575LP:
               type: filter
-              driver: voxel.devices.filter.ni
-              module: Filter
+              driver: voxel.devices.filter.ni.Filter
               init:
                 id: 575LP
             620/60BP:
               type: filter
-              driver: voxel.devices.filter.ni
-              module: Filter
+              driver: voxel.devices.filter.ni.Filter
               init:
                 id: 620/60BP
       properties:

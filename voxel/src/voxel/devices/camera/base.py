@@ -9,9 +9,10 @@ class BaseCamera(VoxelDevice):
     Base class for camera devices.
     """
 
-    def __init__(self):
+    def __init__(self, uid: str):
         """Initialization of the BaseCamera class."""
-        self._um_px = None
+        super().__init__(uid)
+        self._um_px = 0.5
         self._frame_number = 0
 
     @property
@@ -154,7 +155,6 @@ class BaseCamera(VoxelDevice):
         :rtype: str
         """
 
-    @property
     @readout_mode.setter
     def readout_mode(self, value) -> None:
         """
@@ -186,7 +186,7 @@ class BaseCamera(VoxelDevice):
 
     @property
     @abstractmethod
-    def binning(self) -> str:
+    def binning(self) -> int:
         """
         Get the binning mode.
 
@@ -336,7 +336,7 @@ class BaseCamera(VoxelDevice):
         return self._um_px * self.binning
 
     @property
-    def fov_height_mm(self) -> float:
+    def frame_height_mm(self) -> float:
         """
         Get the field of view height in mm.
 
@@ -346,7 +346,7 @@ class BaseCamera(VoxelDevice):
         return self.sampling_um_px * self.image_height_px / 1000.0
 
     @property
-    def fov_width_mm(self) -> float:
+    def frame_width_mm(self) -> float:
         """
         Get the field of view width in mm.
 

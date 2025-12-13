@@ -1,5 +1,3 @@
-import logging
-
 from coherent_lasers.genesis_mx.commands import OperationModes
 from coherent_lasers.genesis_mx.driver import GenesisMX
 from voxel.descriptors.deliminated_property import DeliminatedProperty
@@ -11,7 +9,7 @@ INIT_POWER_MW = 10.0
 class GenesisMXLaser(BaseLaser):
     """Genesis MX Laser device class."""
 
-    def __init__(self, id: str, wavelength: int, maximum_power_mw: int) -> None:
+    def __init__(self, uid: str, serial: str, wavelength: int, maximum_power_mw: int) -> None:
         """Initialize the Genesis MX Laser.
 
         :param id: The serial ID of the laser.
@@ -22,16 +20,15 @@ class GenesisMXLaser(BaseLaser):
         :type maximum_power_mw: int
         :raises ValueError: If the serial number does not match.
         """
-        self.log = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
-        super().__init__(id)
-        self._conn = id
+        super().__init__(uid)
+        self._conn = serial
         try:
-            self._inst = GenesisMX(serial=id)
-            assert self._inst.head.serial == id
+            self._inst = GenesisMX(serial=serial)
+            assert self._inst.head.serial == serial
             self._inst.mode = OperationModes.PHOTO
-        except AssertionError:
+        except AssertionError as e:
             msg = f"Error initializing laser {self._conn}, serial number mismatch"
-            raise ValueError(msg)
+            raise ValueError(msg) from e
         self.enable()
         self.power_setpoint_mw = INIT_POWER_MW
         type(self).power_setpoint_mw.maximum = maximum_power_mw

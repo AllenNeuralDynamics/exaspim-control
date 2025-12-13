@@ -36,16 +36,15 @@ class XIAPICamera(BaseCamera):
     Camera class for handling Ximea camera devices.
     """
 
-    def __init__(self, id: str) -> None:
+    def __init__(self, uid: str) -> None:
         """
         Initialize the Camera object.
 
-        :param id: Camera ID
-        :type id: str
+        :param uid: Camera ID
+        :type uid: str
         """
-        super().__init__()
-        self.log = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
-        self.id = str(id)  # convert to string in case serial # is entered as int
+        super().__init__(uid)
+        self.id = str(uid)  # convert to string in case serial # is entered as int
         self._latest_frame = None
 
         self.camera = xiapi.Camera()

@@ -65,7 +65,8 @@ pylint = { max-statements = 75 }
     "C901",    # Function is too complex
 ]
 "src/exaspim_control/**.py" = [
-    "N", # Allow names in view to be camelCase; because of qt
+    "N",      # Allow names in view to be camelCase; because of qt
+    "BLE001",
     # "FBT003",  #  Boolean positional value in function call
     # "PLR0912", # Too many branches in function definition
     # "C901",    # Function is too complex

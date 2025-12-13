@@ -1,42 +1,89 @@
-from voxel.instrument import Instrument
+import logging
+from pathlib import Path
+
+from attr import dataclass
+from voxel.devices.base import VoxelDevice
+from voxel.devices.camera.base import BaseCamera
+from voxel.devices.daq.base import VoxelDAQ
+from voxel.devices.filterwheel.base import BaseFilterWheel
+from voxel.devices.flip_mount.base import BaseFlipMount
+from voxel.devices.joystick.base import BaseJoystick
+from voxel.devices.laser.base import BaseLaser
+from voxel.devices.stage.base import VoxelAxis
+
+from exaspim_control.build import build_objects
+from exaspim_control.config import ExASPIMConfig
+
+type DeviceGroup[T: VoxelDevice] = dict[str, T]
 
 
-class ExASPIM(Instrument):
-    """
-    Class for handling ExASPIM instrument configuration and verification.
-    """
+@dataclass
+class Stage:
+    x: VoxelAxis
+    y: VoxelAxis
+    z: VoxelAxis
+    theta: VoxelAxis | None = None
 
-    def _verify_instrument(self) -> list[str]:
-        """
-        Verify the ExASPIM instrument configuration.
+    @property
+    def uids(self) -> set[str]:
+        return {self.x.uid, self.y.uid, self.z.uid}
 
-        :raises ValueError: If the number of scanning stages is not 1
-        :raises ValueError: If the number of cameras is not 1
-        :raises ValueError: If the number of DAQs is not 1
-        :raises ValueError: If there are no lasers
-        :raises ValueError: If the x tiling stage is not defined
-        :raises ValueError: If the y tiling stage is not defined
-        """
-        # assert that only one scanning stage is allowed
-        self.log.info("verifying instrument configuration")
+    @property
+    def limits(self) -> tuple[tuple[float, float], tuple[float, float], tuple[float, float]]:
+        x_limits = self.x.limits_mm
 
-        errors: list[str] = []
-        if (num_scanning_stages := len(self.scanning_stages)) != 1:
-            errors.append(f"one scanning stage must be defined but {num_scanning_stages} detected")
 
-        if (num_cameras := len(self.cameras)) != 1:
-            errors.append(f"one camera must be defined but {num_cameras} detected")
+class ExASPIM:
+    def __init__(self, config_path):
+        self.cfg = ExASPIMConfig.from_yaml(Path(config_path))
+        self.log = logging.getLogger(self.cfg.metadata.instrument_uid)
 
-        if (num_daqs := len(self.daqs)) != 1:
-            errors.append(f"one daq must be defined but {num_daqs} detected")
+        self.devices, build_errors = build_objects(self.cfg.devices)
 
-        if (num_lasers := len(self.lasers)) < 1:
-            errors.append(f"at least one laser is required but {num_lasers} detected")
+        if build_errors:
+            error_messages = [f"{uid}: {err.error_type} - {err.traceback}" for uid, err in build_errors.items()]
+            msg = "Device build errors:\n" + "\n".join(error_messages)
+            raise RuntimeError(msg)
 
-        if not self.tiling_stages["x"]:
-            errors.append("x tiling stage is required")
+        self.camera = next(device for device in self.devices.values() if isinstance(device, BaseCamera))
+        self.daq = next(device for device in self.devices.values() if isinstance(device, VoxelDAQ))
+        self.stage = Stage(
+            x=self.devices[self.cfg.stage.x],
+            y=self.devices[self.cfg.stage.y],
+            z=self.devices[self.cfg.stage.z],
+            theta=self.devices[self.cfg.stage.theta] if self.cfg.stage.theta else None,
+        )
+        self.lasers: DeviceGroup = {}
+        self.filter_wheels: DeviceGroup = {}
+        self.focusing_axes: DeviceGroup = {}
+        self.flip_mounts: DeviceGroup = {}
+        self.joysticks: DeviceGroup = {}
 
-        if not self.tiling_stages["y"]:
-            errors.append("y tiling stage is required")
+        for device_name, device in self.devices.items():
+            if isinstance(device, BaseLaser):
+                self.lasers[device_name] = device
+            elif isinstance(device, BaseFilterWheel):
+                self.filter_wheels[device_name] = device
+            elif isinstance(device, VoxelAxis) and device.uid not in self.stage.uids:
+                self.focusing_axes[device_name] = device
+            elif isinstance(device, BaseFlipMount):
+                self.flip_mounts[device_name] = device
+            elif isinstance(device, BaseJoystick):
+                self.joysticks[device_name] = device
 
-        return errors
+        self._active_channel = next(iter(self.cfg.channels))
+        self.set_active_channel(self._active_channel)
+
+    def set_active_channel(self, channel_name):
+        if channel_name not in self.cfg.channels:
+            self.log.error(f"Unable to set channel {channel_name}. Channel not found in config.")
+        # move logic from gui.py and view/instrument_view.py
+        self._active_channel = channel_name
+
+    def close(self):
+        """Close all devices."""
+        for device in self.devices.values():
+            try:
+                device.close()
+            except Exception as e:
+                self.log.warning(f"Failed to close device: {e}")

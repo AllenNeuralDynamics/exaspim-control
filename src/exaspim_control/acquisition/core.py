@@ -222,7 +222,7 @@ class ExASPIMAcquisition(Acquisition[ExASPIM]):
 
                     # run any pre-routines for all devices
                     for device_name, routine_dictionary in getattr(self, "routines", {}).items():
-                        device_type = self.instrument.config["instrument"]["devices"][device_name]["type"]
+                        device_type = self.instrument.cfg["instrument"]["devices"][device_name]["type"]
                         self.log.info(f"running routines for {device_type} {device_name}")
                         for routine_name, routine in routine_dictionary.items():
                             device_object = getattr(self.instrument, inflection.pluralize(device_type))[device_name]

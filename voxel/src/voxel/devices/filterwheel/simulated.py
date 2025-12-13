@@ -13,17 +13,10 @@ class SimulatedFilterWheel(BaseFilterWheel):
     FilterWheel class for handling simulated filter wheel devices.
     """
 
-    def __init__(self, id: str, filters: dict[str, int]) -> None:
-        """
-        Initialize the FilterWheel object.
-
-        :param id: Filter wheel ID
-        :type id: str
-        :param filters: Dictionary of filters
-        :type filters: dict
-        """
+    def __init__(self, uid: str, filters: dict[str, int]) -> None:
+        super().__init__(uid=uid)
         self.log = logging.getLogger(__name__ + "." + self.__class__.__name__)
-        self.id = id
+        self.id = uid
         self.filters = filters
         for filter in filters:
             FILTERS.append(filter)

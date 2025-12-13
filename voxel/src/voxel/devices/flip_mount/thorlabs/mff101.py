@@ -14,7 +14,7 @@ class MFF101FlipMount(BaseFlipMount):
     ThorlabsFlipMount class for handling Thorlabs flip mount devices.
     """
 
-    def __init__(self, id: str, positions: dict[str, int]) -> None:
+    def __init__(self, uid: str, positions: dict[str, int]) -> None:
         """
         Initialize the ThorlabsFlipMount object.
 
@@ -24,7 +24,7 @@ class MFF101FlipMount(BaseFlipMount):
         :type positions: dict
         :raises ValueError: If an invalid position is provided
         """
-        super().__init__(id)
+        super().__init__(uid)
         self._inst: Thorlabs.MFF | None = None
         self._connect()
         for key, value in positions.items():
@@ -43,10 +43,10 @@ class MFF101FlipMount(BaseFlipMount):
         :raises Exception: If connection to the flip mount fails
         """
         try:
-            self._inst = Thorlabs.MFF(conn=self.id)
+            self._inst = Thorlabs.MFF(conn=self.uid)
             self.flip_time_ms = FLIP_TIME_RANGE_MS[0]  # min flip time
         except Exception as e:
-            self.log.exception(f"Could not connect to flip mount {self.id}: {e}")
+            self.log.exception(f"Could not connect to flip mount {self.uid}: {e}")
             raise
 
     def _disconnect(self) -> None:
@@ -56,7 +56,7 @@ class MFF101FlipMount(BaseFlipMount):
         if self._inst is not None:
             self._inst.close()
             self._inst = None
-            self.log.info(f"Flip mount {self.id} disconnected")
+            self.log.info(f"Flip mount {self.uid} disconnected")
 
     def wait(self) -> None:
         """
@@ -106,7 +106,7 @@ class MFF101FlipMount(BaseFlipMount):
             raise ValueError(msg)
         self._inst.move_to_state(POSITIONS[position_name])
         self._position = position_name
-        self.log.info(f"Flip mount {self.id} moved to position {position_name}")
+        self.log.info(f"Flip mount {self.uid} moved to position {position_name}")
 
     @DeliminatedProperty(minimum=FLIP_TIME_RANGE_MS[0], maximum=FLIP_TIME_RANGE_MS[1], step=FLIP_TIME_RANGE_MS[2])
     def flip_time_ms(self) -> int:
@@ -142,7 +142,7 @@ class MFF101FlipMount(BaseFlipMount):
         clamped_time_ms = int(max(FLIP_TIME_RANGE_MS[0], min(time_ms, FLIP_TIME_RANGE_MS[1])))
         try:
             self._inst.setup_flipper(transit_time=clamped_time_ms / 1000)
-            self.log.info(f"Flip mount {self.id} switch time set to {clamped_time_ms} ms")
+            self.log.info(f"Flip mount {self.uid} switch time set to {clamped_time_ms} ms")
         except (AttributeError, TypeError, ValueError) as e:
             msg = f"Could not set flip time: {e}"
             raise ValueError(msg)

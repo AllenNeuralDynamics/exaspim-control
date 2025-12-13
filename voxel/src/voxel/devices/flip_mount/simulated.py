@@ -14,7 +14,7 @@ class SimulatedFlipMount(BaseFlipMount):
     SimulatedFlipMount class for handling simulated flip mount devices.
     """
 
-    def __init__(self, id: str, conn: object, positions: dict[str, int]) -> None:
+    def __init__(self, uid: str, conn: object, positions: dict[str, int]) -> None:
         """
         Initialize the SimulatedFlipMount object.
 
@@ -26,7 +26,7 @@ class SimulatedFlipMount(BaseFlipMount):
         :type positions: dict
         :raises ValueError: If an invalid position is provided
         """
-        super().__init__(id)
+        super().__init__(uid)
         self._conn = conn
         self._positions = positions
         self._inst: Literal[0, 1] = None

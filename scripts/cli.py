@@ -6,10 +6,13 @@ import click
 from rich.console import Console
 from rich.table import Table
 
-from exaspim_control.app import ExASPIMApplication
+from exaspim_control.app import ExASPIMApplication, Launcher
 
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 INSTRUMENTS_DIR = PROJECT_ROOT / "instruments"
+
+# UI Mode Toggle: Set to True to use new InstrumentUI, False for classic napari-embedded view
+USE_NEW_UI = True
 
 
 class InstrumentInfo(TypedDict):
@@ -74,9 +77,16 @@ def run_instrument(instrument_name: str) -> None:
     instrument_dir = INSTRUMENTS_DIR / instrument_name
 
     try:
-        # Create and run ExASPIM application (it handles QApplication creation)
-        exaspim_app = ExASPIMApplication(instrument_dir=instrument_dir, log_level="INFO")
-        sys.exit(exaspim_app.run(sys.argv))
+        # Create and run application (it handles QApplication creation)
+        # Toggle between old and new UI based on USE_NEW_UI flag
+        if USE_NEW_UI:
+            console.print("[cyan]Using new InstrumentUI interface[/cyan]")
+            app = Launcher(instrument_dir=instrument_dir, log_level="INFO")
+        else:
+            console.print("[cyan]Using classic napari-embedded interface[/cyan]")
+            app = ExASPIMApplication(instrument_dir=instrument_dir, log_level="INFO")
+
+        sys.exit(app.show(sys.argv))
 
     except FileNotFoundError as e:
         console.print(f"[red]Error: {e}[/red]")

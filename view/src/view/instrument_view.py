@@ -1223,7 +1223,7 @@ class InstrumentView[I: Instrument](QWidget):
 
             updating_props = specs.get("updating_properties", [])
             for prop_name in updating_props:
-                worker = self.create_property_worker(device, prop_name)
+                worker = self.create_property_worker(device, prop_name)  # pyright: ignore[reportCallIssue]
                 # Worker yields (value, property_name), we need (value, widget, property_name)
                 worker.yielded.connect(lambda args, w=gui: self.update_property_value(args[0], w, args[1]))
                 worker.start()

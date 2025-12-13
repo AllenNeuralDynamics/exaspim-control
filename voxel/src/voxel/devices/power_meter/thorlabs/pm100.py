@@ -43,7 +43,7 @@ class ThorlabsPowerMeter(BasePowerMeter):
         :raises Exception: If the power meter is not connected
         """
         if self._inst is None:
-            msg = f"Device {self.id} is not connected"
+            msg = f"Device {self.uid} is not connected"
             raise Exception(msg)
 
     @property
@@ -78,7 +78,7 @@ class ThorlabsPowerMeter(BasePowerMeter):
         """
         self._check_connection()
         self._inst.write(f"SENS:CORR:WAV {wavelength}")  # type: ignore
-        self.log.info(f"{self.id} - Set wavelength to {wavelength} nm")
+        self.log.info(f"{self.uid} - Set wavelength to {wavelength} nm")
 
     def close(self) -> None:
         """

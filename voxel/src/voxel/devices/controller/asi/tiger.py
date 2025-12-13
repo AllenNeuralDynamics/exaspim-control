@@ -26,6 +26,7 @@ from tigerasi.device_codes import (
     TTLOut0Mode,
     TunableLensControlMode,
 )
+from voxel.devices.base import VoxelDevice
 
 # Constants
 STEPS_PER_UM = 10.0  # multiplication constant to convert micrometers to steps.
@@ -113,14 +114,14 @@ def thread_locked(function: Callable) -> Callable:
     return wrapper
 
 
-class TigerController:
+class TigerController(VoxelDevice):
     """Tiger Box Serial Port Abstraction."""
 
     # Constants
     BAUD_RATE = 115200
     TIMEOUT = 1
 
-    def __init__(self, com_port: str):
+    def __init__(self, uid: str, com_port: str):
         """Init. Creates serial port connection and connects to hardware.
 
         :param com_port: serial com port.
@@ -130,6 +131,7 @@ class TigerController:
             box = TigerController("COM4")
 
         """
+        super().__init__(uid=uid)
         self.ser = None
         self.log = logging.getLogger(__name__)
         self.skipped_replies = 0
@@ -138,7 +140,7 @@ class TigerController:
             self.ser.reset_input_buffer()
             self.ser.reset_output_buffer()
         except SerialException:
-            logging.exception(
+            self.log.exception(
                 "Error: could not open connection to Tiger "
                 "Controller. Is the device plugged in? Is another program "
                 "using it?"

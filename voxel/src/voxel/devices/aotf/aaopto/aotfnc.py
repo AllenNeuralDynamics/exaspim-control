@@ -37,14 +37,16 @@ class AAOptoAOTF(BaseAOTF):
     Class for controlling an Acousto-Optic Tunable Filter (AOTF).
     """
 
-    def __init__(self, port: str) -> None:
+    def __init__(self, uid: str, port: str) -> None:
         """
         Initialize the AOTF class.
 
+        :param uid: The unique identifier for the device.
+        :type uid: str
         :param port: The COM port for the AOTF device.
         :type port: str
         """
-        self.log = logging.getLogger(__name__ + "." + self.__class__.__name__)
+        super().__init__(uid)
         self.aotf = MPDSSingleton(com_port=port)
         self.id = self.aotf.get_product_id()
 

@@ -1,93 +1,100 @@
 import importlib
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QColor, QDoubleValidator, QIntValidator
-from PyQt6.QtWidgets import QSizePolicy
-from view.widgets.base_device_widget import BaseDeviceWidget, create_widget, scan_for_properties
+from PyQt6.QtGui import QColor
+from PyQt6.QtWidgets import QLabel, QSizePolicy, QVBoxLayout
+from view.widgets.base_device_widget import create_widget
+from view.widgets.device_widget import DeviceWidget
 from view.widgets.miscellaneous_widgets.q_scrollable_float_slider import QScrollableFloatSlider
+from voxel.devices.laser.base import BaseLaser
 
 
-class LaserWidget(BaseDeviceWidget):
-    """Widget for handling laser properties and controls."""
+class LaserWidget(DeviceWidget):
+    """Widget for handling laser properties and controls with card-style layout."""
 
-    def __init__(self, laser: object, color: str = "blue", advanced_user: bool = True):
+    def __init__(self, laser: BaseLaser, color: str = "blue", advanced_user: bool = True):
         """
         Initialize the LaserWidget object.
 
         :param laser: Laser object
-        :type laser: object
+        :type laser: BaseLaser
         :param color: Color of the slider, defaults to "blue"
         :type color: str, optional
         :param advanced_user: Whether the user is advanced, defaults to True
         :type advanced_user: bool, optional
         """
-        self.laser_properties = (
-            scan_for_properties(laser)
-            if advanced_user
-            else {
-                "power_setpoint_mw": laser.power_setpoint_mw,
-                "power_mw": laser.power_mw,
-                "temperature_c": laser.temperature_c,
-            }
-        )
-        self.laser_module = importlib.import_module(laser.__module__)
+        # Determine updating properties based on advanced_user
+        updating_props = ["power_mw", "temperature_c"] if advanced_user else []
+
+        # Store references before calling super().__init__
         self.slider_color = color
-        super().__init__(type(laser), self.laser_properties)
+        self.advanced_user = advanced_user
+
+        # Initialize DeviceWidget with device instance
+        super().__init__(laser, updating_properties=updating_props)
+
+        # Get max power from property descriptor
         self.max_power_mw = getattr(type(laser).power_setpoint_mw, "maximum", 110)
-        self.add_power_slider()
 
-    def add_power_slider(self) -> None:
+        # Add custom power slider layout
+        self._add_custom_power_slider()
+
+    def _setup_default_layout(self):
+        """Override to prevent auto-layout - we'll do custom layout."""
+        pass
+
+    def _add_custom_power_slider(self) -> None:
         """
-        Add a power slider to the widget.
+        Add a power slider to the widget with custom layout.
         """
-        setpoint = self.power_setpoint_mw_widget
-        power = self.power_mw_widget
-        temperature = self.property_widgets["temperature_c"].layout().itemAt(1).widget()
+        # Get the actual input widgets from PropertyWidgets
+        setpoint_widget = self.property_widgets["power_setpoint_mw"].value_widget.widget
+        power_widget = self.property_widgets["power_mw"].value_widget.widget
+        temperature_widget = self.property_widgets["temperature_c"].value_widget.widget
 
-        if isinstance(setpoint.validator(), QDoubleValidator):
-            setpoint.validator().setRange(0.0, self.max_power_mw, decimals=2)
-            power.validator().setRange(0.0, self.max_power_mw, decimals=2)
-        elif isinstance(setpoint.validator(), QIntValidator):
-            setpoint.validator().setRange(0, self.max_power_mw)
-            power.validator().setRange(0.0, self.max_power_mw)
+        # Configure validators if present
+        if hasattr(setpoint_widget, "validator") and setpoint_widget.validator():
+            if hasattr(setpoint_widget.validator(), "setRange"):
+                setpoint_widget.validator().setRange(0.0, self.max_power_mw, decimals=2)
+        if hasattr(power_widget, "validator") and power_widget.validator():
+            if hasattr(power_widget.validator(), "setRange"):
+                power_widget.validator().setRange(0.0, self.max_power_mw, decimals=2)
 
-        power.setEnabled(False)
-        power.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
-        power.setMinimumWidth(60)
-        power.setMaximumWidth(60)
+        # Configure power widget (read-only)
+        power_widget.setEnabled(False)
+        power_widget.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum)
+        power_widget.setMinimumWidth(60)
+        power_widget.setMaximumWidth(60)
 
-        setpoint.validator().fixup = self.power_slider_fixup
-        setpoint.editingFinished.connect(lambda: slider.setValue(round(float(setpoint.text()))))
-        setpoint.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
-        setpoint.setMinimumWidth(60)
-        setpoint.setMaximumWidth(60)
+        # Configure setpoint widget
+        if hasattr(setpoint_widget, "validator") and setpoint_widget.validator():
+            setpoint_widget.validator().fixup = self.power_slider_fixup
+        setpoint_widget.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum)
+        setpoint_widget.setMinimumWidth(60)
+        setpoint_widget.setMaximumWidth(60)
 
-        power_mw_label = self.property_widgets["power_mw"].layout().itemAt(0).widget()
-        power_mw_label.setVisible(False)  # hide power_mw label
+        # Create slider
+        slider = QScrollableFloatSlider(orientation=Qt.Orientation.Horizontal)
+        slider.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
-        slider = QScrollableFloatSlider(orientation=Qt.Horizontal)
-        slider.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-
-        # active slider color
+        # Calculate slider colors
         hsv_active_color = list(QColor(self.slider_color).getHsv())
-        active_color = QColor.fromHsv(*tuple(hsv_active_color)).name()
+        hsv_active_color = [c if c is not None else 0 for c in hsv_active_color]
+        active_color = QColor.fromHsv(*map(int, hsv_active_color)).name()
 
-        # inactive slide color
-        hsv_inactive_color = hsv_active_color
-        hsv_inactive_color[2] = hsv_inactive_color[2] // 4
-        inactive_color = QColor.fromHsv(*tuple(hsv_inactive_color)).name()
+        hsv_inactive_color = hsv_active_color.copy()
+        hsv_inactive_color[2] = int(hsv_inactive_color[2]) // 4
+        inactive_color = QColor.fromHsv(*map(int, hsv_inactive_color)).name()
 
-        # border color
-        hsv_border_color = hsv_active_color
+        hsv_border_color = hsv_active_color.copy()
         hsv_border_color[2] = 100
         hsv_border_color[1] = 100
-        border_color = QColor.fromHsv(*tuple(hsv_border_color)).name()
+        border_color = QColor.fromHsv(*map(int, hsv_border_color)).name()
 
-        # handle color
-        hsv_handle_color = hsv_active_color
+        hsv_handle_color = hsv_active_color.copy()
         hsv_handle_color[2] = 128
         hsv_handle_color[1] = 64
-        handle_color = QColor.fromHsv(*tuple(hsv_handle_color)).name()
+        handle_color = QColor.fromHsv(*map(int, hsv_handle_color)).name()
 
         slider.setStyleSheet(
             f"QSlider::groove:horizontal {{background: {inactive_color}; border: 2px solid {border_color};height: 10px;border-radius: 6px;}}"
@@ -97,23 +104,42 @@ class LaserWidget(BaseDeviceWidget):
             f"height: 10px;border-radius: 6px;}}"
         )
 
-        slider.setMinimum(0)  # Todo: is it always zero?
+        slider.setMinimum(0)
         slider.setMaximum(int(self.max_power_mw))
-        slider.setValue(int(self.power_setpoint_mw))
-        slider.sliderMoved.connect(lambda: setpoint.setText(str(slider.value())))
-        slider.sliderReleased.connect(lambda: setattr(self, "power_setpoint_mw", float(slider.value())))
-        slider.sliderReleased.connect(lambda: self.ValueChangedInside.emit("power_setpoint_mw"))
+        slider.setValue(int(self.device.power_setpoint_mw))
 
-        temperature.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Maximum)
-        temperature.setMinimumWidth(50)
-        temperature.setMaximumWidth(50)
+        # Connect slider to setpoint widget
+        if hasattr(setpoint_widget, "setText"):
+            slider.sliderMoved.connect(lambda: setpoint_widget.setText(str(slider.value())))
+        if hasattr(setpoint_widget, "editingFinished"):
+            setpoint_widget.editingFinished.connect(lambda: slider.setValue(round(float(setpoint_widget.text()))))
 
-        self.power_setpoint_mw_widget_slider = slider
-        self.property_widgets["power_setpoint_mw"].layout().addWidget(
-            create_widget(
-                "H", setpoint, self.property_widgets["power_mw"], slider, self.property_widgets["temperature_c"]
-            )
-        )
+        # Connect slider to device
+        slider.sliderReleased.connect(lambda: setattr(self.device, "power_setpoint_mw", float(slider.value())))
+        slider.sliderReleased.connect(lambda: self.propertyChanged.emit("power_setpoint_mw", float(slider.value())))
+
+        # Configure temperature widget
+        temperature_widget.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Maximum)
+        temperature_widget.setMinimumWidth(50)
+        temperature_widget.setMaximumWidth(50)
+
+        # Store slider reference
+        self.power_slider = slider
+
+        # Create custom layout
+        power_row = create_widget("H", QLabel("Setpoint:"), setpoint_widget, QLabel("Power:"), power_widget)
+        temp_row = create_widget("H", QLabel("Temperature:"), temperature_widget)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(power_row)
+        layout.addWidget(slider)
+        layout.addWidget(temp_row)
+
+        # Add remaining properties (skip the ones we manually laid out)
+        if self.advanced_user:
+            remaining = self._layout_properties(skip={"power_setpoint_mw", "power_mw", "temperature_c"})
+            layout.addWidget(remaining)
 
     def power_slider_fixup(self, value: str) -> None:
         """
@@ -122,5 +148,7 @@ class LaserWidget(BaseDeviceWidget):
         :param value: Value to fix
         :type value: str
         """
-        self.power_setpoint_mw_widget.setText(str(self.max_power_mw))
-        self.power_setpoint_mw_widget.editingFinished.emit()
+        setpoint_widget = self.property_widgets["power_setpoint_mw"].value_widget.widget
+        setpoint_widget.setText(str(self.max_power_mw))
+        if hasattr(setpoint_widget, "editingFinished"):
+            setpoint_widget.editingFinished.emit()

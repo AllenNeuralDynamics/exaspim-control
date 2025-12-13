@@ -3,7 +3,7 @@ from abc import abstractmethod
 from voxel.devices.base import VoxelDevice
 
 
-class BaseStage(VoxelDevice):
+class VoxelAxis(VoxelDevice):
     """
     Base class for stage devices.
     """

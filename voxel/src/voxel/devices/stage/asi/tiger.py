@@ -1,4 +1,3 @@
-import logging
 from time import sleep
 
 from tigerasi.device_codes import (
@@ -10,7 +9,7 @@ from tigerasi.device_codes import (
     TTLOut0Mode,
 )
 from voxel.devices.controller.asi.tiger import TigerController
-from voxel.devices.stage.base import BaseStage
+from voxel.devices.stage.base import VoxelAxis
 
 # constants for Tiger ASI hardware
 
@@ -41,17 +40,17 @@ POLARITIES = {
 }
 
 
-class TigerStage(BaseStage):
+class TigerAxis(VoxelAxis):
     """
     Stage class for handling ASI stage devices.
     """
 
     def __init__(
         self,
+        uid: str,
         tigerbox: TigerController,
         hardware_axis: str,
         instrument_axis: str,
-        log_level: str = "INFO",
     ) -> None:
         """
         Initialize the Stage object.
@@ -62,18 +61,11 @@ class TigerStage(BaseStage):
         :type hardware_axis: str
         :param instrument_axis: Instrument axis
         :type instrument_axis: str
-        :param log_level: Logging level, defaults to "INFO"
-        :type log_level: str, optional
         :raises ValueError: If both tigerbox and port are None
         """
-        self.log = logging.getLogger(__name__ + "." + self.__class__.__name__)
-        self.log.setLevel(log_level)
-
-        if tigerbox is None and port is None:
-            raise ValueError("Tigerbox and port cannot both be none")
+        super().__init__(uid=uid)
 
         self.tigerbox = tigerbox
-        self.tigerbox.log.setLevel(log_level)
 
         self.hardware_axis = hardware_axis.upper()
         self.instrument_axis = instrument_axis.lower()
@@ -89,7 +81,7 @@ class TigerStage(BaseStage):
             f"from the following dict: {axis_map}."
         )
         self.instrument_to_hardware_axis_map = self._sanitize_axis_map(axis_map)
-        r_axis_map = dict(zip(axis_map.values(), axis_map.keys()))
+        r_axis_map = dict(zip(axis_map.values(), axis_map.keys(), strict=True))
         self.hardware_to_instrument_axis_map = self._sanitize_axis_map(r_axis_map)
         self.log.debug(f"New instrument to hardware axis mapping: {self.instrument_to_hardware_axis_map}")
         self.log.debug(f"New hardware to instrument axis mapping: {self.hardware_to_instrument_axis_map}")

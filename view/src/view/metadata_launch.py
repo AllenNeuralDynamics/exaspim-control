@@ -181,7 +181,7 @@ class MetadataLaunch[I: Instrument]:
             laser = channels[tile_ch]["lasers"][0]
             excitation_wavelength = self.instrument.lasers[laser].wavelength
             camera_name = channels[tile_ch]["cameras"][0]
-            camera = self.instrument.cameras[camera_name]
+            camera = self.instrument.camera
             voxel_size_x_um = camera.um_px * tile[camera_name]["binning"]
             voxel_size_y_um = camera.um_px * tile[camera_name]["binning"]
             voxel_size_z_um = tile["step_size"]

@@ -8,14 +8,14 @@ class BaseFlipMount(VoxelDevice):
     Base class for flip mount devices.
     """
 
-    def __init__(self, id: str) -> None:
+    def __init__(self, uid: str) -> None:
         """
         Initialize the BaseFlipMount object.
 
         :param id: Flip mount ID
         :type id: str
         """
-        super().__init__(id)
+        super().__init__(uid)
 
     @property
     @abstractmethod

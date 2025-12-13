@@ -4,12 +4,13 @@ from PyQt6.QtGui import QDoubleValidator, QIntValidator
 from PyQt6.QtWidgets import QLabel
 from view.widgets.base_device_widget import BaseDeviceWidget, scan_for_properties
 from view.widgets.miscellaneous_widgets.q_scrollable_line_edit import QScrollableLineEdit
+from voxel.devices.stage.base import VoxelAxis
 
 
-class StageWidget(BaseDeviceWidget):
+class AxisWidget(BaseDeviceWidget):
     """Widget for handling stage properties and controls."""
 
-    def __init__(self, stage: object, advanced_user: bool = True):
+    def __init__(self, stage: VoxelAxis, advanced_user: bool = True):
         """
         Initialize the StageWidget object.
 

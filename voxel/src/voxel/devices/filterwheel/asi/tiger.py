@@ -1,4 +1,3 @@
-import logging
 import time
 
 from voxel.devices.controller.asi.tiger import TigerController
@@ -14,7 +13,7 @@ class FW1000FilterWheel(BaseFilterWheel):
     FilterWheel class for handling ASI filter wheel devices.
     """
 
-    def __init__(self, tigerbox: TigerController, id: str, filters: dict) -> None:
+    def __init__(self, tigerbox: TigerController, uid: str, filters: dict) -> None:
         """
         Initialize the FilterWheel object.
 
@@ -25,9 +24,9 @@ class FW1000FilterWheel(BaseFilterWheel):
         :param filters: Dictionary of filters
         :type filters: dict
         """
-        self.log = logging.getLogger(__name__ + "." + self.__class__.__name__)
+        super().__init__(uid=uid)
         self.tigerbox = tigerbox
-        self.id = id
+        self.id = uid
         for filter in filters:
             FILTERS.append(filter)
         # force homing of the wheel to first position

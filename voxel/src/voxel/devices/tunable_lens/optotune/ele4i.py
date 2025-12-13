@@ -35,20 +35,23 @@ class ELE4iTunableLens(BaseTunableLens):
     TunableLens class for handling Optotune EL-E-4i tunable lens devices.
     """
 
-    def __init__(self, port: str) -> None:
+    def __init__(self, uid: str, port: str) -> None:
         """
         Initialize the TunableLens object.
 
+        :param uid: unique identifier for the device
+        :type uid: str
         :param port: COM port for the controller
         :type port: str
         """
-        self.log = logging.getLogger(__name__ + "." + self.__class__.__name__)
+        super().__init__(uid)
         # (!!) hardcode debug to false
         self.debug = False
         self.tunable_lens = serial.Serial(port=port, baudrate=115200, timeout=1)
         self.tunable_lens.flush()
-        # set id to serial number of lens
-        self.id = self.send_command("X", ">x8s")[0].decode("ascii")
+        # log the serial number of the lens
+        self.serial_number = self.send_command("X", ">x8s")[0].decode("ascii")
+        self.log.info(f"Connected to ELE4i tunable lens with serial number: {self.serial_number}")
 
     @property
     def mode(self) -> str:

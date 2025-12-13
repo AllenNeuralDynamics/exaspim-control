@@ -20,7 +20,7 @@ class SimulatedLaser(BaseLaser):
     SimulatedLaser class for handling simulated laser devices.
     """
 
-    def __init__(self, id: str, wavelength: int, prefix: str = "", maximum_power_mw: float = 100) -> None:
+    def __init__(self, uid: str, serial: str, wavelength: int, prefix: str = "", maximum_power_mw: float = 100) -> None:
         """
         Initialize the SimulatedLaser object.
 
@@ -33,10 +33,11 @@ class SimulatedLaser(BaseLaser):
         :param maximum_power_mw: Maximum power for the laser in mW
         :type maximum_power_mw: float, optional
         """
-        super().__init__(id)
+        super().__init__(uid)
         self.log = logging.getLogger(__name__ + "." + self.__class__.__name__)
 
         self.prefix = prefix
+        self.serial = serial
         self.ser = Serial
         self._wavelength = wavelength
         self._simulated_power_setpoint_mw = 10.0

@@ -14,7 +14,7 @@ class TigerFlipMount(BaseFlipMount):
     ThorlabsFlipMount class for handling Thorlabs flip mount devices.
     """
 
-    def __init__(self, axis: str, tigerbox: TigerController, positions: dict[str, int]) -> None:
+    def __init__(self, uid: str, axis: str, tigerbox: TigerController, positions: dict[str, int]) -> None:
         """
         Initialize the ThorlabsFlipMount object.
 
@@ -26,6 +26,7 @@ class TigerFlipMount(BaseFlipMount):
         :type positions: dict
         :raises ValueError: If an invalid position is provided
         """
+        super().__init__(uid=uid)
         self.id = f"tiger flip mount: axis = {axis}"
         self.axis = axis.upper()
         super().__init__(id)

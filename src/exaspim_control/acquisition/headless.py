@@ -350,9 +350,8 @@ class ExASPIMAcquisition(Acquisition):
         self.scanning_stage.position_mm = self.initial_position_mm[instrument_axis]
         self.log.info(f"moving stage to {instrument_axis} = {self.initial_position_mm[instrument_axis]:.3f} mm")
 
-        if self.instrument.cameras:
-            for camera in self.instrument.cameras.values():
-                camera.close()
+        if self.instrument.camera:
+            self.instrument.camera.close()
         if self.instrument.lasers:
             for laser in self.instrument.lasers.values():
                 laser.close()
@@ -371,9 +370,8 @@ class ExASPIMAcquisition(Acquisition):
         if self.instrument.controllers:
             for controller in self.instrument.controllers.values():
                 controller.close()
-        if self.instrument.daqs:
-            for daq in self.instrument.daqs.values():
-                daq.close()
+        if self.instrument.daq:
+            self.instrument.daq.close()
 
     def acquisition_engine(
         self, tile: dict, base_filename: str, camera, daq, writer, processes: dict, scanning_stage

@@ -2,10 +2,9 @@ import copy
 import importlib
 import inspect
 import logging
-import operator
 from abc import ABC, abstractmethod
 from collections.abc import Callable
-from functools import reduce, wraps
+from functools import wraps
 from pathlib import Path
 from threading import Lock, RLock
 from typing import TYPE_CHECKING, Any
@@ -15,13 +14,12 @@ from ruyaml import YAML
 from serial import Serial
 
 from voxel.descriptors.deliminated_property import _DeliminatedProperty
+from voxel.devices.daq.base import VoxelDAQ
 
 if TYPE_CHECKING:
     from voxel.devices.aotf.base import BaseAOTF
     from voxel.devices.base import VoxelDevice
     from voxel.devices.camera.base import BaseCamera
-    from voxel.devices.daq.ni import NIDAQ
-    from voxel.devices.filter.base import BaseFilter
     from voxel.devices.filterwheel.base import BaseFilterWheel
     from voxel.devices.flip_mount.base import BaseFlipMount
     from voxel.devices.indicator_light.base import BaseIndicatorLight
@@ -29,7 +27,7 @@ if TYPE_CHECKING:
     from voxel.devices.laser.base import BaseLaser
     from voxel.devices.power_meter.base import BasePowerMeter
     from voxel.devices.rotation_mount.base import BaseRotationMount
-    from voxel.devices.stage.base import BaseStage
+    from voxel.devices.stage.asi.tiger import TigerStage
     from voxel.devices.temperature_sensor.base import BaseTemperatureSensor
     from voxel.devices.tunable_lens.base import BaseTunableLens
 
@@ -59,21 +57,23 @@ class Instrument(ABC):
 
         # Initialize device dictionaries with proper types
         self.aotfs: dict[str, BaseAOTF] = {}
-        self.cameras: dict[str, BaseCamera] = {}
+        self.camera: BaseCamera | None = None
+        self.camera_name: str | None = None
         self.controllers: dict[str, VoxelDevice] = {}
-        self.daqs: dict[str, NIDAQ] = {}
-        self.filters: dict[str, BaseFilter] = {}
-        self.filter_wheels: dict[str, BaseFilterWheel] = {}
+        self.daq: VoxelDAQ | None = None
+        self.daq_name: str | None = None
+        self.filter_wheel: BaseFilterWheel | None = None
+        self.filter_wheel_name: str | None = None
         self.flip_mounts: dict[str, BaseFlipMount] = {}
-        self.focusing_stages: dict[str, BaseStage] = {}
+        self.focusing_stages: dict[str, TigerStage] = {}
         self.indicator_lights: dict[str, BaseIndicatorLight] = {}
         self.joysticks: dict[str, BaseJoystick] = {}
         self.lasers: dict[str, BaseLaser] = {}
         self.power_meters: dict[str, BasePowerMeter] = {}
         self.rotation_mounts: dict[str, BaseRotationMount] = {}
-        self.scanning_stages: dict[str, BaseStage] = {}
+        self.scanning_stages: dict[str, TigerStage] = {}
         self.temperature_sensors: dict[str, BaseTemperatureSensor] = {}
-        self.tiling_stages: dict[str, BaseStage] = {}
+        self.tiling_stages: dict[str, TigerStage] = {}
         self.tunable_lenses: dict[str, BaseTunableLens] = {}
 
         # store a dict of {device name: device type} for convenience
@@ -116,12 +116,10 @@ class Instrument(ABC):
                     raise ValueError(msg)
             for filter in channel.get("filters", []):
                 if filter not in self.filters:
-                    msg = f"filter wheel {filter} not in {self.filters.keys()}"
+                    msg = f"filter {filter} not in {self.filters.keys()}"
                     raise ValueError(msg)
-                if filter not in reduce(
-                    operator.iadd, [list(v.filters.keys()) for v in self.filter_wheels.values()], []
-                ):
-                    msg = f"filter {filter} not associated with any filter wheel: {self.filter_wheels}"
+                if self.filter_wheel is not None and filter not in self.filter_wheel.filters:
+                    msg = f"filter {filter} not associated with filter wheel: {self.filter_wheel_name}"
                     raise ValueError(msg)
         self.channels = self.config["instrument"]["channels"]
 
@@ -143,14 +141,23 @@ class Instrument(ABC):
         lock = RLock() if lock is None else lock
         device_type = inflection.pluralize(device_specs["type"])
         driver = device_specs["driver"]
-        module = device_specs["module"]
         init = device_specs.get("init", {})
-        device_object = self._load_device(driver, module, init, lock)
+        device_object = self._load_device(driver, init, lock)
         properties = device_specs.get("properties", {})
         self._setup_device(device_object, properties)
 
-        # Add device to the pre-initialized device dictionary
-        getattr(self, device_type)[device_name] = device_object
+        # Add device to the pre-initialized device dictionary or singular property
+        if device_type == "cameras":
+            self.camera = device_object
+            self.camera_name = device_name
+        elif device_type == "daqs":
+            self.daq = device_object
+            self.daq_name = device_name
+        elif device_type == "filter_wheels":
+            self.filter_wheel = device_object
+            self.filter_wheel_name = device_name
+        else:
+            getattr(self, device_type)[device_name] = device_object
 
         # added logic for stages to store and check stage axes
         if device_type in {"tiling_stages", "scanning_stages"}:
@@ -181,7 +188,10 @@ class Instrument(ABC):
         :type lock: Lock
         """
         # Import subdevice class in order to access keyword argument required in the init of the device
-        subdevice_class = getattr(importlib.import_module(subdevice_specs["driver"]), subdevice_specs["module"])
+        # Parse driver path: "module.path.ClassName" -> module_path, class_name
+        driver_path = subdevice_specs["driver"]
+        module_path, class_name = driver_path.rsplit(".", 1)
+        subdevice_class = getattr(importlib.import_module(module_path), class_name)
         subdevice_needs = inspect.signature(subdevice_class.__init__).parameters
         for name, parameter in subdevice_needs.items():
             # If subdevice init needs a serial port, add device's serial port to init arguments
@@ -195,14 +205,12 @@ class Instrument(ABC):
                 subdevice_specs["init"][name] = device_object
         self._construct_device(subdevice_name, subdevice_specs, lock)
 
-    def _load_device(self, driver: str, module: str, kwds: dict[str, Any], lock: "Lock | RLock") -> Any:
+    def _load_device(self, driver: str, kwds: dict[str, Any], lock: "Lock | RLock") -> Any:
         """
         Load a device class and make it thread-safe.
 
-        :param driver: Driver module of the device.
+        :param driver: Full driver path including class name (e.g., "voxel.devices.laser.cobolt.Cobolt0601Laser").
         :type driver: str
-        :param module: Module name of the device.
-        :type module: str
         :param kwds: Initialization keywords for the device.
         :type kwds: dict
         :param lock: Lock for thread safety.
@@ -210,8 +218,10 @@ class Instrument(ABC):
         :return: Thread-safe device object.
         :rtype: object
         """
-        self.log.info(f"loading {driver}.{module}")
-        device_class = getattr(importlib.import_module(driver), module)
+        # Parse driver path: "module.path.ClassName" -> module_path, class_name
+        module_path, class_name = driver.rsplit(".", 1)
+        self.log.info(f"loading {driver}")
+        device_class = getattr(importlib.import_module(module_path), class_name)
         thread_safe_device_class = for_all_methods(lock, device_class)
         return thread_safe_device_class(**kwds)
 
