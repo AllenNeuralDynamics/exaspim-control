@@ -8,7 +8,7 @@ import numpy as np
 from PyQt6.QtWidgets import QApplication
 from rich.logging import RichHandler
 from ruyaml import YAML
-from exaspim_control.gui import InstrumentUI
+from exaspim_control.qtgui.main import InstrumentUI
 from view.instrument_view import InstrumentView
 
 from exaspim_control.acquisition import ExASPIMAcquisition

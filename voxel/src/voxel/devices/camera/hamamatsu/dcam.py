@@ -536,12 +536,15 @@ class DCAMCamera(BaseCamera):
         :rtype: numpy.ndarray
         """
         timeout_ms = 1000
+        # Determine numpy dtype based on pixel type for fallback
+        np_dtype = np.uint8 if self.pixel_type == "mono8" else np.uint16
+
         try:
             if self.dcam.wait_capevent_frameready(timeout_ms) is not False:
                 image = self._latest_frame = self.dcam.buf_getlastframedata()
         except Exception:
             self.log.exception("grab frame failed")
-            image = np.zeros(shape=(self.image_height_px, self.image_width_px), dtype=np.uint16)
+            image = np.zeros(shape=(self.image_height_px, self.image_width_px), dtype=np_dtype)
         # do software binning if != 1 and not a string for setting in egrabber
         if self._binning > 1 and isinstance(self._binning, int):
             image = np.copy(self.gpu_binning.run(image))

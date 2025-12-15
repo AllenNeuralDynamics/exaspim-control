@@ -1,16 +1,8 @@
 _anchors:
-  camera_driver: &camera_driver voxel.devices.camera.vieworks.egrabber.VieworksCamera
-  camera_widget: &camera_widget exaspim_control.widgets.camera_widget.CameraWidget
-  laser_driver: &laser_driver voxel.devices.laser.simulated.SimulatedLaser # voxel.devices.laser.coherent.genesis_mx.GenesisMXLaser
-  laser_widget: &laser_widget exaspim_control.widgets.laser_widget.LaserWidget
-  tiger_box_driver: &tiger_box_driver voxel.devices.controller.asi.tiger.TigerController
-  tiger_axis_driver: &tiger_axis_driver voxel.devices.stage.asi.tiger.TigerAxis
-  stage_widget: &stage_widget exaspim_control.widgets.stage_widget.StageWidget
-  daq_driver: &daq_driver voxel.devices.daq.ni.NiDaq
-  daq_widget: &daq_widget exaspim_control.widgets.ni_widget.NIWidget
-  filter_wheel_driver: &filter_wheel_driver voxel.devices.filterwheel.ni.DAQFilterWheel
-  filter_wheel_widget: &filter_wheel_widget exaspim_control.widgets.filter_wheel_widget.FilterWheelWidget
-  filter_driver: &filter_driver voxel.devices.filter.ni.Filter
+  laser_driver: &laser_driver voxel.devices.laser.coherent.genesis_mx.GenesisMXLaser # voxel.devices.laser.simulated.SimulatedLaser #
+  axis_driver: &axis_driver voxel.devices.axes.asi.TigerAxis
+  # stage_widget: &stage_widget exaspim_control.widgets.stage_widget.StageWidget
+  # daq_widget: &daq_widget exaspim_control.widgets.ni_widget.NIWidget
 
 metadata:
   # target: exaspim_control.metadata.aind_metadata_class.AINDMetadataClass
@@ -32,6 +24,7 @@ globals:
   default_overlap: 15.0
   default_tile_order: row_wise
   dual_sided: True
+  objective_magnification: 5.08
 
 writers:
   imaris:
@@ -76,7 +69,7 @@ transfers:
 
 devices:
   vp-151mx:
-    target: *camera_driver
+    target: voxel.devices.camera.vieworks.egrabber.VieworksCamera
     init:
       serial: MP151BDZ014
     defaults:
@@ -90,7 +83,29 @@ devices:
         source: line0
       bit_packing_mode: msb
       binning: 1
-      um_px: 0.748
+      um_px: 3.76 # 0.748
+  pcie-6738:
+    target: voxel.devices.daq.ni.NiDaq
+    init:
+      dev: Dev3
+  filter_wheel_main:
+    target: voxel.devices.filterwheel.ni.DAQFilterWheel
+    init:
+      daq: pcie-6738
+      slots:
+        0: 500LP
+        1: 535/70m
+        2: Multiband
+        3: 655LP
+        4: 575LP
+        5: 620/60BP
+      ports:
+        500LP: ao7
+        535/70m: ao11
+        Multiband: ao14
+        655LP: ao19
+        575LP: ao23
+        620/60BP: ao29
   488-nm:
     target: *laser_driver
     init:
@@ -103,102 +118,81 @@ devices:
       serial: R689368EQ167
       wavelength: 639
       maximum_power_mw: 1000
-  tiger_controller:
-    target: *tiger_box_driver
+  tigerhub:
+    target: voxel.devices.controller.tigerhub.TigerHub
     init:
       com_port: COM3
   z-axis:
-    target: *tiger_axis_driver
+    target: *axis_driver
     init:
-      tigerbox: tiger_controller
-      hardware_axis: z
-      instrument_axis: z
+      hub: tigerhub
+      axis_label: z
     defaults:
       mode: step shoot
       speed_mm_s: 1.0
       backlash_mm: 0.0
       acceleration_ms: 200.0
   x-axis:
-    target: *tiger_axis_driver
+    target: *axis_driver
     init:
-      tigerbox: tiger_controller
-      hardware_axis: x
-      instrument_axis: x
+      hub: tigerhub
+      axis_label: x
     defaults:
       mode: off
       speed_mm_s: 1.0
       backlash_mm: 0.004
       acceleration_ms: 200.0
   y-axis:
-    target: *tiger_axis_driver
+    target: *axis_driver
     init:
-      tigerbox: tiger_controller
-      hardware_axis: v
-      instrument_axis: y
+      hub: tigerhub
+      axis_label: v
     defaults:
       mode: off
       speed_mm_s: 1.0
       backlash_mm: 0.004
       acceleration_ms: 200.0
   theta-axis:
-    target: *tiger_axis_driver
+    target: *axis_driver
     init:
-      tigerbox: tiger_controller
-      hardware_axis: t
-      instrument_axis: t
+      hub: tigerhub
+      axis_label: t
     defaults:
       mode: off
       speed_mm_s: 0.3
       backlash_mm: 0.004
       acceleration_ms: 200.0
   left_focus:
-    target: *tiger_axis_driver
+    target: *axis_driver
     init:
-      tigerbox: tiger_controller
-      hardware_axis: a
-      instrument_axis: a
+      hub: tigerhub
+      axis_label: a
     defaults:
       mode: off
       speed_mm_s: 0.01
       backlash_mm: 0.004
       acceleration_ms: 5.0
   right_focus:
-    target: *tiger_axis_driver
+    target: *axis_driver
     init:
-      tigerbox: tiger_controller
-      hardware_axis: b
-      instrument_axis: b
+      hub: tigerhub
+      axis_label: b
     defaults:
       mode: off
       speed_mm_s: 0.01
       backlash_mm: 0.004
       acceleration_ms: 5.0
   camera_focus:
-    target: *tiger_axis_driver
+    target: *axis_driver
     init:
-      tigerbox: tiger_controller
-      hardware_axis: m
-      instrument_axis: m
+      hub: tigerhub
+      axis_label: m
     defaults:
       mode: off
       speed_mm_s: 0.01
       backlash_mm: 0.004
       acceleration_ms: 20.0
-  pcie-6738:
-    target: *daq_driver
-    init:
-      dev: Dev3
-  filter_wheel_main:
-    target: *filter_wheel_driver
-    init:
-      daq: pcie-6738
-      filters:
-        500LP: ao7
-        535/70m: ao11
-        Multiband: ao14
-        655LP: ao19
-        575lp: ao23
-        620/60BP: ao29
+
 
 stage:
   x: x-axis
@@ -278,7 +272,7 @@ channels:
   "488":
     laser: 488-nm
     camera: vp-151mx
-    filters: { filter_wheel_main: 535/70m }
+    filters: { filter_wheel_main: 500LP }
     focusing_axes: [left_focus, right_focus, camera_focus]
     ao-task-parameters:
       galvo-positive:
@@ -299,7 +293,7 @@ channels:
   "639":
     laser: 639-nm
     camera: vp-151mx
-    filters: { filter_wheel_main: 635/70m }
+    filters: { filter_wheel_main: 655LP }
     focusing_axes: [left_focus, right_focus, camera_focus]
     ao-task-parameters:
       galvo-positive:
@@ -317,110 +311,46 @@ channels:
       639-nm:
         max_volts: 10.0
 
-widgets:
-  vp-151mx:
-    target: *camera_widget
-    init:
-      advanced_user: True
-      resolution_levels: 6
-      intensity_min: 30
-      intensity_max: 400
-      alignment_roi_size: 1024
-  488-nm:
-    target: *laser_widget
-    init:
-      color: "#1FB3E0"
-      advanced_user: False
-    updating_properties:
-      - power_mw
-      - temperature_c
-  639-nm:
-    target: *laser_widget
-    init:
-      color: "#C44157"
-      advanced_user: False
-    updating_properties:
-      - power_mw
-      - temperature_c
-  z-axis:
-    target: *stage_widget
-    init:
-      advanced_user: False
-    updating_properties:
-      - position_mm
-  x-axis:
-    target: *stage_widget
-    init:
-      advanced_user: False
-    updating_properties:
-      - position_mm
-  y-axis:
-    target: *stage_widget
-    init:
-      advanced_user: False
-    updating_properties:
-      - position_mm
-  theta-axis:
-    target: *stage_widget
-    init:
-      advanced_user: False
-    updating_properties:
-      - position_mm
-  left_focus:
-    target: *stage_widget
-    init:
-      advanced_user: False
-    updating_properties:
-      - position_mm
-  right_focus:
-    target: *stage_widget
-    init:
-      advanced_user: False
-    updating_properties:
-      - position_mm
-  camera_focus:
-    target: *stage_widget
-    init:
-      advanced_user: False
-    updating_properties:
-      - position_mm
-  pcie-6738:
-    target: *daq_widget
-    init:
-      advanced_user: False
-      exposed_branches:
-          tasks.ao_task.ports.left tunable lens:
-            parameters.amplitude_volts.channels:
-              - "488"
-              - "639"
-            parameters.offset_volts.channels:
-              - "488"
-              - "639"
-          tasks.ao_task.ports.positive galvo:
-            parameters.offset_volts.channels:
-              - "488"
-              - "639"
-          tasks.ao_task.ports.negative galvo:
-            parameters.offset_volts.channels:
-              - "488"
-              - "639"
-          tasks.ao_task.ports.right tunable lens:
-            parameters.amplitude_volts.channels:
-              - "488"
-              - "639"
-            parameters.offset_volts.channels:
-              - "488"
-              - "639"
-            parameters.t0_offset_volts.channels:
-              - "488"
-              - "639"
-            parameters.t50_offset_volts.channels:
-              - "488"
-              - "639"
-            parameters.t100_offset_volts.channels:
-              - "488"
-              - "639"
-  filter_wheel_main:
-    target: *filter_wheel_widget
-    init:
-      advanced_user: False
+# widgets:
+#   z-axis:
+#     target: *stage_widget
+#     init:
+#       advanced_user: False
+#     updating_properties:
+#       - position_mm
+#   x-axis:
+#     target: *stage_widget
+#     init:
+#       advanced_user: False
+#     updating_properties:
+#       - position_mm
+#   y-axis:
+#     target: *stage_widget
+#     init:
+#       advanced_user: False
+#     updating_properties:
+#       - position_mm
+#   theta-axis:
+#     target: *stage_widget
+#     init:
+#       advanced_user: False
+#     updating_properties:
+#       - position_mm
+#   left_focus:
+#     target: *stage_widget
+#     init:
+#       advanced_user: False
+#     updating_properties:
+#       - position_mm
+#   right_focus:
+#     target: *stage_widget
+#     init:
+#       advanced_user: False
+#     updating_properties:
+#       - position_mm
+#   camera_focus:
+#     target: *stage_widget
+#     init:
+#       advanced_user: False
+#     updating_properties:
+#       - position_mm

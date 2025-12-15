@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from enum import StrEnum
-from typing import TYPE_CHECKING, Protocol # Keep Protocol for AOChannelInst if it's still a protocol
+from typing import TYPE_CHECKING, Protocol  # Keep Protocol for AOChannelInst if it's still a protocol
 
 import numpy as np
 from pydantic import BaseModel, ConfigDict
@@ -35,7 +35,7 @@ class DaqTaskInst(ABC):
         ...
 
     @property
-    def info(self) -> "TaskInfo": # This is a concrete implementation, not abstract
+    def info(self) -> "TaskInfo":  # This is a concrete implementation, not abstract
         return TaskInfo(
             name=self.name,
             status=self.status,
@@ -134,7 +134,7 @@ class VoxelDAQ(VoxelDevice):
         task_inst = self._create_task_inst(task_name)
         self._tasks[task_name] = task_inst
         self._task_pins[task_name] = []
-        self.log.info(f"Created task '{task_name}'")
+        self.log.info(f"Created task '{task_inst.info}'")
         return task_name
 
     def _ensure_task(self, task_name) -> DaqTaskInst:
@@ -184,8 +184,8 @@ class VoxelDAQ(VoxelDevice):
         """Close a task and release its resources."""
         task = self._ensure_task(task_name)
         task.close()
-        for pin_info in self._task_pins.get(task_name, []):
-            self.release_pin(pin_info)
+        # Release all pins assigned to this task (scans channel_map by task_name)
+        self.release_pins_for_task(task_name)
         del self._tasks[task_name]
         del self._task_pins[task_name]
         self.log.info(f"Closed task '{task_name}'")
@@ -193,6 +193,40 @@ class VoxelDAQ(VoxelDevice):
     def get_task_info(self, task_name: str) -> TaskInfo:
         """Get information about a specific task."""
         return self._ensure_task(task_name).info
+
+    def pulse(self, pin: str, duration_s: float, voltage_v: float, sample_rate_hz: int = 10000) -> None:
+        """Generates a simple finite pulse on a single pin."""
+        task_name = f"pulse_{pin}_{self.uid}"
+        pin_info = None
+        try:
+            # 1. Assign pin
+            pin_info = self.assign_pin(task_name=task_name, pin=pin)
+
+            # 2. Create and configure task
+            self.create_task(task_name)
+            self.add_ao_channel(task_name, pin_info.path, f"{pin}_channel")
+            num_samples = int(duration_s * sample_rate_hz)
+
+            self.cfg_samp_clk_timing(
+                task_name,
+                rate=sample_rate_hz,
+                sample_mode=AcqSampleMode.FINITE,
+                samps_per_chan=num_samples,
+            )
+
+            # 3. Write data
+            pulse_data = np.full(num_samples, voltage_v)
+            self.write(task_name, pulse_data.tolist())
+
+            # 4. Start and wait for completion
+            task = self._tasks[task_name]
+            self.start_task(task_name)
+            task.wait_until_done(timeout=duration_s + 1.0)
+
+        finally:
+            # 5. Clean up
+            if pin_info is not None:
+                self.close_task(task_name)
 
     @property
     @abstractmethod
@@ -231,10 +265,29 @@ class VoxelDAQ(VoxelDevice):
         """Get the PFI path for a given pin."""
 
     @abstractmethod
-    def pulse(self, pin: str, duration_s: float, voltage_v: float) -> None:
-        """Generates a simple finite pulse on a single pin."""
-        raise NotImplementedError
-
-    @abstractmethod
     def _create_task_inst(self, task_name: str) -> DaqTaskInst:
         """Get a new task instance for the DAQ device."""
+
+    @abstractmethod
+    def create_co_pulse_task(
+        self,
+        task_name: str,
+        counter: str,
+        frequency_hz: float,
+        duty_cycle: float = 0.5,
+        pulses: int | None = None,
+        output_pin: str | None = None,
+    ) -> str:
+        """Create a counter output pulse task (one-shot create + configure).
+
+        Args:
+            task_name: Unique name for the task
+            counter: Counter channel to use (e.g., "ctr0")
+            frequency_hz: Pulse frequency in Hz
+            duty_cycle: Duty cycle (0.0 to 1.0), default 0.5
+            pulses: Number of pulses to generate, None for continuous
+            output_pin: Pin name to route the pulse output to (e.g., "PFI0")
+
+        Returns:
+            The task name
+        """

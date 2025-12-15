@@ -11,21 +11,21 @@ class QStartStopTableHeader(QHeaderView):
     stopChanged = pyqtSignal(int)
 
     def __init__(self, parent):
-        super().__init__(Qt.Vertical, parent)
+        super().__init__(Qt.Orientation.Vertical, parent)
 
         self.start = None
         self.stop = None
         self.setContextMenuPolicy(Qt.CustomContextMenu)
         self.sectionRightClicked.connect(self.menu_popup)
 
-    def mousePressEvent(self, event, **kwargs):
+    def mousePressEvent(self, e, **kwargs):
         """Detect click event and set correct setting
         :param **kwargs:
         """
-        super().mousePressEvent(event, **kwargs)
+        super().mousePressEvent(e, **kwargs)
 
-        if event.button() == Qt.RightButton:
-            self.sectionRightClicked.emit(event)
+        if e.button() == Qt.RightButton:
+            self.sectionRightClicked.emit(e)
 
     def menu_popup(self, event: QMouseEvent):
         """

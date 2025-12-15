@@ -796,7 +796,10 @@ class InstrumentView[I: Instrument](QWidget):
             self.crosshairs_button.setDisabled(True)  # disable crosshairs button
 
         stacked = self.stack_device_widgets("camera")
-        self.viewer.window.add_dock_widget(stacked, area="right", name="Cameras", add_vertical_stretch=False)
+        camera_scroll = QScrollArea()
+        camera_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        camera_scroll.setWidget(stacked)
+        self.viewer.window.add_dock_widget(camera_scroll, area="right", name="Cameras", add_vertical_stretch=False)
 
     def toggle_live_button(self, camera_name: str) -> None:
         """

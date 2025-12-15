@@ -1,14 +1,14 @@
 import logging
 import time
 
-from voxel.devices.filterwheel.base import BaseFilterWheel
+from voxel.devices.filterwheel.base import VoxelFilterWheel
 
 FILTERS = []
 
 SWITCH_TIME_S = 0.1  # estimated timing
 
 
-class SimulatedFilterWheel(BaseFilterWheel):
+class SimulatedFilterWheel(VoxelFilterWheel):
     """
     FilterWheel class for handling simulated filter wheel devices.
     """

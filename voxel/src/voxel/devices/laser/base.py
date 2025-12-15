@@ -20,6 +20,10 @@ class BaseLaser(VoxelDevice):
 
     @property
     @abstractmethod
+    def is_enabled(self) -> bool: ...
+
+    @property
+    @abstractmethod
     def wavelength(self) -> int:
         """
         Get the wavelength of the laser.

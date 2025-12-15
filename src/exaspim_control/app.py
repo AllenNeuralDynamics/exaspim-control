@@ -12,8 +12,8 @@ from rich.console import Console
 from rich.logging import RichHandler
 from rich.table import Table
 
-from exaspim_control.gui import InstrumentUI
 from exaspim_control.instrument import ExASPIM
+from exaspim_control.qtgui import ExASPIMUI
 
 root_logger = logging.getLogger()
 rich_handler = RichHandler(
@@ -24,6 +24,7 @@ rich_handler = RichHandler(
     show_path=True,
 )
 root_logger.addHandler(rich_handler)
+root_logger.setLevel(logging.INFO)
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +66,7 @@ class Launcher:
         app = QApplication(argv)
         app.aboutToQuit.connect(self._cleanup)
 
-        self.instrument_ui = InstrumentUI(instrument=self.instrument)
+        self.instrument_ui = ExASPIMUI(instrument=self.instrument)
 
         # Show the main window
         self.instrument_ui.show()

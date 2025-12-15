@@ -43,6 +43,10 @@ class GenesisMXLaser(BaseLaser):
         """
         return self._wavelength
 
+    @property
+    def is_enabled(self) -> bool:
+        return self._inst.enable_loop.software
+
     def enable(self) -> None:
         """Enable the laser."""
         if self._inst is None:

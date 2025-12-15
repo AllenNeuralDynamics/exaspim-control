@@ -1,14 +1,14 @@
 import time
 
 from voxel.devices.controller.asi.tiger import TigerController
-from voxel.devices.filterwheel.base import BaseFilterWheel
+from voxel.devices.filterwheel.base import VoxelFilterWheel
 
 FILTERS = []
 
 SWITCH_TIME_S = 0.1  # estimated timing
 
 
-class FW1000FilterWheel(BaseFilterWheel):
+class FW1000FilterWheel(VoxelFilterWheel):
     """
     FilterWheel class for handling ASI filter wheel devices.
     """

@@ -1,7 +1,7 @@
 from enum import StrEnum
 
 import numpy as np
-from nidaqmx.constants import AcquisitionType as NiAcqType
+from nidaqmx.constants import AcquisitionType as NiAcqType, Level as NiLevel
 from nidaqmx.errors import DaqError
 from nidaqmx.system import System as NiSystem
 from nidaqmx.system.device import Device as NiDevice
@@ -66,7 +66,10 @@ class NiDAQTaskWrapper(DaqTaskInst):
 
     def get_channel_names(self) -> list[str]:
         """Get the names of the channels in the task."""
-        return self._inst.channels.channel_names if self._inst.channels else []
+        try:
+            return self._inst.channels.channel_names if self._inst.channels else []
+        except DaqError:
+            return []
 
     def cfg_samp_clk_timing(self, rate: float, sample_mode: "AcqSampleMode", samps_per_chan: int) -> None:
         """Configure sample clock timing."""
@@ -75,6 +78,57 @@ class NiDAQTaskWrapper(DaqTaskInst):
 
     def cfg_dig_edge_start_trig(self, trigger_source: str, *, retriggerable: bool) -> None:
         """Configure digital edge start trigger."""
+        self._inst.triggers.start_trigger.cfg_dig_edge_start_trig(trigger_source=trigger_source)
+        self._inst.triggers.start_trigger.retriggerable = retriggerable
+
+
+class _NiCOTaskWrapper(DaqTaskInst):
+    """Wrapper for counter output tasks (simpler than AO tasks)."""
+
+    def __init__(self, task: NiTask) -> None:
+        self._inst = task
+        self._status = TaskStatus.IDLE
+
+    @property
+    def name(self) -> str:
+        return self._inst.name
+
+    @property
+    def status(self) -> TaskStatus:
+        return self._status
+
+    def write(self, data: np.ndarray) -> int:
+        """CO tasks don't support write - raise error."""
+        raise NotImplementedError("Counter output tasks do not support write operations")
+
+    def start(self) -> None:
+        self._inst.start()
+        self._status = TaskStatus.RUNNING
+
+    def stop(self) -> None:
+        self._inst.stop()
+        self._status = TaskStatus.IDLE
+
+    def wait_until_done(self, timeout: float) -> None:
+        self._inst.wait_until_done(timeout=timeout)
+
+    def close(self) -> None:
+        self._inst.close()
+        self._status = TaskStatus.IDLE
+
+    def add_ao_channel(self, path: str, name: str) -> "AOChannelInst":
+        raise NotImplementedError("Counter output tasks do not support AO channels")
+
+    def get_channel_names(self) -> list[str]:
+        try:
+            return self._inst.channels.channel_names if self._inst.channels else []
+        except DaqError:
+            return []
+
+    def cfg_samp_clk_timing(self, rate: float, sample_mode: "AcqSampleMode", samps_per_chan: int) -> None:
+        raise NotImplementedError("Counter output tasks use implicit timing")
+
+    def cfg_dig_edge_start_trig(self, trigger_source: str, *, retriggerable: bool) -> None:
         self._inst.triggers.start_trigger.cfg_dig_edge_start_trig(trigger_source=trigger_source)
         self._inst.triggers.start_trigger.retriggerable = retriggerable
 
@@ -100,7 +154,7 @@ class NiDaq(VoxelDAQ):
         super().__init__(uid)
 
     def __repr__(self) -> str:
-        return f"DAQ Device - Uid: {self._uid} - Name: {self._name} - Model: {self.model}"
+        return f"DAQ Device - Uid: {self.uid} - Name: {self._name} - Model: {self.model}"
 
     def _connect(self, name: str) -> tuple[NiDevice, NiDaqModel]:
         """Connect to DAQ device."""
@@ -164,41 +218,6 @@ class NiDaq(VoxelDAQ):
             return f"/{self._name}/{info.pfi}"
         err_msg = f"Pin {pin} does not have a PFI path or is not valid."
         raise ValueError(err_msg)
-
-    def pulse(self, pin: str, duration_s: float, voltage_v: float, sample_rate_hz: int = 10000) -> None:
-        """Generates a simple finite pulse on a single pin."""
-        task_name = f"pulse_{pin}_{self.uid}"
-        pin_info = None
-        try:
-            # 1. Assign pin
-            pin_info = self.assign_pin(task_name=task_name, pin=pin)
-
-            # 2. Create and configure task
-            self.create_task(task_name)
-            self.add_ao_channel(task_name, pin_info.path, f"{pin}_channel")
-
-            num_samples = int(duration_s * sample_rate_hz)
-
-            self.cfg_samp_clk_timing(
-                task_name,
-                rate=sample_rate_hz,
-                sample_mode=AcqSampleMode.FINITE,
-                samps_per_chan=num_samples,
-            )
-
-            # 3. Write data
-            pulse_data = np.full(num_samples, voltage_v)
-            self.write(task_name, [pulse_data.tolist()])
-
-            # 4. Start and wait for completion
-            task = self._tasks[task_name]
-            self.start_task(task_name)
-            task.wait_until_done(timeout=duration_s + 1.0)
-
-        finally:
-            # 5. Clean up
-            if pin_info is not None:
-                self.close_task(task_name)
 
     @property
     def device_name(self) -> str:
@@ -303,6 +322,78 @@ class NiDaq(VoxelDAQ):
         pfi_pins = {f"pfi{i}" for i in range(16)}  # Example for PFI lines
 
         return frozenset(ao_pins | do_pins | di_pins | pfi_pins)
+
+    def create_co_pulse_task(
+        self,
+        task_name: str,
+        counter: str,
+        frequency_hz: float,
+        duty_cycle: float = 0.5,
+        pulses: int | None = None,
+        output_pin: str | None = None,
+    ) -> str:
+        """Create a counter output pulse task (one-shot create + configure).
+
+        Args:
+            task_name: Unique name for the task
+            counter: Counter channel to use (e.g., "ctr0")
+            frequency_hz: Pulse frequency in Hz
+            duty_cycle: Duty cycle (0.0 to 1.0), default 0.5
+            pulses: Number of pulses to generate, None for continuous
+            output_pin: Pin name to route the pulse output to (e.g., "PFI0")
+
+        Returns:
+            The task name
+        """
+        if task_name in self._tasks:
+            msg = f"Task '{task_name}' already exists"
+            raise ValueError(msg)
+
+        # Assign the counter pin
+        counter_pin_info = self.assign_pin(task_name, counter)
+
+        # Create NI task directly (not using wrapper since CO channels differ)
+        ni_task = NiTask(task_name)
+
+        try:
+            # Add counter output pulse channel
+            co_chan = ni_task.co_channels.add_co_pulse_chan_freq(
+                counter=counter_pin_info.path,
+                freq=frequency_hz,
+                duty_cycle=duty_cycle,
+                idle_state=NiLevel.LOW,
+            )
+
+            # Route output to specified pin if provided
+            if output_pin:
+                output_terminal = self.get_pfi_path(output_pin)
+                co_chan.co_pulse_term = output_terminal
+                self.log.debug(f"Routed CO output to {output_terminal}")
+
+            # Configure timing
+            if pulses is None:
+                # Continuous mode
+                ni_task.timing.cfg_implicit_timing(sample_mode=NiAcqType.CONTINUOUS)
+            else:
+                # Finite mode
+                ni_task.timing.cfg_implicit_timing(
+                    sample_mode=NiAcqType.FINITE,
+                    samps_per_chan=pulses,
+                )
+
+            # Wrap in a simple task holder
+            wrapper = _NiCOTaskWrapper(ni_task)
+            self._tasks[task_name] = wrapper
+            self._task_pins[task_name] = [counter_pin_info]
+
+            self.log.info(f"Created CO pulse task '{task_name}': {frequency_hz}Hz, duty={duty_cycle}")
+            return task_name
+
+        except DaqError as e:
+            ni_task.close()
+            self.release_pin(counter_pin_info)
+            err_msg = f"Failed to create CO pulse task '{task_name}': {e}"
+            raise RuntimeError(err_msg) from e
 
     def close(self):
         for task in self._tasks.values():

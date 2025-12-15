@@ -21,7 +21,7 @@ BINNINGS = {1: 1, 2: 2, 4: 4}
 
 PIXEL_TYPES = {"mono8": "uint8", "mono16": "uint16"}
 
-LINE_INTERVALS_US = {"mono8": 500.00, "mono16": 500.0}
+LINE_INTERVALS_US = {"mono8": 10.0, "mono16": 20.0}
 
 MODES = {
     "on": "On",
@@ -360,9 +360,17 @@ class SimulatedCamera(BaseCamera):
     def grab_frame(self) -> np.ndarray:
         """Grab the latest frame.
 
+        Simulates realistic frame timing based on frame_time_ms.
+
         :return: Latest frame
         :rtype: numpy.ndarray
         """
+        import time
+
+        # Simulate frame timing - wait for frame_time to elapse
+        frame_time_s = self.frame_time_ms / 1000.0
+        time.sleep(frame_time_s)
+
         image = np.random.randint(
             low=128, high=256, size=(self.image_height_px, self.image_width_px), dtype=PIXEL_TYPES[self._pixel_type]
         )

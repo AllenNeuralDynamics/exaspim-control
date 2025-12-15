@@ -30,7 +30,7 @@ from view.widgets.base_device_widget import (
     BaseDeviceWidget,
     scan_for_properties,
 )
-from view.widgets.device_widget import DeviceWidget
+from exaspim_control.widgets.device_widget import DeviceWidget
 from voxel.acquisition import Acquisition
 from voxel.instrument import Instrument
 

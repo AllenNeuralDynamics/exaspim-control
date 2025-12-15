@@ -46,16 +46,19 @@ class SimulatedLaser(BaseLaser):
         self._temperature = 20.0
         self._cdrh = "ON"
         self._status: list[str] = []
+        self._is_enabled = False
 
     def enable(self) -> None:
-        """
-        Enable the laser.
-        """
+        self._is_enabled = True
+        self.log.info("Laser enabled")
 
     def disable(self) -> None:
-        """
-        Disable the laser.
-        """
+        self._is_enabled = False
+        self.log.info("Laser disabled")
+
+    @property
+    def is_enabled(self):
+        return self._is_enabled
 
     @DeliminatedProperty(minimum=0, maximum=MAX_POWER_MW)
     def power_setpoint_mw(self) -> float:
@@ -76,6 +79,7 @@ class SimulatedLaser(BaseLaser):
         :type value: float
         """
         self._simulated_power_setpoint_mw = value
+        self.log.info("Power updated to: %s", value)
 
     @property
     def power_mw(self) -> float:
@@ -85,7 +89,9 @@ class SimulatedLaser(BaseLaser):
         :return: Current power in milliwatts
         :rtype: float
         """
-        return random.gauss(self._simulated_power_setpoint_mw, 0.1)
+        if self._is_enabled:
+            return random.gauss(self._simulated_power_setpoint_mw, 0.1)
+        return random.gauss(0.0, 0.1)
 
     @property
     def modulation_mode(self) -> str:

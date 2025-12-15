@@ -24,6 +24,7 @@ class GlobalsConfig(BaseModel):
     default_overlap: float
     default_tile_order: str
     dual_sided: bool
+    objective_magnification: float = 1.0  # Objective magnification for FOV calculation
 
 
 class InstrumentInfo(BaseModel):

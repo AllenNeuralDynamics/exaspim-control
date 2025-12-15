@@ -47,7 +47,6 @@ class BuildContext:
     def __post_init__(self):
         self._done: bool = False
         self.log = logging.getLogger("object_builder")
-        self.log.info(f"build context done: {self._done}")
 
     def build(self):
         if self._done:

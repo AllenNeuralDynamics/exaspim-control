@@ -531,18 +531,30 @@ class VieworksCamera(BaseCamera):
         column_count = self.grabber.remote.get("Width")
         row_count = self.grabber.remote.get("Height")
         timeout_ms = 5000
+
+        # Determine bytes per pixel and numpy dtype based on pixel type
+        pixel_type = self.pixel_type
+        if pixel_type == "mono8":
+            bytes_per_pixel = 1
+            np_dtype = np.uint8
+        else:
+            # mono12, mono16, etc. all use 2 bytes per pixel
+            bytes_per_pixel = 2
+            np_dtype = np.uint16
+
         try:
             with Buffer(self.grabber, timeout=timeout_ms) as buffer:
                 ptr = buffer.get_info(BUFFER_INFO_BASE, INFO_DATATYPE_PTR)  # grab pointer to new frame
-                # grab frame data
-                data = ct.cast(ptr, ct.POINTER(ct.c_ubyte * column_count * row_count * 2)).contents
+                # grab frame data with correct buffer size
+                buffer_size = column_count * row_count * bytes_per_pixel
+                data = ct.cast(ptr, ct.POINTER(ct.c_ubyte * buffer_size)).contents
                 # cast data to np array of correct size/datatype:
-                image = np.frombuffer(data, count=int(column_count * row_count), dtype=np.uint16).reshape(
+                image = np.frombuffer(data, count=int(column_count * row_count), dtype=np_dtype).reshape(
                     (row_count, column_count)
                 )
         except Exception:
             self.log.exception("frame grab failed")
-            image = np.zeros((row_count, column_count), dtype=np.uint16)
+            image = np.zeros((row_count, column_count), dtype=np_dtype)
         # do software binning if != 1 and not a string for setting in egrabber]
         if self._binning > 1 and isinstance(BINNINGS[self._binning], int):
             image = np.copy(self.gpu_binning.run(image))
