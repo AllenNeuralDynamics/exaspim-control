@@ -214,12 +214,17 @@ class VoxelDAQ(VoxelDevice):
                 samps_per_chan=num_samples,
             )
 
+            task = self._tasks[task_name]
+
             # 3. Write data
             pulse_data = np.full(num_samples, voltage_v)
             self.write(task_name, pulse_data.tolist())
+            self.start_task(task_name)
+            task.wait_until_done(timeout=duration_s + 1.0)
+            self.stop_task(task_name)
 
-            # 4. Start and wait for completion
-            task = self._tasks[task_name]
+            pulse_data = np.full(num_samples, 0.0)
+            self.write(task_name, pulse_data.tolist())
             self.start_task(task_name)
             task.wait_until_done(timeout=duration_s + 1.0)
 

@@ -54,8 +54,12 @@ class FilterWheelWidget(DeviceWidget):
         # Build and add layout
         self.main_layout.addLayout(self._build_layout())
 
-        # Sync graphic to current device position
+        # Sync graphic to current device position BEFORE connecting signal
+        # to avoid triggering device.move() during initialization
         self._sync_graphic_to_device()
+
+        # Now connect signal - user clicks will trigger device movement
+        self._graphic.selected_changed.connect(self._on_user_select)
 
     def _create_wheel_widgets(self) -> tuple[WheelGraphic, QLabel]:
         """Create wheel graphic and status label."""
@@ -64,7 +68,7 @@ class FilterWheelWidget(DeviceWidget):
             assignments=self.device.labels,
             hue_mapping=self._hues,
         )
-        graphic.selected_changed.connect(self._on_user_select)
+        # Note: selected_changed signal is connected in __init__ after _sync_graphic_to_device()
 
         status_label = QLabel("Hover over circles to see labels, click to select")
 

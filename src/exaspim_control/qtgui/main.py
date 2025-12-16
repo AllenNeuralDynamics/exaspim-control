@@ -33,7 +33,7 @@ from exaspim_control.qtgui.devices.laser_widget import LaserWidget
 from exaspim_control.qtgui.devices_tab import DevicesTab
 from exaspim_control.qtgui.experiment_tab import ExperimentTab
 from exaspim_control.qtgui.live import LiveViewer
-from exaspim_control.qtgui.volume import GridControlsWidget, TileTable, VolumeGraphic, VolumeModel
+from exaspim_control.qtgui.volume import GridControls, VolumeGraphic, VolumeModel
 
 
 class HaltStageButton(QPushButton):
@@ -155,11 +155,11 @@ class InstrumentUI[I: ExASPIM](QMainWindow):
 
     Layout:
     - Left Panel (70%):
-        - Top: VolumeModel + LiveViewer (side by side)
-        - Bottom: Tabbed area (TileTable, Waveforms, DAQ) with tab bar at bottom
+        - Top: VolumeGraphic + LiveViewer (side by side)
+        - Bottom: Tabbed area (Grid, Waveforms, DAQ, Filters) with tab bar at bottom
     - Right Panel (30%):
         - Top: Actions Card (channel selector, acquisition, livestream controls)
-        - Middle: Tab content (Instrument, Devices, Acquisition)
+        - Middle: Tab content (Devices, Control, Experiment)
         - Bottom: Tab anchors
     """
 
@@ -177,8 +177,10 @@ class InstrumentUI[I: ExASPIM](QMainWindow):
         self._is_livestreaming = False
 
         # Live viewer (embedded + expandable to napari)
+        camera_rotation_deg = self.config.globals.camera_rotation_deg
         self.live_viewer = LiveViewer(
             title=f"Live: {self.instrument.camera.uid}",
+            camera_rotation_deg=camera_rotation_deg,
             parent=self,  # Napari window will be child of main window
         )
 
@@ -212,14 +214,8 @@ class InstrumentUI[I: ExASPIM](QMainWindow):
         self.volume_graphic = VolumeGraphic(model=self.volume_model, parent=self)
         self.volume_graphic.fovHalt.connect(self._on_halt_stage)
 
-        # Create TileTable (tile configuration table) - subscribes to VolumeModel
-        self.tile_table = TileTable(
-            model=self.volume_model,
-            parent=self,
-        )
-
-        # Create GridControlsWidget (grid configuration controls) - reads/writes VolumeModel
-        self.grid_controls = GridControlsWidget(
+        # Create GridControls (grid configuration controls + tile table) - reads/writes VolumeModel
+        self.grid_controls = GridControls(
             model=self.volume_model,
             parent=self,
         )
@@ -265,7 +261,7 @@ class InstrumentUI[I: ExASPIM](QMainWindow):
 
     @property
     def channels(self):
-        return self.config.channels
+        return self.config.profiles
 
     def _calculate_fov_dimensions(self) -> tuple[float, float, float]:
         """Calculate FOV dimensions from camera frame size and objective magnification.
@@ -312,7 +308,7 @@ class InstrumentUI[I: ExASPIM](QMainWindow):
         """Update VolumeModel with current stage limits.
 
         Reads limits from stage axes and propagates to VolumeModel,
-        which notifies all subscribed widgets (GridControlsWidget, TileTable, VolumeGraphic).
+        which notifies all subscribed widgets (GridControls, VolumeGraphic).
         """
         limits = [
             list(self.instrument.stage.x.limits_mm),
@@ -400,7 +396,7 @@ class InstrumentUI[I: ExASPIM](QMainWindow):
         self.log.info("UI layout created")
 
     def _create_left_panel(self) -> QWidget:
-        """Create left panel: VolumeGraphic + LiveViewer (top) + Tabbed bottom (TileTable)."""
+        """Create left panel: VolumeGraphic + LiveViewer (top) + Tabbed bottom (Grid, Waveforms, etc.)."""
         left_splitter = QSplitter(Qt.Orientation.Vertical)
 
         # TOP ROW: VolumeGraphic + LiveViewer side by side (min 800px tall)
@@ -463,16 +459,8 @@ class InstrumentUI[I: ExASPIM](QMainWindow):
         # Add channel combo to right corner of tab bar
         self.left_tabs.setCornerWidget(self.channel_combo, Qt.Corner.BottomRightCorner)
 
-        # Grid tab - GridControlsWidget (first tab)
-        grid_tab = QScrollArea()
-        grid_tab.setWidgetResizable(True)
-        grid_tab.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        grid_tab.setFrameShape(QScrollArea.Shape.NoFrame)
-        grid_tab.setWidget(self.grid_controls)
-        self.left_tabs.addTab(grid_tab, "Grid")
-
-        # TileTable tab - TileTable widget includes its own apply_all checkbox
-        self.left_tabs.addTab(self.tile_table, "TileTable")
+        # Grid tab - GridControls (tile table on left, controls on right)
+        self.left_tabs.addTab(self.grid_controls, "Grid")
 
         # Waveforms tab - AcquisitionTaskWidget with refresh button
         waveforms_tab = self._create_waveforms_tab()
@@ -488,7 +476,7 @@ class InstrumentUI[I: ExASPIM](QMainWindow):
 
         left_splitter.addWidget(self.left_tabs)
 
-        # Set initial sizes (70% top row, 30% tile table)
+        # Set initial sizes (70% top row, 30% tabs)
         left_splitter.setSizes([700, 300])
 
         return left_splitter
@@ -730,7 +718,7 @@ class InstrumentUI[I: ExASPIM](QMainWindow):
         switching hardware (lasers, filters), and restarting if was streaming.
         """
         self.active_channel = channel_name
-        self.instrument.set_active_channel(channel_name)
+        self.instrument.update_active_profile(channel_name)
         self.log.info(f"Channel changed to: {channel_name}")
 
     def _on_halt_stage(self) -> None:

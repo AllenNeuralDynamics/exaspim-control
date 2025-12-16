@@ -1,0 +1,66 @@
+import logging
+import threading
+from collections.abc import Sequence
+from functools import wraps
+from typing import Any
+
+from rich.logging import RichHandler
+
+
+def configure_logging(
+    level=logging.INFO,
+    fmt: str = "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    datefmt: str = "[%X]",
+    handlers: Sequence[logging.Handler] | None = None,
+    *,
+    rich_tracebacks: bool = True,
+    rich_markup: bool = False,
+) -> list[logging.Handler]:
+    """Configure logging with optional Rich handler support.
+
+    Args:
+        level: Root logging level.
+        fmt: Logging format string.
+        datefmt: Date format passed to logging.
+        handlers: Optional handler sequence. When omitted we try to add Rich if present.
+        rich_tracebacks: Passed to RichHandler when auto-installed.
+        rich_markup: Passed to RichHandler when auto-installed.
+
+    Returns:
+        List of handlers installed (empty if none were set explicitly).
+    """
+
+    resolved_handlers: list[logging.Handler] = []
+    if handlers is None:
+        if RichHandler is not None:
+            resolved_handlers.append(RichHandler(rich_tracebacks=rich_tracebacks, markup=rich_markup))
+            fmt = "%(name)s: %(message)s"
+    else:
+        resolved_handlers.extend(handlers)
+
+    basic_kwargs: dict[str, Any] = {"level": level, "format": fmt, "datefmt": datefmt}
+    if resolved_handlers:
+        basic_kwargs["handlers"] = resolved_handlers
+
+    logging.basicConfig(**basic_kwargs)
+    return resolved_handlers
+
+
+def thread_safe_singleton(func):
+    """A decorator that makes a function a thread-safe singleton.
+    The decorated function will only be executed once, and its result
+    will be cached and returned for all subsequent calls.
+    """
+    lock = threading.Lock()
+    instance = None
+
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        nonlocal instance
+        if instance is None:
+            with lock:
+                if instance is None:
+                    instance = func(*args, **kwargs)
+        return instance
+
+    return wrapper

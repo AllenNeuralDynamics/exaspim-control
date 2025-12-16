@@ -21,7 +21,7 @@ from PyQt6.QtWidgets import (
 )
 
 if TYPE_CHECKING:
-    from voxel.devices.daq.acq_task import AcquisitionTask
+    from exaspim_control.acq_task import AcquisitionTask
     from voxel.devices.daq.base import TaskStatus
 
 
@@ -189,7 +189,9 @@ class AcquisitionTaskWidget(QWidget):
     def _create_value_label(self, text: str) -> QLabel:
         """Create a styled value label."""
         label = QLabel(text)
-        label.setStyleSheet("color: #d4d4d4; font-size: 12px; font-weight: bold; border: none; background: transparent;")
+        label.setStyleSheet(
+            "color: #d4d4d4; font-size: 12px; font-weight: bold; border: none; background: transparent;"
+        )
         label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         return label
 

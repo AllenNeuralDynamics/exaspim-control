@@ -4,7 +4,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, computed_field, field_validator, model_validator
 from ruyaml import YAML
-from voxel.devices.daq.acq_task import AcqTaskConfig
+
+from exaspim_control.acq_task import AcqTaskConfig
 
 _yaml = YAML()
 
@@ -95,7 +96,7 @@ class ExASPIMConfig(BaseModel):
     writers: dict[str, BuildConfig] = Field(default_factory=dict)
     transfers: dict[str, BuildConfig] = Field(default_factory=dict)
     widgets: dict[str, BuildConfig] = Field(default_factory=dict)
-    channels: dict[str, ChannelConfig]
+    profiles: dict[str, ChannelConfig]
     acq_task: AcqTaskConfig
     stage: StageConfig
     acquisition: list[TileInfo] | None = None
@@ -117,12 +118,12 @@ class ExASPIMConfig(BaseModel):
 
     def get_channel_acq_task_config(self, channel_name: str) -> AcqTaskConfig:
         """Get the acquisition task config for a specific channel, with parameters merged."""
-        if channel_name not in self.channels:
+        if channel_name not in self.profiles:
             msg = f"Channel '{channel_name}' not found in configuration."
             raise ValueError(msg)
 
         channel_acq_task_config = self.acq_task.model_copy(deep=True)
-        overrides_waveforms = self.channels[channel_name].ao_task_parameters
+        overrides_waveforms = self.profiles[channel_name].ao_task_parameters
 
         for wave_name, override_wave_params in overrides_waveforms.items():
             if wave_name in channel_acq_task_config.waveforms:
@@ -134,7 +135,7 @@ class ExASPIMConfig(BaseModel):
 
         return channel_acq_task_config
 
-    @field_validator("channels")
+    @field_validator("profiles")
     @classmethod
     def channels_must_not_be_empty(cls, v):
         if not v:
@@ -144,7 +145,7 @@ class ExASPIMConfig(BaseModel):
     @model_validator(mode="after")
     def channel_devices_must_exist(self):
         devices = self.devices
-        for channel_name, channel in self.channels.items():
+        for channel_name, channel in self.profiles.items():
             if channel.camera and channel.camera not in devices:
                 msg = f"channel '{channel_name}' references unknown camera '{channel.camera}'"
                 raise ValueError(msg)

@@ -2,11 +2,11 @@
 
 This QObject holds all shared state for volume planning and emits signals
 when state changes. It is created by InstrumentUI and passed to all volume
-widgets (GridControlsWidget, TileTable, VolumeGraphic).
+widgets (GridControls, VolumeGraphic).
 
 AxisWidgets push position/limits updates here.
-GridControlsWidget reads/writes grid configuration.
-TileTable and VolumeGraphic subscribe for display updates.
+GridControls reads/writes grid configuration and displays tile table.
+VolumeGraphic subscribes for display updates.
 """
 
 from __future__ import annotations

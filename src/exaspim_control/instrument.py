@@ -8,13 +8,13 @@ import numpy as np
 from voxel.devices.axes.continous import VoxelAxis
 from voxel.devices.base import VoxelDevice
 from voxel.devices.camera.base import BaseCamera
-from voxel.devices.daq.acq_task import AcquisitionTask
 from voxel.devices.daq.base import VoxelDAQ
 from voxel.devices.filterwheel.base import VoxelFilterWheel
 from voxel.devices.flip_mount.base import BaseFlipMount
 from voxel.devices.joystick.base import BaseJoystick
 from voxel.devices.laser.base import BaseLaser
 
+from exaspim_control.acq_task import AcquisitionTask
 from exaspim_control.build import build_objects
 from exaspim_control.config import ExASPIMConfig
 
@@ -74,13 +74,14 @@ class ExASPIM:
             elif isinstance(device, BaseJoystick):
                 self.joysticks[device_name] = device
 
-        self._active_channel = next(iter(self.cfg.channels))
+        self._active_profile = next(iter(self.cfg.profiles))
 
         # Livestream state
         self._is_livestreaming = False
-        self._acq_task: AcquisitionTask | None = None
         self._frame_thread: Thread | None = None
         self._on_frame_callback: Callable[[np.ndarray], None] | None = None
+
+        self._acq_task: AcquisitionTask = self._set_active_profile(self._active_profile)
 
     def disable_lasers(self):
         for laser in self.lasers.values():
@@ -88,42 +89,56 @@ class ExASPIM:
 
     @property
     def active_channel_laser(self) -> BaseLaser:
-        channel_cfg = self.cfg.channels[self._active_channel]
+        channel_cfg = self.cfg.profiles[self._active_profile]
         return self.lasers[channel_cfg.laser]
 
     def _disable_channel(self, channel_name: str) -> None:
         """Disable hardware for a channel (laser)."""
-        channel_cfg = self.cfg.channels[channel_name]
+        channel_cfg = self.cfg.profiles[channel_name]
         self.lasers[channel_cfg.laser].disable()
         self.log.debug(f"Disabled channel '{channel_name}'")
 
-    def set_active_channel(self, channel_name: str) -> None:
-        """Switch to a different imaging channel.
+    def _set_active_profile(self, profile_name: str) -> AcquisitionTask:
+        # Update active channel
+        self._active_profile = profile_name
+
+        # Set filter positions
+        if hasattr(self, "_acq_task") and self._acq_task is not None:
+            self._acq_task.close()
+
+        for filter_name, filter_label in self.cfg.profiles[profile_name].filters.items():
+            self.filter_wheels[filter_name].select(filter_label)
+
+        acq_task = AcquisitionTask(
+            uid=f"{self._active_profile}_acq_task",
+            daq=self.daq,
+            cfg=self.cfg.get_channel_acq_task_config(self._active_profile),
+        )
+        acq_task.setup()
+
+        return acq_task
+
+    def update_active_profile(self, profile_name: str) -> None:
+        """Switch to a different imaging profile(channel).
 
         Stops livestream, switches hardware, restarts if was streaming.
         """
-        if channel_name not in self.cfg.channels:
-            msg = f"Channel '{channel_name}' not in config"
+        if profile_name not in self.cfg.profiles:
+            msg = f"Channel '{profile_name}' not in config"
             raise ValueError(msg)
 
-        if channel_name == self._active_channel:
+        if profile_name == self._active_profile:
             return  # No change needed
 
-        old_channel = self._active_channel
+        old_profile = self._active_profile
         callback = self._on_frame_callback  # Preserve callback before stopping
 
-        # Stop livestream (no-op if not streaming)
         self.stop_livestream()
 
-        # Update active channel
-        self._active_channel = channel_name
+        self._acq_task.close()
+        self._acq_task = self._set_active_profile(profile_name)
 
-        channel_cfg = self.cfg.channels[channel_name]
-        # Set filter positions
-        for filter_name, filter_label in channel_cfg.filters.items():
-            self.filter_wheels[filter_name].select(filter_label)
-
-        self.log.info(f"Switched channel: {old_channel} -> {channel_name}")
+        self.log.info(f"Switched profile: {old_profile} -> {profile_name}")
 
         # Restart livestream with new channel if was running
         if callback:
@@ -150,20 +165,23 @@ class ExASPIM:
         self.camera.start(None)  # None = continuous acquisition
 
         # 3. Setup and start AcquisitionTask with channel-specific waveforms
-        self._acq_task = AcquisitionTask(
-            uid=f"livestream_{self._active_channel}",
-            daq=self.daq,
-            cfg=self.cfg.get_channel_acq_task_config(self._active_channel),
-        )
-        self._acq_task.setup()
-        self._acq_task.start()
+        # self._acq_task = AcquisitionTask(
+        #     uid=f"livestream_{self._active_channel}",
+        #     daq=self.daq,
+        #     cfg=self.cfg.get_channel_acq_task_config(self._active_channel),
+        # )
+        # self._acq_task.setup()
+        if self._acq_task:
+            self._acq_task.start()
+        else:
+            self.log.error("Daq acq_task missing when starting livestream. Profile: %s", self._active_profile)
 
         # 4. Start frame grabber thread
         self._is_livestreaming = True
         self._frame_thread = Thread(target=self._frame_grabber_loop, daemon=True)
         self._frame_thread.start()
 
-        self.log.info(f"Started livestream on channel '{self._active_channel}'")
+        self.log.info(f"Started livestream on channel '{self._active_profile}'")
 
     def _frame_grabber_loop(self) -> None:
         """Thread loop to continuously grab frames from camera."""
@@ -199,8 +217,8 @@ class ExASPIM:
         # 4. Stop and close AcquisitionTask
         if self._acq_task is not None:
             self._acq_task.stop()
-            self._acq_task.close()
-            self._acq_task = None
+            # self._acq_task.close()
+            # self._acq_task = None
 
         # 5. Stop camera
         self.camera.stop()

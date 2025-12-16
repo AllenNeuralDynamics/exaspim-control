@@ -193,7 +193,6 @@ devices:
       backlash_mm: 0.004
       acceleration_ms: 20.0
 
-
 stage:
   x: x-axis
   y: y-axis
@@ -215,9 +214,10 @@ acq_task:
     "639-nm": ao9
     left-etl: ao1
     right-etl: ao3
-    left-piezo-x: ao7
-    left-piezo-y: ao11
-    left-piezo-z: ao14
+    # Piezo ports commented out - conflict with filter wheel pins (ao7, ao11, ao14)
+    # left-piezo-x: ao7
+    # left-piezo-y: ao11
+    # left-piezo-z: ao14
     galvo-positive: ao24
     galvo-negative: ao25
   waveforms:
@@ -245,18 +245,19 @@ acq_task:
       type: multi_point
       voltage: { min: "0V", max: "10V" } # Placeholder range
       points: [ [0, 0.485], [1, 0.755] ] # Approximating nonlinear sawtooth
-    left-piezo-x:
-      type: pulse
-      voltage: { min: "0 V", max: "0 V" }
-      window: { min: 0, max: 1 }
-    left-piezo-y:
-      type: pulse
-      voltage: { min: "0 V", max: "0 V" }
-      window: { min: 0, max: 1 }
-    left-piezo-z:
-      type: pulse
-      voltage: { min: "0 V", max: "0 V" }
-      window: { min: 0, max: 1 }
+    # Piezo waveforms commented out - conflict with filter wheel pins (ao7, ao11, ao14)
+    # left-piezo-x:
+    #   type: pulse
+    #   voltage: { min: "0 V", max: "0 V" }
+    #   window: { min: 0, max: 1 }
+    # left-piezo-y:
+    #   type: pulse
+    #   voltage: { min: "0 V", max: "0 V" }
+    #   window: { min: 0, max: 1 }
+    # left-piezo-z:
+    #   type: pulse
+    #   voltage: { min: "0 V", max: "0 V" }
+    #   window: { min: 0, max: 1 }
     galvo-positive:
       type: triangle
       frequency: "100 Hz" # 1/10ms
@@ -268,7 +269,7 @@ acq_task:
       symmetry: 0.5
       voltage: { min: "-0.1 V", max: "0.5 V" } # offset 0.2, amplitude 0.6 (abs)
 
-channels:
+profiles:
   "488":
     laser: 488-nm
     camera: vp-151mx

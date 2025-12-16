@@ -39,12 +39,23 @@ class LiveViewer(QWidget):
     def __init__(
         self,
         title: str = "Live Viewer",
+        camera_rotation_deg: float = 0.0,
         parent: QWidget | None = None,
     ):
+        """Initialize LiveViewer.
+
+        :param title: Window title for napari viewer
+        :param camera_rotation_deg: Camera rotation in degrees (0, 90, -90, 180, etc.)
+            Used to rotate displayed frames to match physical stage orientation.
+        :param parent: Parent widget
+        """
         super().__init__(parent)
         self.log = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
         self._title = title
         self._parent = parent  # Parent for napari window
+        self._camera_rotation_deg = camera_rotation_deg
+        self._rot90_k = self._compute_rot90_k(camera_rotation_deg)
+        self._napari_rotation_deg = self._compute_display_rotation_deg(camera_rotation_deg)
         self._is_closing = False
         self._is_expanded = False
         self._frame_times: list[float] = []
@@ -71,6 +82,45 @@ class LiveViewer(QWidget):
 
         # Napari viewer (created lazily when first expanded)
         self._napari_viewer: napari.Viewer | None = None
+
+    def _compute_rot90_k(self, rotation_deg: float) -> int:
+        """Compute the k parameter for np.rot90 to counter camera rotation.
+
+        np.rot90 rotates counter-clockwise, so to counter a camera rotation
+        we apply the opposite rotation to the displayed image.
+
+        :param rotation_deg: Camera rotation in degrees
+        :return: k value for np.rot90 (0, 1, 2, or 3)
+        """
+        # Normalize to 0-360 range
+        normalized = rotation_deg % 360
+        # Map to k value: counter-rotate to align with physical axes
+        # Camera rotated -90° (or 270°) → rotate image +90° (k=1)
+        # Camera rotated +90° → rotate image -90° (k=3)
+        # Camera rotated 180° → rotate image 180° (k=2)
+        rotation_to_k = {0: 0, 90: 3, 180: 2, 270: 1}
+        return rotation_to_k.get(int(normalized), 0)
+
+    def _compute_display_rotation_deg(self, camera_rotation_deg: float) -> float:
+        """Compute display rotation angle to counter camera rotation.
+
+        :param camera_rotation_deg: Camera rotation in degrees
+        :return: Display rotation in degrees (counter-rotation)
+        """
+        # Counter-rotate: if camera is at -90°, display at +90°
+        return -camera_rotation_deg
+
+    def _rotate_frame(self, frame: np.ndarray) -> np.ndarray:
+        """Rotate frame to match physical stage orientation.
+
+        Used for embedded display where we decimate first (efficient).
+
+        :param frame: Input frame from camera
+        :return: Rotated frame (view, not copy)
+        """
+        if self._rot90_k == 0:
+            return frame
+        return np.rot90(frame, k=self._rot90_k)
 
     def _create_image_label(self) -> QLabel:
         """Create the embedded image display label."""
@@ -281,10 +331,13 @@ class LiveViewer(QWidget):
                     fps = (len(self._frame_times) - 1) / elapsed
                     self._fps_label.setText(f"{fps:.1f} FPS")
 
-            # Update embedded display
-            self._update_embedded_display(frame)
+            # Rotate frame for embedded display (uses decimated view - efficient)
+            rotated_frame = self._rotate_frame(frame)
 
-            # Update napari viewer if expanded
+            # Update embedded display with rotated frame
+            self._update_embedded_display(rotated_frame)
+
+            # Update napari viewer with original frame (rotation via GPU affine transform)
             if self._is_expanded and self._napari_viewer is not None:
                 self._update_napari_viewer(frame)
         finally:
@@ -350,13 +403,18 @@ class LiveViewer(QWidget):
 
         Handles dtype changes (e.g., mono16→mono8) gracefully by
         removing and re-adding the layer when needed.
+
+        Uses GPU affine transform for rotation (efficient for large images).
         """
         if self._napari_viewer is None:
             return
 
         try:
             if len(self._napari_viewer.layers) == 0:
-                self._napari_viewer.add_image(frame, name="Camera")
+                layer = self._napari_viewer.add_image(frame, name="Camera")
+                # Apply rotation via GPU transform (no CPU copy of 151MP image)
+                if self._napari_rotation_deg != 0:
+                    layer.rotate = self._napari_rotation_deg
             else:
                 layer = self._napari_viewer.layers[0]
                 # Check if dtype changed - if so, remove and re-add layer
@@ -364,7 +422,9 @@ class LiveViewer(QWidget):
                 if layer.data.dtype != frame.dtype:
                     self.log.info(f"Frame dtype changed from {layer.data.dtype} to {frame.dtype}, recreating layer")
                     self._napari_viewer.layers.clear()
-                    self._napari_viewer.add_image(frame, name="Camera")
+                    layer = self._napari_viewer.add_image(frame, name="Camera")
+                    if self._napari_rotation_deg != 0:
+                        layer.rotate = self._napari_rotation_deg
                 else:
                     layer.data = frame
         except Exception:

@@ -4,10 +4,9 @@ from typing import Any, Self
 
 import numpy as np
 from pydantic import BaseModel, Field, computed_field, model_validator
-
-from .base import AcqSampleMode, PinInfo, VoxelDAQ
-from .quantity import Frequency, NormalizedRange, Time
-from .wave import Waveform
+from voxel.devices.daq.base import AcqSampleMode, PinInfo, VoxelDAQ
+from voxel.devices.daq.quantity import Frequency, NormalizedRange, Time
+from voxel.devices.daq.wave import Waveform
 
 
 class TriggerConfig(BaseModel):
@@ -157,7 +156,9 @@ class AcquisitionTask:
             duty_cycle=self._timing.clock.duty_cycle,
             output_pin=self._timing.clock.pin,
         )
-        self._log.info(f"Created clock task '{self._clock_task_uid}' at {self._timing.frequency}Hz on {self._timing.clock.pin}")
+        self._log.info(
+            f"Created clock task '{self._clock_task_uid}' at {self._timing.frequency}Hz on {self._timing.clock.pin}"
+        )
 
     def _write(self) -> None:
         """Generate and write waveform data to the task."""

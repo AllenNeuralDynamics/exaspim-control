@@ -7,7 +7,7 @@ authors = [
     { name = "Micah Woodard", email = "micah.woodard@alleninstitute.org" },
     { name = "Walter Mwaniki", email = "walter.g.mwaniki@gmail.com" },
 ]
-requires-python = ">=3.12, <3.13"
+requires-python = ">=3.13, <3.14"
 dependencies = [
     'pyqtgraph >= 0.12.4',
     'numpy >= 1.23.5',

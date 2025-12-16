@@ -1,7 +1,7 @@
 [project]
 name = "exaspim-control"
 description = "Control software for the ExaSPIM microscope"
-requires-python = ">=3.12, <3.13"
+requires-python = ">=3.13, <3.14"
 authors = [
     { name = "Micah Woodard", email = "micah.woodard@alleninstitute.org" },
     { name = "Adam Glaser", email = "adam.glaser@alleninstitute.org" },
@@ -34,6 +34,7 @@ dependencies = [
     "view",
     "ruyaml>=0.91.0",
     "pydantic>=2.11.10",
+    "opencv-python>=4.12.0.88",
 ]
 
 [dependency-groups]
