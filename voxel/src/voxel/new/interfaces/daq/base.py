@@ -6,6 +6,7 @@ to create typed task objects with automatic channel and pin management.
 """
 
 from abc import abstractmethod
+from collections.abc import Mapping
 from enum import StrEnum
 from typing import TYPE_CHECKING
 
@@ -14,7 +15,8 @@ from voxel.new.device import describe
 from voxel.new.interfaces.spim import DeviceType, SpimDevice
 
 if TYPE_CHECKING:
-    from .quantity import VoltageRange
+    from voxel.new.device.quantity import VoltageRange
+
     from .tasks import AOTask, COTask
 
 
@@ -109,7 +111,7 @@ class SpimDaq(SpimDevice):
     @property
     @abstractmethod
     @describe(label="Active Tasks", desc="Currently active tasks")
-    def active_tasks(self) -> dict[str, "AOTask | COTask"]:
+    def active_tasks(self) -> Mapping[str, "AOTask | COTask"]:
         """Get dictionary of active tasks (name -> task instance)."""
 
     # ==================== Pin Management ====================

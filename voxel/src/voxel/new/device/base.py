@@ -2,7 +2,6 @@ import asyncio
 import inspect
 import logging
 from collections.abc import Callable, Mapping, Sequence
-from enum import StrEnum
 from functools import wraps
 from typing import Any, ClassVar, Literal, Self, Union, get_args, get_origin
 
@@ -55,7 +54,7 @@ def describe(label: str, desc: str | None = None, units: str | None = None, stre
     return decorator
 
 
-class Device[T: StrEnum]:
+class Device:
     __COMMANDS__: set[str] = set()
     __DEVICE_TYPE__: ClassVar[str] = "generic"
 

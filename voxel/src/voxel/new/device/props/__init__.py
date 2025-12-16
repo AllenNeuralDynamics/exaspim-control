@@ -13,7 +13,7 @@ __all__ = [
 if __name__ == "__main__":
     import logging
 
-    from pyrig.utils import configure_logging
+    from voxel.new.utils import configure_logging
 
     logger = logging.getLogger(__name__)
 

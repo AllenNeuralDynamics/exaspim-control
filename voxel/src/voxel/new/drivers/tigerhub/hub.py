@@ -2,10 +2,10 @@ from collections.abc import Iterable
 from threading import RLock
 from typing import TYPE_CHECKING
 
-from voxel.new.device import Device
 from voxel.new.drivers.poller import Poller
 from voxel.new.drivers.tigerhub.box import TigerBox
 from voxel.new.drivers.tigerhub.model.models import ASIAxisInfo
+from voxel.new.interfaces.spim import DeviceType, SpimDevice
 
 if TYPE_CHECKING:
     from voxel.new.drivers.axes.asi import TigerAxis
@@ -23,7 +23,8 @@ class AxisAlreadyReservedError(ValueError):
         super().__init__(f"Axis {axis} is already reserved.")
 
 
-class TigerHub(Device):
+class TigerHub(SpimDevice):
+    __DEVICE_TYPE__ = DeviceType.GENERIC
     """Hub wrapper around a single TigerBox. Manages axis reservations."""
 
     def __init__(self, box: TigerBox | str) -> None:
@@ -139,8 +140,8 @@ class TigerHub(Device):
             self._reserved.discard(uid.upper())
 
     def make_linear_axis(self, *, uid: str, asi_label: str | None = None) -> "TigerAxis":
-        """Reserve and return a TigerLinearAxis bound to a Tiger UID."""
-        from voxel.new.drivers.axes.asi import TigerLinearAxis
+        """Reserve and return a TigerAxis bound to a Tiger UID."""
+        from voxel.new.drivers.axes.asi import TigerAxis
 
         asi_label = asi_label or uid.upper()
-        return TigerLinearAxis(hub=self, uid=uid, axis_label=asi_label)
+        return TigerAxis(hub=self, uid=uid, axis_label=asi_label)

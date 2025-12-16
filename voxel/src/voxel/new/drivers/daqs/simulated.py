@@ -1,5 +1,7 @@
 """Simulated DAQ driver for testing purposes."""
 
+from collections.abc import Mapping
+
 import numpy as np
 
 from voxel.new.device.quantity import VoltageRange
@@ -278,7 +280,7 @@ class SimulatedDaq(SpimDaq):
         return self._assigned_pins.copy()
 
     @property
-    def active_tasks(self) -> dict[str, AOTask | COTask]:
+    def active_tasks(self) -> Mapping[str, AOTask | COTask]:
         """Get dictionary of active tasks (name -> task instance)."""
         return self._active_tasks
 

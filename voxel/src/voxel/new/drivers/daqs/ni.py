@@ -1,5 +1,6 @@
 """NI DAQ driver implementation for SPIM systems."""
 
+from collections.abc import Mapping
 from enum import StrEnum
 
 import numpy as np
@@ -368,7 +369,7 @@ class NiDaq(SpimDaq):
         return assigned
 
     @property
-    def active_tasks(self) -> dict[str, AOTask | COTask]:
+    def active_tasks(self) -> Mapping[str, AOTask | COTask]:
         """Get dictionary of active tasks (name -> task instance)."""
         return self._active_tasks
 

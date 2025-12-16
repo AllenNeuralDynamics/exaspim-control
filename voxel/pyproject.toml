@@ -47,6 +47,7 @@ dependencies = [
     "numpy>2.0.0",
     "siphash24>=1.7",
     "ome-zarr-writer",
+    "aaopto-aotf>=0.0.11",
 ]
 
 

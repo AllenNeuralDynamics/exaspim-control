@@ -120,7 +120,6 @@ class SpimCamera(SpimDevice):
 
     @property
     @describe(label="Region of Interest")
-    @abstractmethod
     def roi(self) -> ROI:
         """Get the current ROI configuration."""
         return self._get_roi()

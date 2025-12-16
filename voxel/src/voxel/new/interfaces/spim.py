@@ -15,4 +15,4 @@ class DeviceType(StrEnum):
 
 
 class SpimDevice(Device):
-    __DEVICE_TYPE__: ClassVar[DeviceType] = DeviceType.GENERIC
+    __DEVICE_TYPE__: ClassVar[DeviceType] = DeviceType.GENERIC  # pyright: ignore[reportIncompatibleVariableOverride]

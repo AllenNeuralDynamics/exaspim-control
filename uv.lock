@@ -10,6 +10,19 @@ members = [
 ]
 
 [[package]]
+name = "aaopto-aotf"
+version = "0.0.11"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "parse" },
+    { name = "pyserial" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/86/1e/46bd3ec5ec5a39ecb6906d146fc296258f490663063efd5e9d712da8e380/aaopto_aotf-0.0.11.tar.gz", hash = "sha256:579bd58ba2409a94e7696d96a2d34a4845905dffaf38611d362a1daca8d21ac4", size = 39650, upload-time = "2024-06-13T20:06:01.929Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/18/55/3546776bd907fd6bff0313e3646fa8070bd4a1de0d848c151bc914074041/aaopto_aotf-0.0.11-py3-none-any.whl", hash = "sha256:01db53479b3c91777089b420774f94a1a204709759035c790a8909a4b8cc600f", size = 7904, upload-time = "2024-06-13T20:06:00.589Z" },
+]
+
+[[package]]
 name = "accessible-pygments"
 version = "0.0.5"
 source = { registry = "https://pypi.org/simple" }
@@ -1503,6 +1516,15 @@ wheels = [
 ]
 
 [[package]]
+name = "parse"
+version = "1.20.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/4f/78/d9b09ba24bb36ef8b83b71be547e118d46214735b6dfb39e4bfde0e9b9dd/parse-1.20.2.tar.gz", hash = "sha256:b41d604d16503c79d81af5165155c0b20f6c8d6c559efa66b4b695c3e5a0a0ce", size = 29391, upload-time = "2024-06-11T04:41:57.34Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/d0/31/ba45bf0b2aa7898d81cbbfac0e88c267befb59ad91a19e36e1bc5578ddb1/parse-1.20.2-py2.py3-none-any.whl", hash = "sha256:967095588cb802add9177d0c0b6133b5ba33b1ea9007ca800e526f42a85af558", size = 20126, upload-time = "2024-06-11T04:41:55.057Z" },
+]
+
+[[package]]
 name = "parso"
 version = "0.8.5"
 source = { registry = "https://pypi.org/simple" }
@@ -2937,6 +2959,7 @@ name = "voxel"
 version = "0.1.0"
 source = { editable = "voxel" }
 dependencies = [
+    { name = "aaopto-aotf" },
     { name = "fast-histogram" },
     { name = "gputools" },
     { name = "h5py" },
@@ -3020,6 +3043,7 @@ ximea-camera = [
 
 [package.metadata]
 requires-dist = [
+    { name = "aaopto-aotf", specifier = ">=0.0.11" },
     { name = "acquire-zarr", marker = "extra == 'acquire-zarr-writer'", specifier = ">=0.0.5" },
     { name = "coherent-lasers", marker = "extra == 'coherent-laser'", url = "https://github.com/AllenNeuralDynamics/coherent-lasers/releases/download/v0.1.0/coherent_lasers-0.1.0-py3-none-any.whl" },
     { name = "egrabber", marker = "extra == 'egrabber-camera'", url = "https://github.com/adamkglaser/egrabber-python/releases/download/v24.09.0.5/egrabber-24.09.0.5-py2.py3-none-any.whl" },
