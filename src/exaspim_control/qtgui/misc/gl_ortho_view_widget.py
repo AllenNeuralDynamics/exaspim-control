@@ -25,8 +25,8 @@ class GLOrthoViewWidget(GLViewWidget):
             region = (0, 0, self.width() * dpr, self.height() * dpr)
 
         x0, y0, w, h = self.getViewport()
-        dist = self.opts["distance"]
-        fov = self.opts["fov"]
+        dist = float(self.opts["distance"])
+        fov = float(self.opts["fov"])
         nearClip = dist * 0.001
         farClip = dist * 1000.0
 

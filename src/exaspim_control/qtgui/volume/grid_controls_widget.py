@@ -143,7 +143,8 @@ class GridControls(QWidget):
 
         # Set up delegates for editable columns
         for i in range(1, len(self.table_columns)):
-            column_name = self.tile_table.horizontalHeaderItem(i).text()
+            header_item = self.tile_table.horizontalHeaderItem(i)
+            column_name = header_item.text() if header_item else f"col_{i}"
             delegate = QSpinItemDelegate()
             setattr(self, f"table_column_{column_name}_delegate", delegate)
             self.tile_table.setItemDelegateForColumn(i, delegate)
@@ -873,25 +874,33 @@ class GridControls(QWidget):
             return
 
         # Check if order changed
-        table_order = [
-            [int(x) for x in self.tile_table.item(i, 0).text() if x.isdigit()]
-            for i in range(self.tile_table.rowCount())
+        table_order: list[list[int]] = []
+        for i in range(self.tile_table.rowCount()):
+            item = self.tile_table.item(i, 0)
+            if item:
+                table_order.append([int(x) for x in item.text() if x.isdigit()])
+        value_order: list[list[int]] = [
+            [t.row, t.col] for t in grid if t.row is not None and t.col is not None
         ]
-        value_order = [[t.row, t.col] for t in grid]
         order_matches = np.array_equal(table_order, value_order)
         if not order_matches:
             self._refill_table()
             return
 
         # Check if tile positions match
-        table_pos = [
-            [self.tile_table.item(j, i).data(Qt.ItemDataRole.EditRole) for i in range(1, 4)]
-            for j in range(self.tile_table.rowCount())
-        ]
+        table_pos = []
+        for j in range(self.tile_table.rowCount()):
+            row_data = []
+            for i in range(1, 4):
+                item = self.tile_table.item(j, i)
+                row_data.append(item.data(Qt.ItemDataRole.EditRole) if item else None)
+            table_pos.append(row_data)
         value_pos = self._model.tile_positions
         # Flatten value_pos for comparison
         value_pos_list = [
-            [value_pos[t.row, t.col, 0], value_pos[t.row, t.col, 1], value_pos[t.row, t.col, 2]] for t in grid
+            [value_pos[t.row, t.col, 0], value_pos[t.row, t.col, 1], value_pos[t.row, t.col, 2]]
+            for t in grid
+            if t.row is not None and t.col is not None
         ]
         pos_matches = np.array_equal(table_pos, value_pos_list)
         if not pos_matches:
@@ -907,14 +916,17 @@ class GridControls(QWidget):
         self.tile_table.setRowCount(0)
 
         for tile in grid:
-            self._add_tile_to_table(tile.row, tile.col)
+            if tile.row is not None and tile.col is not None:
+                self._add_tile_to_table(tile.row, tile.col)
 
         # Restore start/stop indices
         self.header.blockSignals(True)
-        if self._model.start_tile is not None:
-            self.header.set_start(self._model.start_tile)
-        if self._model.stop_tile is not None:
-            self.header.set_stop(self._model.stop_tile)
+        start_tile = self._model.start_tile
+        stop_tile = self._model.stop_tile
+        if start_tile is not None:
+            self.header.set_start(start_tile)
+        if stop_tile is not None:
+            self.header.set_stop(stop_tile)
         self.header.blockSignals(False)
 
     def _add_tile_to_table(self, row: int, column: int) -> None:
@@ -993,7 +1005,7 @@ class GridControls(QWidget):
             # Update all checkboxes in table
             for r in range(self.tile_table.rowCount()):
                 checkbox = self.tile_table.cellWidget(r, self.table_columns.index("visibility"))
-                if checkbox:
+                if checkbox is not None and isinstance(checkbox, VCheckBox):
                     checkbox.blockSignals(True)
                     checkbox.setChecked(checked)
                     checkbox.blockSignals(False)
@@ -1005,7 +1017,10 @@ class GridControls(QWidget):
 
         :param item: Changed table item
         """
-        row, column = [int(x) for x in self.tile_table.item(item.row(), 0).text() if x.isdigit()]
+        first_col_item = self.tile_table.item(item.row(), 0)
+        if first_col_item is None:
+            return
+        row, column = [int(x) for x in first_col_item.text() if x.isdigit()]
         col_title = self.table_columns[item.column()]
 
         titles = [
@@ -1030,9 +1045,11 @@ class GridControls(QWidget):
 
                 # Update all rows in table
                 for r in range(self.tile_table.rowCount()):
-                    self.tile_table.blockSignals(True)
-                    self.tile_table.item(r, item.column()).setData(Qt.ItemDataRole.EditRole, value)
-                    self.tile_table.blockSignals(False)
+                    row_item = self.tile_table.item(r, item.column())
+                    if row_item is not None:
+                        self.tile_table.blockSignals(True)
+                        row_item.setData(Qt.ItemDataRole.EditRole, value)
+                        self.tile_table.blockSignals(False)
 
             self.valueChanged.emit(self._model.get_grid_value())
 

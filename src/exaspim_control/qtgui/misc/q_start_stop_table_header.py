@@ -1,6 +1,8 @@
+from typing import cast
+
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QAction, QMouseEvent
-from PyQt6.QtWidgets import QHeaderView, QMenu, QStyle, QTableWidgetItem
+from PyQt6.QtWidgets import QHeaderView, QMenu, QStyle, QTableWidget, QTableWidgetItem
 
 
 class QStartStopTableHeader(QHeaderView):
@@ -11,21 +13,18 @@ class QStartStopTableHeader(QHeaderView):
     stopChanged = pyqtSignal(int)
 
     def __init__(self, parent):
-        super().__init__(Qt.Vertical, parent)
+        super().__init__(Qt.Orientation.Vertical, parent)
 
         self.start = None
         self.stop = None
-        self.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.sectionRightClicked.connect(self.menu_popup)
 
-    def mousePressEvent(self, event, **kwargs):
-        """Detect click event and set correct setting
-        :param **kwargs:
-        """
-        super().mousePressEvent(event, **kwargs)
-
-        if event.button() == Qt.RightButton:
-            self.sectionRightClicked.emit(event)
+    def mousePressEvent(self, e: QMouseEvent | None) -> None:
+        """Detect click event and set correct setting."""
+        super().mousePressEvent(e)
+        if e is not None and e.button() == Qt.MouseButton.RightButton:
+            self.sectionRightClicked.emit(e)
 
     def menu_popup(self, event: QMouseEvent):
         """
@@ -54,49 +53,40 @@ class QStartStopTableHeader(QHeaderView):
             menu.addAction(clear_act)
         menu.popup(self.mapToGlobal(event.pos()))
 
-    def set_start(self, index: int):
-        """
-        Set start tile
-        :param index: index to set to start at
-        :return:
-        """
+    def _table(self) -> QTableWidget:
+        """Get parent table widget."""
+        return cast(QTableWidget, self.parent())
 
+    def set_start(self, index: int) -> None:
+        """Set start tile."""
         if self.start is not None:
             self.clear(self.start)
 
-        icon = self.style().standardIcon(QStyle.StandardPixmap.SP_DialogYesButton)
-        item = QTableWidgetItem()
-        item.setIcon(icon)
-        self.parent().setVerticalHeaderItem(index, item)
-        self.start = index
+        if style := self.style():
+            icon = style.standardIcon(QStyle.StandardPixmap.SP_DialogYesButton)
+            item = QTableWidgetItem()
+            item.setIcon(icon)
+            self._table().setVerticalHeaderItem(index, item)
 
+        self.start = index
         self.startChanged.emit(index)
 
-    def set_stop(self, index: int):
-        """
-        Set stop tile
-        :param index: index to set to stop at
-        :return:
-        """
-
+    def set_stop(self, index: int) -> None:
+        """Set stop tile."""
         if self.stop is not None:
             self.clear(self.stop)
 
-        icon = self.style().standardIcon(QStyle.StandardPixmap.SP_DialogNoButton)
-        item = QTableWidgetItem()
-        item.setIcon(icon)
-        self.parent().setVerticalHeaderItem(index, item)
-        self.stop = index
+        if style := self.style():
+            icon = style.standardIcon(QStyle.StandardPixmap.SP_DialogNoButton)
+            item = QTableWidgetItem()
+            item.setIcon(icon)
+            self._table().setVerticalHeaderItem(index, item)
 
+        self.stop = index
         self.stopChanged.emit(index)
 
-    def clear(self, index: int):
-        """
-        Clear index of start or stop
-        :param index:
-        :return:
-        """
-
+    def clear(self, index: int) -> None:
+        """Clear index of start or stop."""
         if index == self.stop:
             self.stop = None
         elif index == self.start:
@@ -104,4 +94,4 @@ class QStartStopTableHeader(QHeaderView):
 
         item = QTableWidgetItem()
         item.setText(str(index + 1))
-        self.parent().setVerticalHeaderItem(index, item)
+        self._table().setVerticalHeaderItem(index, item)

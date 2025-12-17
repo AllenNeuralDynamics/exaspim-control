@@ -33,8 +33,8 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 from ruyaml import YAML
-from voxel.acquisition import Acquisition
-from voxel.instrument import Instrument
+from voxel._archive.acquisition import Acquisition
+from voxel._archive.instrument import Instrument
 from voxel.processes.downsample.gpu.gputools.rank_downsample_2d import GPUToolsRankDownSample2D
 
 from view.acquisition_view import AcquisitionView

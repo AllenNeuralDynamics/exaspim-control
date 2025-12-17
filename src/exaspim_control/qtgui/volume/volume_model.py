@@ -30,11 +30,15 @@ class GridFromEdges(useq.GridFromEdges):
 
     @property
     def rows(self) -> int:
+        if self.fov_width is None or self.fov_height is None:
+            return 0
         dx, _ = self._step_size(self.fov_width, self.fov_height)
         return self._nrows(dx)
 
     @property
     def columns(self) -> int:
+        if self.fov_width is None or self.fov_height is None:
+            return 0
         _, dy = self._step_size(self.fov_width, self.fov_height)
         return self._ncolumns(dy)
 
@@ -56,11 +60,15 @@ class GridWidthHeight(useq.GridWidthHeight):
 
     @property
     def rows(self) -> int:
+        if self.fov_width is None or self.fov_height is None:
+            return 0
         dx, _ = self._step_size(self.fov_width, self.fov_height)
         return self._nrows(dx)
 
     @property
     def columns(self) -> int:
+        if self.fov_width is None or self.fov_height is None:
+            return 0
         _, dy = self._step_size(self.fov_width, self.fov_height)
         return self._ncolumns(dy)
 
@@ -98,6 +106,7 @@ class VolumeModel(QObject):
     fovPositionChanged = pyqtSignal(list)
     fovDimensionsChanged = pyqtSignal(list)
     limitsChanged = pyqtSignal(list)
+    movingChanged = pyqtSignal(bool)
 
     # ===== Grid Config Signals =====
     gridChanged = pyqtSignal()  # Any grid parameter changed
@@ -141,6 +150,7 @@ class VolumeModel(QObject):
         self._limits = [list(lim) for lim in limits] if limits else [
             [float("-inf"), float("inf")] for _ in range(3)
         ]
+        self._is_moving = False
 
         # ===== Grid Configuration =====
         self._mode: Literal["number", "area", "bounds"] = "number"
@@ -228,6 +238,17 @@ class VolumeModel(QObject):
         if new_limits != self._limits:
             self._limits = new_limits
             self.limitsChanged.emit(self._limits)
+
+    @property
+    def is_moving(self) -> bool:
+        """Whether any stage axis is currently moving."""
+        return self._is_moving
+
+    @is_moving.setter
+    def is_moving(self, value: bool) -> None:
+        if value != self._is_moving:
+            self._is_moving = value
+            self.movingChanged.emit(value)
 
     # ===== Grid Configuration Properties =====
 
@@ -458,16 +479,18 @@ class VolumeModel(QObject):
         coords = np.zeros((grid.rows, grid.columns, 3))
         if self._mode != "bounds":
             for tile in grid:
+                x = tile.x if tile.x is not None else 0.0
+                y = tile.y if tile.y is not None else 0.0
                 coords[tile.row, tile.col, :] = [
-                    tile.x + self._grid_offset[0],
-                    tile.y + self._grid_offset[1],
+                    x + self._grid_offset[0],
+                    y + self._grid_offset[1],
                     self._scan_starts[tile.row, tile.col],
                 ]
         else:
             for tile in grid:
                 coords[tile.row, tile.col, :] = [
-                    tile.x,
-                    tile.y,
+                    tile.x if tile.x is not None else 0.0,
+                    tile.y if tile.y is not None else 0.0,
                     self._scan_starts[tile.row, tile.col],
                 ]
         return coords

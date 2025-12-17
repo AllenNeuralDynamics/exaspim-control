@@ -72,7 +72,7 @@ class AccordionSection(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
 
         # Header (clickable)
-        self._header = QFrame()
+        self._header = QFrame(self)
         self._header.setObjectName("accordionGroupHeader" if self._is_group else "accordionHeader")
         self._header.setCursor(Qt.CursorShape.PointingHandCursor)
 
@@ -81,9 +81,9 @@ class AccordionSection(QWidget):
         header_layout.setSpacing(8)
 
         # Title label (clicking this toggles)
-        self._title_label = QLabel(self._title)
+        self._title_label = QLabel(self._title, self._header)
         self._title_label.setObjectName("accordionGroupTitle" if self._is_group else "accordionTitle")
-        self._title_label.mousePressEvent = lambda _: self.toggle()
+        self._title_label.mousePressEvent = lambda ev: self.toggle()
         header_layout.addWidget(self._title_label)
 
         # Stretch to push buttons to right
@@ -91,7 +91,7 @@ class AccordionSection(QWidget):
 
         # Refresh button (optional)
         if self._on_refresh is not None:
-            self._refresh_btn = QPushButton("⟳")
+            self._refresh_btn = QPushButton("⟳", self._header)
             self._refresh_btn.setObjectName("accordionRefreshBtn")
             self._refresh_btn.setFixedSize(20, 20)
             self._refresh_btn.setToolTip("Refresh")
@@ -99,17 +99,17 @@ class AccordionSection(QWidget):
             header_layout.addWidget(self._refresh_btn)
 
         # Arrow indicator
-        self._arrow_label = QLabel()
+        self._arrow_label = QLabel(self._header)
         self._arrow_label.setObjectName("accordionArrow")
         self._arrow_label.setFixedWidth(16)
         self._arrow_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._arrow_label.mousePressEvent = lambda _: self.toggle()
+        self._arrow_label.mousePressEvent = lambda ev: self.toggle()
         header_layout.addWidget(self._arrow_label)
 
         layout.addWidget(self._header)
 
         # Content area (simple widget container, no scroll)
-        self._content_area = QWidget()
+        self._content_area = QWidget(self)
         self._content_area.setObjectName("accordionContent")
         self._content_layout = QVBoxLayout(self._content_area)
         self._content_layout.setContentsMargins(8, 8, 8, 8)
@@ -279,7 +279,7 @@ class Accordion(QWidget):
         :param is_group: Style as group header
         :return: The created AccordionSection
         """
-        section = AccordionSection(title, content, expanded, on_refresh, is_group)
+        section = AccordionSection(title, content, expanded, on_refresh, is_group, parent=self)
         self._sections.append(section)
 
         if self._exclusive:

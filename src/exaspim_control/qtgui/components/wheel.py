@@ -373,7 +373,7 @@ class WheelGraphic(QWidget):
             self._is_animating = True
             self._animation_timer.start(50)  # 50ms = ~20 FPS
 
-    def paintEvent(self, _: QEvent) -> None:
+    def paintEvent(self, a0: QEvent | None) -> None:
         """Render the wheel widget with maintained aspect ratio."""
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
@@ -393,16 +393,20 @@ class WheelGraphic(QWidget):
             # Render SVG in the square area
             self.renderer.render(painter, QRectF(x, y, size, size))
 
-    def mousePressEvent(self, event: QMouseEvent) -> None:
+    def mousePressEvent(self, a0: QMouseEvent | None) -> None:
         """Handle mouse clicks to select slots."""
-        slot_idx = self._get_slot_at_position(event.position().x(), event.position().y())
+        if a0 is None:
+            return
+        slot_idx = self._get_slot_at_position(a0.position().x(), a0.position().y())
         self.log.debug("Clicked on slot %s", slot_idx)
         if slot_idx in self.slots:
             self.selected_slot = slot_idx
 
-    def mouseMoveEvent(self, event: QMouseEvent) -> None:
+    def mouseMoveEvent(self, a0: QMouseEvent | None) -> None:
         """Handle mouse movement for hover effects."""
-        slot_idx = self._get_slot_at_position(event.position().x(), event.position().y())
+        if a0 is None:
+            return
+        slot_idx = self._get_slot_at_position(a0.position().x(), a0.position().y())
 
         if slot_idx != self._hovered_slot:
             self._hovered_slot = slot_idx
@@ -415,9 +419,8 @@ class WheelGraphic(QWidget):
             else:
                 self.setToolTip("")
 
-    def leaveEvent(self, _: QEvent) -> None:
+    def leaveEvent(self, a0: QEvent | None) -> None:
         """Handle mouse leaving the widget."""
-        # if self._hovered_member >= self._start_index:
         self._hovered_slot = self._start_index - 1
         self.update_svg()
         self.setToolTip("")
@@ -600,7 +603,8 @@ if __name__ == "__main__":
 
     # Run the demo
     app = QApplication(sys.argv)
-    app.setWindowIcon(app.style().standardIcon(QStyle.StandardPixmap.SP_MessageBoxInformation))
+    if style := app.style():
+        app.setWindowIcon(style.standardIcon(QStyle.StandardPixmap.SP_MessageBoxInformation))
     demo = WheelGraphicDemo()
     demo.show()
     sys.exit(app.exec())

@@ -9,7 +9,7 @@ from math import radians, sqrt, tan
 import numpy as np
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QMatrix4x4, QQuaternion, QVector3D
-from PyQt6.QtWidgets import QCheckBox, QMessageBox, QWidget
+from PyQt6.QtWidgets import QMessageBox, QWidget
 from pyqtgraph import makeRGBA
 from pyqtgraph.opengl import GLImageItem
 from scipy import spatial
@@ -43,11 +43,12 @@ class VolumeGraphic(GLOrthoViewWidget):
         path_start_color: str = "yellow",
         path_end_color: str = "green",
         active_tile_color: str = "cyan",
-        active_tile_opacity: float = 0.075,
+        active_tile_opacity: float = 0.04,
         dual_active_tile_color: str = "magenta",
-        dual_active_tile_opacity: float = 0.075,
+        dual_active_tile_opacity: float = 0.04,
         inactive_tile_color: str = "red",
-        inactive_tile_opacity: float = 0.025,
+        inactive_tile_opacity: float = 0.015,
+        selected_tile_opacity: float = 0.15,
         tile_line_width: int = 2,
         limits_line_width: int = 2,
         limits_color: str = "white",
@@ -105,6 +106,7 @@ class VolumeGraphic(GLOrthoViewWidget):
         self.dual_active_tile_opacity = dual_active_tile_opacity
         self.inactive_tile_color = inactive_tile_color
         self.inactive_tile_opacity = inactive_tile_opacity
+        self.selected_tile_opacity = selected_tile_opacity
         self.tile_line_width = tile_line_width
 
         # Limits aesthetic properties
@@ -163,6 +165,11 @@ class VolumeGraphic(GLOrthoViewWidget):
         # Add limits box if finite limits provided
         self._limits_box = None
         self._update_limits_box()
+
+        # Interaction state
+        self._locked = False
+        self._manual_view = False
+        self._selected_tile: tuple[int, int] | None = None
 
         # Connect model signals
         self._model.fovPositionChanged.connect(self._on_fov_position_changed)
@@ -445,12 +452,12 @@ class VolumeGraphic(GLOrthoViewWidget):
         coords = self.grid_coords.reshape([-1, 3])
         dimensions = self.scan_volumes.flatten()
 
-        # Set rotation
+        # Set rotation (pyqtgraph opts accepts QQuaternion despite stub typing)
         root = sqrt(2.0) / 2.0
         if view_plane == (self.coordinate_plane[0], self.coordinate_plane[1]):
-            self.opts["rotation"] = QQuaternion(-1, 0, 0, 0)
+            self.opts["rotation"] = QQuaternion(-1, 0, 0, 0)  # pyright: ignore[reportArgumentType]
         else:
-            self.opts["rotation"] = (
+            self.opts["rotation"] = (  # pyright: ignore[reportArgumentType]
                 QQuaternion(-root, 0, -root, 0)
                 if view_plane == (self.coordinate_plane[2], self.coordinate_plane[1])
                 else QQuaternion(-root, root, 0, 0)
@@ -462,6 +469,11 @@ class VolumeGraphic(GLOrthoViewWidget):
                     [[x, y, (z + sz)] for (x, y, z), sz in zip(coords, dimensions)],
                 )
             )
+
+        # Skip auto-framing when in manual view mode
+        if self._manual_view:
+            self.update()
+            return
 
         extrema = {
             f"{self.coordinate_plane[0]}_min": min(coords[:, 0]),
@@ -500,11 +512,11 @@ class VolumeGraphic(GLOrthoViewWidget):
         ):
             center[x] = (((extrema[f"{x}_min"] + extrema[f"{x}_max"]) / 2) + (fov[x] / 2 * view_pol[0])) * view_pol[0]
             horz_dist = (
-                ((extrema[f"{x}_max"] - extrema[f"{x}_min"]) + (fov[x] * 2)) / 2 * tan(radians(self.opts["fov"]))
+                ((extrema[f"{x}_max"] - extrema[f"{x}_min"]) + (fov[x] * 2)) / 2 * tan(radians(float(self.opts["fov"])))
             )
         else:
             center[x] = (((pos[x] + furthest_tile[x]) / 2) + (fov[x] / 2 * view_pol[0])) * view_pol[0]
-            horz_dist = (abs(pos[x] - furthest_tile[x]) + (fov[x] * 2)) / 2 * tan(radians(self.opts["fov"]))
+            horz_dist = (abs(pos[x] - furthest_tile[x]) + (fov[x] * 2)) / 2 * tan(radians(float(self.opts["fov"])))
 
         # Vertical sizing
         y = view_plane[1]
@@ -516,17 +528,17 @@ class VolumeGraphic(GLOrthoViewWidget):
             vert_dist = (
                 ((extrema[f"{y}_max"] - extrema[f"{y}_min"]) + (fov[y] * 2))
                 / 2
-                * tan(radians(self.opts["fov"]))
+                * tan(radians(float(self.opts["fov"])))
                 * scaling
             )
         else:
             center[y] = (((pos[y] + furthest_tile[y]) / 2) + (fov[y] / 2 * view_pol[1])) * view_pol[1]
-            vert_dist = (abs(pos[y] - furthest_tile[y]) + (fov[y] * 2)) / 2 * tan(radians(self.opts["fov"])) * scaling
+            vert_dist = (abs(pos[y] - furthest_tile[y]) + (fov[y] * 2)) / 2 * tan(radians(float(self.opts["fov"]))) * scaling
 
         # In ortho mode it scales properly with x1200
         self.opts["distance"] = horz_dist * 1200 if horz_dist > vert_dist else vert_dist * 1200
 
-        self.opts["center"] = QVector3D(
+        self.opts["center"] = QVector3D(  # pyright: ignore[reportArgumentType]
             center.get(self.coordinate_plane[0], 0),
             center.get(self.coordinate_plane[1], 0),
             center.get(self.coordinate_plane[2], 0),
@@ -534,27 +546,24 @@ class VolumeGraphic(GLOrthoViewWidget):
 
         self.update()
 
-    def move_fov_query(self, new_fov_pos: list[float]) -> tuple[int, bool]:
-        """Show message box asking if user wants to move FOV position.
+    def move_fov_query(self, tile_pos: list[float], tile_row: int, tile_col: int) -> int:
+        """Show message box asking if user wants to move FOV to a tile.
 
-        :param new_fov_pos: Position to move the FOV to
-        :return: User reply and whether to move to nearest tile
+        :param tile_pos: Tile position to move to
+        :param tile_row: Tile row index
+        :param tile_col: Tile column index
+        :return: User reply
         """
         msgBox = QMessageBox()
         msgBox.setIcon(QMessageBox.Icon.Question)
         msgBox.setText(
-            f"Do you want to move the field of view from "
-            f"{[round(float(x), 2) for x in self.fov_position]} [{self.unit}] to "
-            f"{[round(float(x), 2) for x in new_fov_pos]} [{self.unit}]?"
+            f"Move to tile ({tile_row}, {tile_col})?\n\n"
+            f"From: {[round(float(x), 2) for x in self.fov_position]} [{self.unit}]\n"
+            f"To: {[round(float(x), 2) for x in tile_pos]} [{self.unit}]"
         )
-        msgBox.setWindowTitle("Moving FOV")
+        msgBox.setWindowTitle("Move to Tile")
         msgBox.setStandardButtons(QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel)
-
-        checkbox = QCheckBox("Move to nearest tile")
-        checkbox.setChecked(True)
-        msgBox.setCheckBox(checkbox)
-
-        return msgBox.exec(), checkbox.isChecked()
+        return msgBox.exec()
 
     def delete_fov_image_query(self, fov_image_pos: list[float]) -> int:
         """Show message box asking if user wants to delete FOV image.
@@ -570,11 +579,8 @@ class VolumeGraphic(GLOrthoViewWidget):
 
         return msgBox.exec()
 
-    def mousePressEvent(self, event) -> None:
-        """Handle mouse press to allow FOV movement.
-
-        :param event: QMouseEvent
-        """
+    def _mouse_to_world_coords(self, event) -> list[float]:
+        """Convert mouse event position to world coordinates."""
         plane = list(self.view_plane) + [ax for ax in self.coordinate_plane if ax not in self.view_plane]
         view_pol = [
             self.polarity[self.coordinate_plane.index(plane[0])],
@@ -582,10 +588,9 @@ class VolumeGraphic(GLOrthoViewWidget):
             self.polarity[self.coordinate_plane.index(plane[2])],
         ]
 
-        # Translate mouse click to view widget coordinate plane
-        horz_dist = (self.opts["distance"] / tan(radians(self.opts["fov"]))) / 1200
+        horz_dist = (float(self.opts["distance"]) / tan(radians(float(self.opts["fov"])))) / 1200
         vert_dist = (
-            self.opts["distance"] / tan(radians(self.opts["fov"])) * (self.size().height() / self.size().width())
+            float(self.opts["distance"]) / tan(radians(float(self.opts["fov"]))) * (self.size().height() / self.size().width())
         ) / 1200
         horz_scale = (event.position().x() * 2 * horz_dist) / self.size().width()
         vert_scale = (event.position().y() * 2 * vert_dist) / self.size().height()
@@ -593,10 +598,11 @@ class VolumeGraphic(GLOrthoViewWidget):
         fov = dict(zip(self.coordinate_plane, self.fov_dimensions))
         pos = dict(zip(self.coordinate_plane, self.fov_position))
 
+        opts_center: QVector3D = self.opts["center"]  # pyright: ignore[reportAssignmentType]
         center = {
-            self.coordinate_plane[0]: self.opts["center"].x(),
-            self.coordinate_plane[1]: self.opts["center"].y(),
-            self.coordinate_plane[2]: self.opts["center"].z(),
+            self.coordinate_plane[0]: opts_center.x(),
+            self.coordinate_plane[1]: opts_center.y(),
+            self.coordinate_plane[2]: opts_center.z(),
         }
         h_ax = self.view_plane[0]
         v_ax = self.view_plane[1]
@@ -606,48 +612,119 @@ class VolumeGraphic(GLOrthoViewWidget):
             plane[1]: ((center[v_ax] + vert_dist - vert_scale) - 0.5 * fov[plane[1]]) * view_pol[1],
             plane[2]: pos[plane[2]] * view_pol[2],
         }
-        move_to = [new_pos[ax] for ax in self.coordinate_plane]
+        return [new_pos[ax] for ax in self.coordinate_plane]
 
-        if event.button() == Qt.MouseButton.LeftButton:
-            return_value, checkbox = self.move_fov_query(move_to)
-
-            if return_value == QMessageBox.StandardButton.Ok:
-                if not checkbox:  # Move to exact location
-                    pos = move_to
-                else:  # Move to nearest tile
-                    flattened = self.grid_coords.reshape([-1, 3])
-                    tree = spatial.KDTree(flattened)
-                    _distance, index = tree.query(move_to)
-                    tile = flattened[index]
-                    pos = [tile[0], tile[1], tile[2]]
-                self.fovMove.emit(pos)
-            else:
-                return
-
-        elif event.button() == Qt.MouseButton.RightButton:
-            delete_key = None
-            for key, image in self.fov_images.items():
-                coords = [image.transform()[i, 3] for i in range(3)]
+    def _find_tile_at_position(self, world_pos: list[float]) -> tuple[int, int] | None:
+        """Find tile at world position, or None if not on a tile."""
+        for row in range(len(self.grid_coords)):
+            for col in range(len(self.grid_coords[row])):
+                tile_pos = self.grid_coords[row][col]
                 if (
-                    coords[0] - self.fov_dimensions[0] <= coords[0] <= coords[0] + self.fov_dimensions[0]
-                    and coords[1] - self.fov_dimensions[1] <= coords[1] <= coords[1] + self.fov_dimensions[1]
+                    tile_pos[0] <= world_pos[0] <= tile_pos[0] + self.fov_dimensions[0]
+                    and tile_pos[1] <= world_pos[1] <= tile_pos[1] + self.fov_dimensions[1]
                 ):
-                    return_value = self.delete_fov_image_query(coords)
-                    if return_value == QMessageBox.StandardButton.Ok:
-                        self.removeItem(image)
-                        delete_key = key
-                    break
-            if delete_key is not None:
-                del self.fov_images[delete_key]
+                    return (row, col)
+        return None
 
-    def mouseMoveEvent(self, event):
-        """Override mouseMoveEvent so user can't change view."""
+    def _get_tile_box_index(self, row: int, col: int) -> int:
+        """Convert (row, col) to flat index in grid_box_items."""
+        num_cols = len(self.grid_coords[0]) if len(self.grid_coords) > 0 else 0
+        return row * num_cols + col
 
-    def wheelEvent(self, event):
-        """Override wheelEvent so user can't change view."""
+    def _highlight_tile(self, row: int, col: int) -> None:
+        """Highlight a tile by increasing its opacity."""
+        self._selected_tile = (row, col)
+        idx = self._get_tile_box_index(row, col)
+        if 0 <= idx < len(self.grid_box_items):
+            box = self.grid_box_items[idx]
+            box.setOpacity(self.selected_tile_opacity)
 
-    def keyPressEvent(self, event):
-        """Override keyPressEvent so user can't change view."""
+    def _clear_selection(self) -> None:
+        """Clear tile selection and revert opacity."""
+        if self._selected_tile is not None:
+            row, col = self._selected_tile
+            idx = self._get_tile_box_index(row, col)
+            if 0 <= idx < len(self.grid_box_items):
+                box = self.grid_box_items[idx]
+                box.setOpacity(self.active_tile_opacity)
+            self._selected_tile = None
 
-    def keyReleaseEvent(self, event):
-        """Override keyReleaseEvent so user can't change view."""
+    def mousePressEvent(self, ev) -> None:
+        """Handle mouse press - only respond to clicks on tiles."""
+        if ev.button() != Qt.MouseButton.LeftButton:
+            return
+
+        if self._locked or self._model.is_moving:
+            return
+
+        world_pos = self._mouse_to_world_coords(ev)
+        tile_idx = self._find_tile_at_position(world_pos)
+
+        if tile_idx is None:
+            return
+
+        row, col = tile_idx
+        tile_pos = list(self.grid_coords[row][col])
+
+        self._highlight_tile(row, col)
+        result = self.move_fov_query(tile_pos, row, col)
+        self._clear_selection()
+
+        if result == QMessageBox.StandardButton.Ok:
+            self.fovMove.emit(tile_pos)
+
+    def mouseMoveEvent(self, ev) -> None:
+        """Handle mouse drag for panning (middle mouse or Ctrl+left)."""
+        if not hasattr(self, "_last_mouse_pos"):
+            self._last_mouse_pos = ev.position()
+            return
+
+        if ev.buttons() & Qt.MouseButton.MiddleButton or (
+            ev.buttons() & Qt.MouseButton.LeftButton and ev.modifiers() & Qt.KeyboardModifier.ControlModifier
+        ):
+            delta = ev.position() - self._last_mouse_pos
+            self._pan_view(delta.x(), delta.y())
+            self._manual_view = True
+
+        self._last_mouse_pos = ev.position()
+
+    def _pan_view(self, dx: float, dy: float) -> None:
+        """Pan the view by pixel delta."""
+        scale: float = self.opts["distance"] / 1200  # type: ignore[operator]
+        center: QVector3D = self.opts["center"]  # type: ignore[assignment]
+        self.opts["center"] = QVector3D(  # type: ignore[assignment]
+            center.x() - dx * scale * 0.002,
+            center.y() + dy * scale * 0.002,
+            center.z(),
+        )
+        self.update()
+
+    def wheelEvent(self, ev) -> None:
+        """Handle mouse wheel for zooming."""
+        delta = ev.angleDelta().y()
+        factor = 1.1 if delta < 0 else 0.9
+        self.opts["distance"] = max(10, self.opts["distance"] * factor)  # type: ignore[assignment]
+        self._manual_view = True
+        self.update()
+
+    def keyPressEvent(self, ev) -> None:
+        """Handle key press - R to reset view."""
+        if ev.key() == Qt.Key.Key_R:
+            self.reset_view()
+
+    def keyReleaseEvent(self, ev) -> None:
+        """Handle key release."""
+
+    def reset_view(self) -> None:
+        """Reset to auto-framing view."""
+        self._manual_view = False
+        self._update_opts()
+
+    def set_locked(self, locked: bool) -> None:
+        """Lock or unlock tile click interactions."""
+        self._locked = locked
+
+    @property
+    def is_locked(self) -> bool:
+        """Return whether click interactions are locked."""
+        return self._locked

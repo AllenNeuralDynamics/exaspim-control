@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any, ClassVar
+from typing import TYPE_CHECKING, Any
 
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import (
@@ -12,19 +12,20 @@ from PyQt6.QtWidgets import (
     QLabel,
     QProgressBar,
     QSlider,
+    QVBoxLayout,
     QWidget,
 )
 
-from exaspim_control.qtgui.devices.device_widget import DeviceWidget
+from exaspim_control.qtgui.devices.device_adapter import DeviceAdapter
 
 if TYPE_CHECKING:
-    from voxel.devices.axes.continous import VoxelAxis
+    from voxel.interfaces.axes import Axis
 
 
-class AxisWidget(DeviceWidget):
+class AxisWidget(QWidget):
     """Compact axis control widget with position display and move command slider.
 
-    Extends DeviceWidget to inherit polling and refresh infrastructure.
+    Uses composition with DeviceAdapter rather than inheritance.
 
     Layout: [Label] [====progress+slider====] [value mm] [link checkbox]
 
@@ -32,55 +33,69 @@ class AxisWidget(DeviceWidget):
     When "linked", the slider follows the position. Unlink to command moves.
     """
 
-    __SKIP_PROPS__: ClassVar[set[str]] = {"position_mm", "limits_mm", "is_moving"}
-
     positionChanged = pyqtSignal(float)
     limitsChanged = pyqtSignal(float, float)  # (min, max) emitted when limits change
+    movingChanged = pyqtSignal(bool)
 
     def __init__(
         self,
         name: str,
-        axis: VoxelAxis,
+        adapter: DeviceAdapter[Axis],
         min_pos: float = 0.0,
         max_pos: float = 100.0,
         unit: str = "mm",
         parent: QWidget | None = None,
     ) -> None:
-        """
-        Initialize axis widget.
+        """Initialize axis widget.
 
         :param name: Display name for the axis
-        :param axis: Axis device (must have position_mm property and move_abs method)
+        :param adapter: DeviceAdapter for the axis device
         :param min_pos: Minimum position value
         :param max_pos: Maximum position value
         :param unit: Unit label (e.g., "mm")
         :param parent: Parent widget
         """
+        super().__init__(parent)
+        self._adapter = adapter
         self._name = name
         self._min_pos = min_pos
         self._max_pos = max_pos
         self._unit = unit
         self._slider_scale = 1000  # Slider/progress use int, scale for precision
         self._is_linked = True  # Start linked (slider follows position)
-
-        # Initialize DeviceWidget with position and limits polling
-        super().__init__(axis, updating_properties=["position_mm", "is_moving", "limits_mm"], parent=parent)
+        self._is_moving = False
 
         self.log = logging.getLogger(f"{__name__}.{name}")
 
-        # Setup custom UI (after parent init)
-        self._setup_custom_ui()
-        self._connect_custom_signals()
+        # Setup UI
+        self._setup_ui()
+        self._connect_signals()
+
+        # Connect to adapter property updates (thread-safe via Qt signal)
+        adapter.propertyUpdated.connect(self._on_property_update)
 
         # Initialize from axis
-        self.refresh()
+        self._refresh()
 
-    def _setup_custom_ui(self) -> None:
+    @property
+    def device(self) -> Axis:
+        """Get the axis device."""
+        return self._adapter.device
+
+    @property
+    def axis(self) -> Axis:
+        """Get the axis device (alias for device)."""
+        return self._adapter.device
+
+    def _setup_ui(self) -> None:
         """Set up the custom UI with progress bar and slider overlay."""
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+
         container = QWidget()
-        layout = QHBoxLayout(container)
-        layout.setContentsMargins(0, 2, 0, 2)
-        layout.setSpacing(8)
+        row_layout = QHBoxLayout(container)
+        row_layout.setContentsMargins(0, 2, 0, 2)
+        row_layout.setSpacing(8)
 
         # Name label (chip-style)
         self._name_label = QLabel(self._name)
@@ -96,11 +111,11 @@ class AxisWidget(DeviceWidget):
                 font-weight: bold;
             }
         """)
-        layout.addWidget(self._name_label)
+        row_layout.addWidget(self._name_label)
 
         # Stacked progress bar + slider
         self._track_widget = self._create_track_widget()
-        layout.addWidget(self._track_widget, stretch=1)
+        row_layout.addWidget(self._track_widget, stretch=1)
 
         # Value label
         self._value_label = QLabel("0.00")
@@ -113,18 +128,20 @@ class AxisWidget(DeviceWidget):
                 font-family: monospace;
             }
         """)
-        layout.addWidget(self._value_label)
+        row_layout.addWidget(self._value_label)
 
         # Unit label
         unit_label = QLabel(self._unit)
         unit_label.setFixedWidth(20)
         unit_label.setStyleSheet("color: #888; font-size: 10px;")
-        layout.addWidget(unit_label)
+        row_layout.addWidget(unit_label)
 
         # Free checkbox (unchecked = linked/disabled, checked = free/enabled)
         self._link_checkbox = QCheckBox()
         self._link_checkbox.setChecked(False)  # Start unchecked (linked)
-        self._link_checkbox.setToolTip("Check to enable slider for commanding moves.\nUncheck to lock slider to position.")
+        self._link_checkbox.setToolTip(
+            "Check to enable slider for commanding moves.\nUncheck to lock slider to position."
+        )
         self._link_checkbox.setStyleSheet("""
             QCheckBox {
                 spacing: 0px;
@@ -144,9 +161,9 @@ class AxisWidget(DeviceWidget):
                 border-radius: 2px;
             }
         """)
-        layout.addWidget(self._link_checkbox)
+        row_layout.addWidget(self._link_checkbox)
 
-        self.main_layout.addWidget(container)
+        layout.addWidget(container)
 
     def _create_track_widget(self) -> QWidget:
         """Create the stacked progress bar + slider widget."""
@@ -207,9 +224,9 @@ class AxisWidget(DeviceWidget):
 
         return track
 
-    def resizeEvent(self, event) -> None:
+    def resizeEvent(self, a0) -> None:
         """Handle resize to keep progress bar and slider aligned."""
-        super().resizeEvent(event)
+        super().resizeEvent(a0)
         if hasattr(self, "_track_widget"):
             w = self._track_widget.width()
             h = self._track_widget.height()
@@ -218,7 +235,7 @@ class AxisWidget(DeviceWidget):
             # Slider covers full track
             self._slider.setGeometry(0, 0, w, h)
 
-    def _connect_custom_signals(self) -> None:
+    def _connect_signals(self) -> None:
         """Connect widget signals."""
         self._slider.sliderReleased.connect(self._on_slider_released)
         self._slider.valueChanged.connect(self._on_slider_changed)
@@ -264,24 +281,26 @@ class AxisWidget(DeviceWidget):
         position = self._slider_to_position(self._slider.value())
         self.positionChanged.emit(position)
 
-        if self.device is not None:
-            try:
-                self.device.move_abs(position)
-                self.log.debug(f"Moving {self._name} to {position:.2f} {self._unit}")
-            except Exception:
-                self.log.exception(f"Failed to move {self._name}")
+        try:
+            self.device.move_abs(position)
+            self.log.debug(f"Moving {self._name} to {position:.2f} {self._unit}")
+        except Exception:
+            self.log.exception(f"Failed to move {self._name}")
 
-    def update_status(self, prop_name: str, value: Any) -> None:
-        """Update display when position or limits change from polling."""
+    def _on_property_update(self, prop_name: str, value: Any) -> None:
+        """Handle property updates from adapter polling."""
         if prop_name == "position_mm":
             self._update_position_display(value)
         elif prop_name == "limits_mm":
-            # Update range if limits changed
             if value and len(value) == 2:
                 new_min, new_max = value
                 if new_min != self._min_pos or new_max != self._max_pos:
                     self.set_range(new_min, new_max)
                     self.limitsChanged.emit(new_min, new_max)
+        elif prop_name == "is_moving":
+            if value != self._is_moving:
+                self._is_moving = value
+                self.movingChanged.emit(value)
 
     def _update_position_display(self, position: float) -> None:
         """Update progress bar and value label with actual position."""
@@ -299,11 +318,8 @@ class AxisWidget(DeviceWidget):
             self._slider.setValue(slider_val)
             self._slider.blockSignals(False)
 
-    def refresh(self) -> None:
+    def _refresh(self) -> None:
         """Refresh position from axis."""
-        if self.device is None:
-            return
-
         try:
             position = self.device.position_mm
             self._update_position_display(position)
@@ -319,13 +335,7 @@ class AxisWidget(DeviceWidget):
         self._min_pos = min_pos
         self._max_pos = max_pos
 
-    @property
-    def axis(self) -> Any:
-        """Get the axis device."""
-        return self.device
-
-    @axis.setter
-    def axis(self, value: Any) -> None:
-        """Set the axis device."""
-        self.device = value
-        self.refresh()
+    def closeEvent(self, a0) -> None:
+        """Clean up on close."""
+        # Qt automatically disconnects signals when objects are destroyed
+        super().closeEvent(a0)

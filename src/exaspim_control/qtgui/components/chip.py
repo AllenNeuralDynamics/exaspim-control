@@ -75,9 +75,11 @@ class Chip(QWidget):
 
 
 if __name__ == "__main__":
+    import sys
+
     from PyQt6.QtWidgets import QApplication, QMainWindow
 
-    app = QApplication()
+    app = QApplication(sys.argv)
     window = QMainWindow()
 
     container = QWidget()

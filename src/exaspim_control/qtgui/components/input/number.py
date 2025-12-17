@@ -32,6 +32,7 @@ class VNumberInput[T: int | float](QWidget):
         self,
         getter: Callable[[], T],
         setter: Callable[[T], None],
+        dtype: type[T],
         *,
         min_value: T | None = None,
         max_value: T | None = None,
@@ -40,6 +41,7 @@ class VNumberInput[T: int | float](QWidget):
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent=parent)
+        self._dtype = dtype
         self.getter = getter
         self.setter = setter
         self.log = logging.getLogger(f"VNumberInput[{id(self)}]")
@@ -94,7 +96,7 @@ class VNumberInput[T: int | float](QWidget):
     def _on_value_changed(self, value: int | float) -> None:
         """Handle value change events."""
         if self.setter:
-            self.setter(value)
+            self.setter(self._dtype(value))
 
     @property
     def widget(self) -> VSpinBox | VDoubleSpinBox:
@@ -103,7 +105,7 @@ class VNumberInput[T: int | float](QWidget):
 
     def value(self) -> T:
         """Get the current value."""
-        return self._spinbox.value()
+        return self._dtype(self._spinbox.value())
 
     def setValue(self, value: T) -> None:
         """Set the value."""

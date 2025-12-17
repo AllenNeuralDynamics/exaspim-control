@@ -13,6 +13,13 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from exaspim_control.config import (
+    AnatomicalDirectionX,
+    AnatomicalDirectionY,
+    AnatomicalDirectionZ,
+    MetadataDateFmt,
+    MetadataDelimiter,
+)
 from exaspim_control.qtgui.components import Card
 from exaspim_control.qtgui.components.input import VComboBox, VDoubleSpinBox, VLabel
 
@@ -266,23 +273,23 @@ class ExperimentTab(QScrollArea):
         self._metadata.chamber_refractive_index = value
         self.metadataChanged.emit()
 
-    def _on_x_direction_changed(self, text: str) -> None:
+    def _on_x_direction_changed(self, text: AnatomicalDirectionX) -> None:
         self._metadata.x_anatomical_direction = text
         self.metadataChanged.emit()
 
-    def _on_y_direction_changed(self, text: str) -> None:
+    def _on_y_direction_changed(self, text: AnatomicalDirectionY) -> None:
         self._metadata.y_anatomical_direction = text
         self.metadataChanged.emit()
 
-    def _on_z_direction_changed(self, text: str) -> None:
+    def _on_z_direction_changed(self, text: AnatomicalDirectionZ) -> None:
         self._metadata.z_anatomical_direction = text
         self.metadataChanged.emit()
 
-    def _on_date_format_changed(self, text: str) -> None:
+    def _on_date_format_changed(self, text: MetadataDateFmt) -> None:
         self._metadata.date_format = text
         self.metadataChanged.emit()
 
-    def _on_delimiter_changed(self, text: str) -> None:
+    def _on_delimiter_changed(self, text: MetadataDelimiter) -> None:
         self._metadata.name_delimitor = text
         self.metadataChanged.emit()
 

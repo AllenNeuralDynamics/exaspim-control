@@ -1,12 +1,14 @@
+"""Acquisition task using the new DAQ API from voxel.interfaces.daq."""
+
 import logging
 from dataclasses import dataclass
 from typing import Any, Self
 
 import numpy as np
 from pydantic import BaseModel, Field, computed_field, model_validator
-from voxel.devices.daq.base import AcqSampleMode, PinInfo, VoxelDAQ
-from voxel.devices.daq.quantity import Frequency, NormalizedRange, Time
-from voxel.devices.daq.wave import Waveform
+from voxel.device.quantity import Frequency, NormalizedRange, Time
+from voxel.interfaces.daq import AcqSampleMode, AOTask, COTask, SpimDaq
+from voxel.interfaces.daq.wave import Waveform
 
 
 class TriggerConfig(BaseModel):
@@ -61,18 +63,20 @@ class AcqTaskConfig(BaseModel):
 @dataclass(frozen=True)
 class WaveGenChannel:
     name: str
-    pin_info: PinInfo
+    pin: str
     wave: "Waveform"
 
 
 class AcquisitionTask:
-    """Orchestrates DAQ task creation and control via a DaqClient.
+    """Orchestrates DAQ task creation and control using the new SpimDaq API.
 
-    This class lives in the Rig's process and communicates with the DAQ
-    hardware through the DaqClient (which talks to DaqService over ZMQ).
+    This class uses the new voxel.interfaces.daq API which provides:
+    - Factory methods that return task objects (AOTask, COTask)
+    - Methods directly on task objects instead of passing task names
+    - Automatic pin management and cleanup
     """
 
-    def __init__(self, *, uid: str, daq: VoxelDAQ, cfg: AcqTaskConfig) -> None:
+    def __init__(self, *, uid: str, daq: SpimDaq, cfg: AcqTaskConfig) -> None:
         self._uid = uid
         self._log = logging.getLogger(self._uid)
         self._daq = daq
@@ -80,7 +84,10 @@ class AcquisitionTask:
         self._waveforms = cfg.waveforms
         self._ports = cfg.ports
         self._channels: dict[str, WaveGenChannel] = {}
-        self._clock_task_uid: str | None = None
+
+        # Task objects (new API returns task instances)
+        self._ao_task: AOTask | None = None
+        self._clock_task: COTask | None = None
         self._is_setup = False
 
     @property
@@ -88,19 +95,27 @@ class AcquisitionTask:
         return self._uid
 
     def setup(self) -> None:
-        """Set up the task: create task, assign pins, add channels, configure timing."""
+        """Set up the task: create task with channels, configure timing."""
         if self._is_setup:
             msg = f"Task '{self._uid}' is already set up"
             raise RuntimeError(msg)
 
-        # Create the task on the service
-        self._daq.create_task(self._uid)
-        self._log.info(f"Created task '{self._uid}'")
+        # Validate that all ports have corresponding waveforms
+        for name in self._ports:
+            if name not in self._waveforms:
+                err_msg = f"No waveform defined for port '{name}'"
+                raise ValueError(err_msg)
 
-        # Assign pins and add channels
-        self._initialize_channels()
+        # Store channel info locally (for waveform generation)
+        for name, port in self._ports.items():
+            self._channels[name] = WaveGenChannel(name=name, pin=port, wave=self._waveforms[name])
 
-        # Configure timing
+        # Create the AO task with all channels in one call (new API)
+        pins = list(self._ports.values())
+        self._ao_task = self._daq.create_ao_task(self._uid, pins=pins)
+        self._log.info(f"Created AO task '{self._uid}' with pins: {pins}")
+
+        # Configure timing on the task object directly
         self._configure_timing()
 
         # Create clock/trigger task if configured
@@ -109,35 +124,21 @@ class AcquisitionTask:
         self._is_setup = True
         self._log.info(f"Task '{self._uid}' setup complete")
 
-    def _initialize_channels(self) -> None:
-        """Initialize pins and channels for the task."""
-        for name, port in self._ports.items():
-            if name not in self._waveforms:
-                err_msg = f"No waveform defined for port '{name}'"
-                raise ValueError(err_msg)
-
-            # Assign pin via client
-            pin_info = self._daq.assign_pin(task_name=self._uid, pin=port)
-            self._log.debug(f"Assigned pin {name}: {pin_info}")
-
-            # Add AO channel
-            self._daq.add_ao_channel(self._uid, pin_info.path, name)
-            self._log.debug(f"Added channel {name} with pin {pin_info.path}")
-
-            # Store channel info locally
-            self._channels[name] = WaveGenChannel(name=name, pin_info=pin_info, wave=self._waveforms[name])
-
     def _configure_timing(self) -> None:
-        """Configure sample clock timing and trigger."""
+        """Configure sample clock timing and trigger on the AO task."""
+        if self._ao_task is None:
+            raise RuntimeError("AO task not created")
+
         sample_mode = AcqSampleMode.CONTINUOUS
 
         if self._timing.clock:
             sample_mode = AcqSampleMode.FINITE
             trigger_source = self._daq.get_pfi_path(self._timing.clock.pin)
-            self._daq.cfg_dig_edge_start_trig(self._uid, trigger_source, retriggerable=True)
+            # Configure trigger directly on task object (new API)
+            self._ao_task.cfg_dig_edge_start_trig(trigger_source, retriggerable=True)
 
-        self._daq.cfg_samp_clk_timing(
-            self._uid,
+        # Configure timing directly on task object (new API)
+        self._ao_task.cfg_samp_clk_timing(
             float(self._timing.sample_rate),
             sample_mode,
             self._timing.num_samples,
@@ -148,37 +149,53 @@ class AcquisitionTask:
         if not self._timing.clock:
             return
 
-        self._clock_task_uid = f"{self._uid}_clock"
-        self._daq.create_co_pulse_task(
-            task_name=self._clock_task_uid,
+        clock_task_name = f"{self._uid}_clock"
+        # Create CO task using new API - returns COTask object
+        self._clock_task = self._daq.create_co_task(
+            task_name=clock_task_name,
             counter=self._timing.clock.counter,
             frequency_hz=self._timing.frequency,
             duty_cycle=self._timing.clock.duty_cycle,
             output_pin=self._timing.clock.pin,
         )
         self._log.info(
-            f"Created clock task '{self._clock_task_uid}' at {self._timing.frequency}Hz on {self._timing.clock.pin}"
+            f"Created clock task '{clock_task_name}' at {self._timing.frequency}Hz on {self._timing.clock.pin}"
         )
 
     def _write(self) -> None:
         """Generate and write waveform data to the task."""
+        if self._ao_task is None:
+            raise RuntimeError("AO task not created")
+
         self._log.info("Writing waveforms to task...")
 
-        # Get channel order from service
-        task_info = self._daq.get_task_info(self._uid)
-        channel_names = task_info.channels
+        # Get channel order from task object directly (new API)
+        channel_names = self._ao_task.channel_names
 
         # Build data array in channel order
-        data: list[list[float]] = []
-        for name in channel_names:
-            if name not in self._channels:
-                err_msg = f"Channel '{name}' not found in local channels"
-                raise ValueError(err_msg)
-            waveform_array = self._channels[name].wave.get_array(self._timing.num_samples)
-            data.append(waveform_array.tolist())
+        # Map task channel names back to our port names
+        # Channel names are typically "{task_name}_{PIN}" format
+        data_arrays: list[np.ndarray] = []
+        for channel_name in channel_names:
+            # Find matching port by checking if channel name ends with the pin
+            matched = False
+            for name, channel in self._channels.items():
+                if channel_name.upper().endswith(channel.pin.upper()):
+                    waveform_array = channel.wave.get_array(self._timing.num_samples)
+                    data_arrays.append(waveform_array)
+                    matched = True
+                    break
 
-        self._log.info(f"Writing {len(data)} channels x {self._timing.num_samples} samples")
-        written_samples = self._daq.write(self._uid, data)
+            if not matched:
+                err_msg = f"Channel '{channel_name}' not found in local channels"
+                raise ValueError(err_msg)
+
+        # Stack arrays into 2D (channels x samples)
+        data = np.vstack(data_arrays) if len(data_arrays) > 1 else data_arrays[0]
+        self._log.info(f"Writing {len(data_arrays)} channels x {self._timing.num_samples} samples")
+
+        # Write directly to task object (new API)
+        written_samples = self._ao_task.write(data)
 
         if written_samples != self._timing.num_samples:
             self._log.warning(f"Only wrote {written_samples} samples out of {self._timing.num_samples} requested.")
@@ -189,39 +206,48 @@ class AcquisitionTask:
             msg = f"Task '{self._uid}' is not set up. Call setup() first."
             raise RuntimeError(msg)
 
+        if self._ao_task is None:
+            raise RuntimeError("AO task not created")
+
         self._write()
 
-        # Start AO task first (it waits for trigger)
-        self._daq.start_task(self._uid)
+        # Start AO task first (it waits for trigger) - directly on task object
+        self._ao_task.start()
         self._log.info(f"Started task '{self._uid}'")
 
-        # Start clock task (sends triggers to AO task)
-        if self._clock_task_uid:
-            self._daq.start_task(self._clock_task_uid)
-            self._log.info(f"Started clock task '{self._clock_task_uid}'")
+        # Start clock task (sends triggers to AO task) - directly on task object
+        if self._clock_task:
+            self._clock_task.start()
+            self._log.info(f"Started clock task '{self._clock_task.name}'")
 
     def stop(self) -> None:
         """Stop the acquisition task."""
         # Stop clock task first (stops sending triggers)
-        if self._clock_task_uid:
-            self._daq.stop_task(self._clock_task_uid)
-            self._log.info(f"Stopped clock task '{self._clock_task_uid}'")
+        if self._clock_task:
+            self._clock_task.stop()
+            self._log.info(f"Stopped clock task '{self._clock_task.name}'")
 
-        self._daq.stop_task(self._uid)
-        self._log.info(f"Stopped task '{self._uid}'")
+        if self._ao_task:
+            self._ao_task.stop()
+            self._log.info(f"Stopped task '{self._uid}'")
 
     def close(self) -> None:
         """Close the task and release resources."""
-        # Close clock task first
-        if self._clock_task_uid:
-            self._daq.close_task(self._clock_task_uid)
-            self._log.info(f"Closed clock task '{self._clock_task_uid}'")
-            self._clock_task_uid = None
+        # Close clock task first via DAQ (auto-releases pins)
+        if self._clock_task:
+            task_name = self._clock_task.name
+            self._daq.close_task(self._clock_task.name)
+            self._log.info(f"Closed clock task '{task_name}'")
+            self._clock_task = None
 
-        self._daq.close_task(self._uid)
+        # Close AO task via DAQ (auto-releases pins)
+        if self._ao_task:
+            self._daq.close_task(self._uid)
+            self._log.info(f"Closed task '{self._uid}'")
+            self._ao_task = None
+
         self._is_setup = False
         self._channels.clear()
-        self._log.info(f"Closed task '{self._uid}'")
 
     def get_written_waveforms(self, target_points: int | None = None) -> dict[str, list[float]]:
         """Get the waveform data that was/will be written to the DAQ.

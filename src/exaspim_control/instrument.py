@@ -5,32 +5,40 @@ from pathlib import Path
 from threading import Thread
 
 import numpy as np
-from voxel.devices.axes.continous import VoxelAxis
-from voxel.devices.base import VoxelDevice
-from voxel.devices.camera.base import BaseCamera
-from voxel.devices.daq.base import VoxelDAQ
-from voxel.devices.filterwheel.base import VoxelFilterWheel
-from voxel.devices.flip_mount.base import BaseFlipMount
-from voxel.devices.joystick.base import BaseJoystick
-from voxel.devices.laser.base import BaseLaser
+from voxel.interfaces.axes import Axis, DiscreteAxis
+from voxel.interfaces.camera import SpimCamera
+from voxel.interfaces.daq import SpimDaq
+from voxel.interfaces.laser import SpimLaser
+from voxel.interfaces.spim import SpimDevice
+from voxel.preview import PreviewFrame, PreviewGenerator
 
 from exaspim_control.acq_task import AcquisitionTask
 from exaspim_control.build import build_objects
 from exaspim_control.config import ExASPIMConfig
 
-type DeviceGroup[T: VoxelDevice] = dict[str, T]
+type DeviceGroup[T: SpimDevice] = dict[str, T]
+type PreviewFrameSink = Callable[[PreviewFrame], None]
+type RawFrameSink = Callable[[np.ndarray, int], None]  # (frame, frame_idx)
 
 
 @dataclass
 class Stage:
-    x: VoxelAxis
-    y: VoxelAxis
-    z: VoxelAxis
-    theta: VoxelAxis | None = None
+    x: Axis
+    y: Axis
+    z: Axis
+    theta: Axis | None = None
 
     @property
     def uids(self) -> set[str]:
         return {self.x.uid, self.y.uid, self.z.uid}
+
+    def halt(self) -> None:
+        """Halt all stage axes immediately."""
+        self.x.halt()
+        self.y.halt()
+        self.z.halt()
+        if self.theta is not None:
+            self.theta.halt()
 
 
 class ExASPIM:
@@ -45,50 +53,53 @@ class ExASPIM:
             msg = "Device build errors:\n" + "\n".join(error_messages)
             raise RuntimeError(msg)
 
-        self.camera = next(device for device in self.devices.values() if isinstance(device, BaseCamera))
-        self.daq = next(device for device in self.devices.values() if isinstance(device, VoxelDAQ))
+        self.camera = next(device for device in self.devices.values() if isinstance(device, SpimCamera))
+        self.daq = next(device for device in self.devices.values() if isinstance(device, SpimDaq))
         self.stage = Stage(
             x=self.devices[self.cfg.stage.x],
             y=self.devices[self.cfg.stage.y],
             z=self.devices[self.cfg.stage.z],
             theta=self.devices[self.cfg.stage.theta] if self.cfg.stage.theta else None,
         )
-        self.lasers: DeviceGroup[BaseLaser] = {}
-        self.filter_wheels: DeviceGroup[VoxelFilterWheel] = {}
-        self.axes: DeviceGroup[VoxelAxis] = {}
-        self.focusing_axes: DeviceGroup[VoxelAxis] = {}
-        self.flip_mounts: DeviceGroup[BaseFlipMount] = {}
-        self.joysticks: DeviceGroup[BaseJoystick] = {}
+        self.lasers: DeviceGroup[SpimLaser] = {}
+        self.filter_wheels: DeviceGroup[DiscreteAxis] = {}
+        self.axes: DeviceGroup[Axis] = {}
+        self.focusing_axes: DeviceGroup[Axis] = {}
 
         for device_name, device in self.devices.items():
-            if isinstance(device, BaseLaser):
+            if isinstance(device, SpimLaser):
                 self.lasers[device_name] = device
-            elif isinstance(device, VoxelFilterWheel):
+            elif isinstance(device, DiscreteAxis):
                 self.filter_wheels[device_name] = device
-            elif isinstance(device, VoxelAxis):
+            elif isinstance(device, Axis):
                 self.axes[device_name] = device
                 if device.uid not in self.stage.uids:
                     self.focusing_axes[device_name] = device
-            elif isinstance(device, BaseFlipMount):
-                self.flip_mounts[device_name] = device
-            elif isinstance(device, BaseJoystick):
-                self.joysticks[device_name] = device
 
         self._active_profile = next(iter(self.cfg.profiles))
 
         # Livestream state
         self._is_livestreaming = False
         self._frame_thread: Thread | None = None
-        self._on_frame_callback: Callable[[np.ndarray], None] | None = None
+        self._frame_idx: int = 0
 
-        self._acq_task: AcquisitionTask = self._set_active_profile(self._active_profile)
+        # Preview state
+        self._preview_sink: PreviewFrameSink = lambda _: None
+        self._raw_frame_sink: RawFrameSink | None = None
+        self._preview_target_width: int = 1024
+
+        self._acq_task, self._preview_generator = self._set_active_profile(self._active_profile)
 
     def disable_lasers(self):
         for laser in self.lasers.values():
             laser.disable()
 
     @property
-    def active_channel_laser(self) -> BaseLaser:
+    def preview(self) -> PreviewGenerator:
+        return self._preview_generator
+
+    @property
+    def active_channel_laser(self) -> SpimLaser:
         channel_cfg = self.cfg.profiles[self._active_profile]
         return self.lasers[channel_cfg.laser]
 
@@ -98,147 +109,137 @@ class ExASPIM:
         self.lasers[channel_cfg.laser].disable()
         self.log.debug(f"Disabled channel '{channel_name}'")
 
-    def _set_active_profile(self, profile_name: str) -> AcquisitionTask:
-        # Update active channel
+    def _set_active_profile(self, profile_name: str) -> tuple[AcquisitionTask, PreviewGenerator]:
         self._active_profile = profile_name
 
-        # Set filter positions
         if hasattr(self, "_acq_task") and self._acq_task is not None:
             self._acq_task.close()
+
+        if hasattr(self, "_preview_generator"):
+            self._preview_generator.shutdown()
 
         for filter_name, filter_label in self.cfg.profiles[profile_name].filters.items():
             self.filter_wheels[filter_name].select(filter_label)
 
         acq_task = AcquisitionTask(
-            uid=f"{self._active_profile}_acq_task",
+            uid=f"{profile_name}_acq_task",
             daq=self.daq,
-            cfg=self.cfg.get_channel_acq_task_config(self._active_profile),
+            cfg=self.cfg.get_channel_acq_task_config(profile_name),
         )
         acq_task.setup()
 
-        return acq_task
+        preview_gen = PreviewGenerator(
+            preview_sink=self._preview_sink,
+            uid=profile_name,
+            target_width=self._preview_target_width,
+            raw_frame_sink=self._raw_frame_sink,
+        )
+
+        return acq_task, preview_gen
 
     def update_active_profile(self, profile_name: str) -> None:
-        """Switch to a different imaging profile(channel).
-
-        Stops livestream, switches hardware, restarts if was streaming.
-        """
         if profile_name not in self.cfg.profiles:
-            msg = f"Channel '{profile_name}' not in config"
+            msg = f"Profile '{profile_name}' not in config"
             raise ValueError(msg)
 
         if profile_name == self._active_profile:
-            return  # No change needed
+            return
 
         old_profile = self._active_profile
-        callback = self._on_frame_callback  # Preserve callback before stopping
+        was_streaming = self._is_livestreaming
+        preview_sink = self._preview_sink
+        raw_frame_sink = self._raw_frame_sink
 
         self.stop_livestream()
 
-        self._acq_task.close()
-        self._acq_task = self._set_active_profile(profile_name)
+        self._acq_task, self._preview_generator = self._set_active_profile(profile_name)
 
         self.log.info(f"Switched profile: {old_profile} -> {profile_name}")
 
-        # Restart livestream with new channel if was running
-        if callback:
-            self.start_livestream(callback)
+        if was_streaming:
+            self.start_livestream(preview_sink, raw_frame_sink)
 
-    def start_livestream(self, on_frame: Callable[[np.ndarray], None]) -> None:
-        """Start livestream with current active channel.
-
-        Args:
-            on_frame: Callback invoked with each new frame (np.ndarray)
-        """
+    def start_livestream(
+        self,
+        on_preview: PreviewFrameSink,
+        raw_frame_sink: RawFrameSink | None = None,
+        *,
+        target_width: int = 1024,
+    ) -> None:
         if self._is_livestreaming:
             self.log.warning("Livestream already running")
             return
 
-        self._on_frame_callback = on_frame
+        self._preview_sink = on_preview
+        self._raw_frame_sink = raw_frame_sink
+        self._preview_target_width = target_width
+        self._frame_idx = 0
 
-        # 1. Enable channel hardware (laser) - must happen before DAQ claims pins
+        # Recreate preview generator with the real sink (includes raw_frame_sink)
+        self._acq_task, self._preview_generator = self._set_active_profile(self._active_profile)
+
         self.disable_lasers()
         self.active_channel_laser.enable()
 
-        # 2. Prepare and start camera (continuous acquisition)
         self.camera.prepare()
-        self.camera.start(None)  # None = continuous acquisition
+        self.camera.start(None)
 
-        # 3. Setup and start AcquisitionTask with channel-specific waveforms
-        # self._acq_task = AcquisitionTask(
-        #     uid=f"livestream_{self._active_channel}",
-        #     daq=self.daq,
-        #     cfg=self.cfg.get_channel_acq_task_config(self._active_channel),
-        # )
-        # self._acq_task.setup()
         if self._acq_task:
             self._acq_task.start()
         else:
             self.log.error("Daq acq_task missing when starting livestream. Profile: %s", self._active_profile)
 
-        # 4. Start frame grabber thread
         self._is_livestreaming = True
         self._frame_thread = Thread(target=self._frame_grabber_loop, daemon=True)
         self._frame_thread.start()
 
-        self.log.info(f"Started livestream on channel '{self._active_profile}'")
+        self.log.info(f"Started livestream on profile '{self._active_profile}'")
 
     def _frame_grabber_loop(self) -> None:
-        """Thread loop to continuously grab frames from camera."""
         self.log.debug("Frame grabber started")
 
         while self._is_livestreaming:
             try:
-                # Use grab_frame() to actively get new frames (blocks until frame ready)
                 frame = self.camera.grab_frame()
-                if frame is not None and self._on_frame_callback:
-                    self._on_frame_callback(frame)
+                if frame is not None:
+                    # PreviewGenerator copies the frame and sends to both
+                    # raw_frame_sink (napari) and preview sink (QLabel)
+                    self._preview_generator.new_frame_sync(frame, self._frame_idx)
+                    self._frame_idx += 1
             except Exception as e:
                 self.log.warning(f"Failed to grab frame: {e}")
 
         self.log.debug("Frame grabber stopped")
 
     def stop_livestream(self) -> None:
-        """Stop livestream gracefully."""
         if not self._is_livestreaming:
             return
 
-        # 1. Set flag first so frame thread stops
         self._is_livestreaming = False
-
-        # 2. Disable channel (laser first for safety)
         self.disable_lasers()
 
-        # 3. Wait for frame thread to finish
-        if self._frame_thread is not None:
-            self._frame_thread.join(timeout=1.0)
-            self._frame_thread = None
-
-        # 4. Stop and close AcquisitionTask
-        if self._acq_task is not None:
-            self._acq_task.stop()
-            # self._acq_task.close()
-            # self._acq_task = None
-
-        # 5. Stop camera
         self.camera.stop()
 
-        # Clear callback
-        self._on_frame_callback = None
+        if self._acq_task is not None:
+            self._acq_task.stop()
+
+        if self._frame_thread is not None:
+            self._frame_thread.join(timeout=2.0)
+            self._frame_thread = None
+
+        self._preview_sink = lambda _: None
+        self._raw_frame_sink = None
 
         self.log.info("Stopped livestream")
 
     @property
     def is_livestreaming(self) -> bool:
-        """Check if livestream is active."""
         return self._is_livestreaming
 
     def close(self) -> None:
-        """Close all devices and clean up."""
-        # Stop livestream first if running
         self.stop_livestream()
+        self._preview_generator.shutdown()
 
-        # Close all devices
         for device in self.devices.values():
             try:
                 device.close()

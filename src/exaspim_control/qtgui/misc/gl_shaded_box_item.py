@@ -83,11 +83,12 @@ class GLShadedBoxItem(GLMeshItem):
         colors = np.array([self._color for i in range(12)])
         self.setMeshData(vertexes=self._vertexes, faces=self._faces, faceColors=colors)
 
-    def _convert_color(self, color: str) -> list[float]:
+    def _convert_color(self, color: str | list[float]) -> list[float]:
         """Convert color name to RGBA values."""
         if isinstance(color, str):
             rgbf = list(QColor(color).getRgbF())
-            color = [*rgbf[:3], self._opacity * rgbf[3]]
+            alpha = rgbf[3] if rgbf[3] is not None else 1.0
+            return [rgbf[0] or 0.0, rgbf[1] or 0.0, rgbf[2] or 0.0, self._opacity * alpha]
         return color
 
     def size(self) -> np.ndarray:
@@ -101,7 +102,7 @@ class GLShadedBoxItem(GLMeshItem):
         colors = np.array([self._convert_color(self._color) for i in range(12)])
         self.setMeshData(vertexes=self._vertexes, faces=self._faces, faceColors=colors)
 
-    def setData(self, pos: np.ndarray = None, size: np.ndarray = None) -> None:
+    def setData(self, pos: np.ndarray | None = None, size: np.ndarray | None = None) -> None:
         """Set box position and/or size.
 
         :param pos: New position (optional)
@@ -112,6 +113,16 @@ class GLShadedBoxItem(GLMeshItem):
         if size is not None:
             self._size = size
         self._vertexes, self._faces = self._create_box(self._pos, self._size)
+        colors = np.array([self._convert_color(self._color) for i in range(12)])
+        self.setMeshData(vertexes=self._vertexes, faces=self._faces, faceColors=colors)
+
+    def opacity(self) -> float:
+        """Get box opacity."""
+        return self._opacity
+
+    def setOpacity(self, opacity: float) -> None:
+        """Set box face opacity."""
+        self._opacity = opacity
         colors = np.array([self._convert_color(self._color) for i in range(12)])
         self.setMeshData(vertexes=self._vertexes, faces=self._faces, faceColors=colors)
 

@@ -27,12 +27,12 @@ class Card(QFrame):
     def _create_widgets(self) -> tuple[QLabel, QWidget, QVBoxLayout]:
         """Create card widgets (title label and content area)."""
         # Title label (always created, visibility controlled)
-        title_label = QLabel(self._title or "")
+        title_label = QLabel(self._title or "", self)
         title_label.setObjectName("cardTitle")
         title_label.setVisible(self._title is not None)
 
         # Content area
-        content = QWidget()
+        content = QWidget(self)
         content_layout = QVBoxLayout(content)
         content_layout.setContentsMargins(0, 0, 0, 0)
         content_layout.setSpacing(4)
@@ -102,12 +102,12 @@ class CardWidget(QWidget):
     def _create_widgets(self) -> tuple[QLabel, QWidget, QVBoxLayout]:
         """Create card widgets (title label and content area)."""
         # Title label (always created, visibility controlled)
-        title_label = QLabel(self._title or "")
+        title_label = QLabel(self._title or "", self)
         title_label.setObjectName("cardWidgetTitle")
         title_label.setVisible(self._title is not None)
 
         # Content area
-        content = QWidget()
+        content = QWidget(self)
         content_layout = QVBoxLayout(content)
         content_layout.setContentsMargins(0, 0, 0, 0)
         content_layout.setSpacing(4)

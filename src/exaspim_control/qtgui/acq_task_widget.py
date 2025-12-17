@@ -21,8 +21,9 @@ from PyQt6.QtWidgets import (
 )
 
 if TYPE_CHECKING:
+    from voxel.interfaces.daq import TaskStatus
+
     from exaspim_control.acq_task import AcquisitionTask
-    from voxel.devices.daq.base import TaskStatus
 
 
 class StatusBadge(QLabel):
@@ -248,8 +249,10 @@ class AcquisitionTaskWidget(QWidget):
         self._channels_table = QTableWidget()
         self._channels_table.setColumnCount(4)
         self._channels_table.setHorizontalHeaderLabels(["Name", "Port", "Waveform", "Voltage Range"])
-        self._channels_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        self._channels_table.verticalHeader().setVisible(False)
+        if header := self._channels_table.horizontalHeader():
+            header.setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        if v_header := self._channels_table.verticalHeader():
+            v_header.setVisible(False)
         self._channels_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self._channels_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self._channels_table.setMaximumHeight(120)
@@ -391,9 +394,8 @@ class AcquisitionTaskWidget(QWidget):
     def _clear_legend(self) -> None:
         """Clear all legend items."""
         while self._legend_layout.count() > 1:  # Keep the stretch
-            item = self._legend_layout.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
+            if (item := self._legend_layout.takeAt(0)) and (widget := item.widget()):
+                widget.deleteLater()
 
     def _update_channels_table(self) -> None:
         """Update the channels table."""

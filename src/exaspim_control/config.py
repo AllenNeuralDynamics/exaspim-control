@@ -34,16 +34,23 @@ class InstrumentInfo(BaseModel):
     instrument_version: float
 
 
+type AnatomicalDirectionX = Literal["Anterior_to_posterior", "Posterior_to_anterior"]
+type AnatomicalDirectionY = Literal["Inferior_to_superior", "Superior_to_inferior"]
+type AnatomicalDirectionZ = Literal["Left_to_right", "Right_to_left"]
+type MetadataDateFmt = Literal["Year/Month/Day/Hour/Minute/Second"]
+type MetadataDelimiter = Literal["_", "."]
+
+
 class Metadata(InstrumentInfo):
     subject_id: str | None = None
     experimenter_full_name: list[str] | None = None
     chamber_medium: str = "other"
     chamber_refractive_index: float = 1.33
-    x_anatomical_direction: Literal["Anterior_to_posterior", "Posterior_to_anterior"] = "Anterior_to_posterior"
-    y_anatomical_direction: Literal["Inferior_to_superior", "Superior_to_inferior"] = "Inferior_to_superior"
-    z_anatomical_direction: Literal["Left_to_right", "Right_to_left"] = "Left_to_right"
-    date_format: Literal["Year/Month/Day/Hour/Minute/Second"] = "Year/Month/Day/Hour/Minute/Second"
-    name_delimitor: Literal["_", "."] = "_"
+    x_anatomical_direction: AnatomicalDirectionX = "Anterior_to_posterior"
+    y_anatomical_direction: AnatomicalDirectionY = "Inferior_to_superior"
+    z_anatomical_direction: AnatomicalDirectionZ = "Left_to_right"
+    date_format: MetadataDateFmt = "Year/Month/Day/Hour/Minute/Second"
+    name_delimitor: MetadataDelimiter = "_"
 
     @property
     def is_experiment_configured(self) -> bool:

@@ -1,5 +1,4 @@
 import contextlib
-import inspect
 import logging
 from pathlib import Path
 
@@ -19,15 +18,15 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from voxel.preview import PreviewFrame
 
-from exaspim_control.build import build_object
 from exaspim_control.config import ExASPIMConfig
-from exaspim_control.instrument import ExASPIM
+from exaspim_control.instrument import ExASPIM, Stage
 from exaspim_control.qtgui.acq_task_widget import AcquisitionTaskWidget
 from exaspim_control.qtgui.components import Card, VButton
 from exaspim_control.qtgui.control_tab import ControlTab
 from exaspim_control.qtgui.devices.camera_widget import CameraWidget
-from exaspim_control.qtgui.devices.device_widget import SimpleWidget
+from exaspim_control.qtgui.devices.device_adapter import DeviceAdapter
 from exaspim_control.qtgui.devices.filter_wheel_widget import FilterWheelWidget
 from exaspim_control.qtgui.devices.laser_widget import LaserWidget
 from exaspim_control.qtgui.devices_tab import DevicesTab
@@ -151,19 +150,7 @@ class ActionsCard(QWidget):
 
 
 class InstrumentUI[I: ExASPIM](QMainWindow):
-    """Pure Qt alternative to napari-embedded InstrumentView.
-
-    Layout:
-    - Left Panel (70%):
-        - Top: VolumeGraphic + LiveViewer (side by side)
-        - Bottom: Tabbed area (Grid, Waveforms, DAQ, Filters) with tab bar at bottom
-    - Right Panel (30%):
-        - Top: Actions Card (channel selector, acquisition, livestream controls)
-        - Middle: Tab content (Devices, Control, Experiment)
-        - Bottom: Tab anchors
-    """
-
-    def __init__(self, instrument: ExASPIM, window_title: str = "ExA-SPIM Control"):
+    def __init__(self, instrument: I, window_title: str = "ExA-SPIM Control"):
         super().__init__()
 
         self._instrument = instrument
@@ -184,29 +171,30 @@ class InstrumentUI[I: ExASPIM](QMainWindow):
             parent=self,  # Napari window will be child of main window
         )
 
-        # Device widgets for Instrument Control tab
-        self.camera_widget = CameraWidget(self.instrument.camera, parent=self)
+        # Create device adapters for all devices
+        self._adapters: dict[str, DeviceAdapter] = {}
+        for name, device in self.instrument.devices.items():
+            self._adapters[name] = DeviceAdapter(device, parent=self)
+
+        # Start polling on adapters that have streaming properties
+        for adapter in self._adapters.values():
+            if adapter.streaming_properties:
+                adapter.start_polling()
+
+        # Device widgets for Instrument Control tab (using adapters)
+        self.camera_widget = CameraWidget(self._adapters[self.instrument.camera.uid], parent=self)
         self.daq_widget = None
-        self.fw_widgets = {uid: FilterWheelWidget(fw, parent=self) for uid, fw in self.instrument.filter_wheels.items()}
-        self.laser_widgets = {uid: LaserWidget(laser, parent=self) for uid, laser in self.instrument.lasers.items()}
+        self.fw_widgets = {uid: FilterWheelWidget(self._adapters[uid], parent=self) for uid in self.instrument.filter_wheels}
+        self.laser_widgets = {uid: LaserWidget(self._adapters[uid], parent=self) for uid in self.instrument.lasers}
 
         # Volume visualization components
-        coordinate_plane = self.config.globals.coordinate_plane
-        unit = self.config.globals.unit
-        limits = [
-            list(self.instrument.stage.x.limits_mm),
-            list(self.instrument.stage.y.limits_mm),
-            list(self.instrument.stage.z.limits_mm),
-        ]
-        fov_dimensions = list(self._calculate_fov_dimensions())
-
         # Create VolumeModel (shared reactive state for volume planning)
         self.volume_model = VolumeModel(
-            coordinate_plane=list(coordinate_plane),
-            unit=unit,
-            fov_dimensions=fov_dimensions,
+            coordinate_plane=list(self.config.globals.coordinate_plane),
+            unit=self.config.globals.unit,
+            fov_dimensions=list(self._calculate_fov_dimensions()),
             fov_position=[0.0, 0.0, 0.0],
-            limits=limits,
+            limits=self._get_stage_limits(self.instrument.stage),
             parent=self,
         )
 
@@ -230,12 +218,12 @@ class InstrumentUI[I: ExASPIM](QMainWindow):
         # Acquisition task widget for waveform visualization
         self.acq_task_widget = AcquisitionTaskWidget(parent=self)
 
-        # Actions card with control buttons (channel/start moved to tab bars)
+        # Actions card with control buttons
         self.actions_card = ActionsCard(parent=self)
         self._connect_actions_card_signals()
 
         # Channel selector (will be placed in left tab bar corner)
-        self.channel_combo = self._create_channel_combo()
+        self.channel_combo = self._create_profiles_combo()
 
         # Start acquisition button (will be placed in right tab bar corner)
         self.start_acq_button = self._create_start_button()
@@ -251,6 +239,14 @@ class InstrumentUI[I: ExASPIM](QMainWindow):
 
         self.log.info("InstrumentUI initialized")
 
+    @staticmethod
+    def _get_stage_limits(stage: Stage) -> list[list[float]]:
+        return [
+            [stage.x.lower_limit_mm, stage.x.upper_limit_mm],
+            [stage.y.lower_limit_mm, stage.y.upper_limit_mm],
+            [stage.z.lower_limit_mm, stage.z.upper_limit_mm],
+        ]
+
     @property
     def instrument(self) -> ExASPIM:
         return self._instrument
@@ -260,29 +256,26 @@ class InstrumentUI[I: ExASPIM](QMainWindow):
         return self._instrument.cfg
 
     @property
-    def channels(self):
+    def profiles(self):
         return self.config.profiles
 
     def _calculate_fov_dimensions(self) -> tuple[float, float, float]:
-        """Calculate FOV dimensions from camera frame size and objective magnification.
+        """Calculate FOV dimensions from camera ROI and objective magnification.
 
-        FOV = camera_frame_mm / magnification
-
-        The camera's frame_width_mm = um_px * roi_width_px / 1000 (binning cancels out).
-        If um_px is the physical pixel size, we divide by magnification to get true FOV.
+        FOV = (roi_px * pixel_size_um) / (magnification * 1000)
         """
         magnification = self.config.globals.objective_magnification
+        camera = self.instrument.camera
 
-        # Get sensor-referenced dimensions from camera (ROI size * um_px)
-        height_mm = self.instrument.camera.frame_height_mm
-        width_mm = self.instrument.camera.frame_width_mm
-
-        # Apply objective magnification to get actual FOV
-        height_mm = height_mm / magnification
-        width_mm = width_mm / magnification
+        # Physical FOV from frame area divided by magnification
+        area = camera.frame_area_mm
+        width_mm = area.x / magnification
+        height_mm = area.y / magnification
 
         cam_rotation = self.config.globals.camera_rotation_deg
-        return (height_mm, width_mm, 0) if cam_rotation in [-270, -90, 90, 270] else (width_mm, height_mm, 0)
+        if cam_rotation in [-270, -90, 90, 270]:
+            return (height_mm, width_mm, 0)
+        return (width_mm, height_mm, 0)
 
     def _connect_grid_signals(self) -> None:
         """Connect grid controls signals to volume graphic view settings."""
@@ -304,20 +297,6 @@ class InstrumentUI[I: ExASPIM](QMainWindow):
         if plane in plane_map:
             self.volume_graphic.view_plane = plane_map[plane]
 
-    def _update_limits(self) -> None:
-        """Update VolumeModel with current stage limits.
-
-        Reads limits from stage axes and propagates to VolumeModel,
-        which notifies all subscribed widgets (GridControls, VolumeGraphic).
-        """
-        limits = [
-            list(self.instrument.stage.x.limits_mm),
-            list(self.instrument.stage.y.limits_mm),
-            list(self.instrument.stage.z.limits_mm),
-        ]
-        # VolumeModel will emit limitsChanged signal to update all widgets
-        self.volume_model.limits = limits
-
     def _connect_actions_card_signals(self) -> None:
         """Connect actions card signals to handlers."""
         self.actions_card.live_button.clicked.connect(self._toggle_livestream)
@@ -325,10 +304,9 @@ class InstrumentUI[I: ExASPIM](QMainWindow):
         self.actions_card.crosshairs_button.toggled.connect(self._toggle_crosshairs)
         self.actions_card.halt_button.clicked.connect(self._on_halt_stage)
 
-    def _create_channel_combo(self) -> QComboBox:
-        """Create channel selector combo box for left tab bar."""
-        combo = QComboBox()
-        combo.addItems(list(self.channels.keys()))
+    def _create_profiles_combo(self) -> QComboBox:
+        combo = QComboBox(self)
+        combo.addItems(list(self.profiles.keys()))
         combo.setStyleSheet("""
             QComboBox {
                 background-color: #3c3c3c;
@@ -354,12 +332,12 @@ class InstrumentUI[I: ExASPIM](QMainWindow):
                 margin-right: 5px;
             }
         """)
-        combo.currentTextChanged.connect(self._on_channel_changed)
+        combo.currentTextChanged.connect(self._on_profile_changed)
         return combo
 
     def _create_start_button(self) -> VButton:
         """Create Start Acquisition button for right tab bar."""
-        button = VButton("Start Acquisition", variant="primary")
+        button = VButton("Start Acquisition", variant="primary", parent=self)
         button.clicked.connect(self._start_acquisition)
         return button
 
@@ -456,7 +434,7 @@ class InstrumentUI[I: ExASPIM](QMainWindow):
             }
         """)
 
-        # Add channel combo to right corner of tab bar
+        # Add profiles combo to right corner of tab bar
         self.left_tabs.setCornerWidget(self.channel_combo, Qt.Corner.BottomRightCorner)
 
         # Grid tab - GridControls (tile table on left, controls on right)
@@ -483,19 +461,19 @@ class InstrumentUI[I: ExASPIM](QMainWindow):
 
     def _create_waveforms_tab(self) -> QWidget:
         """Create Waveforms tab with refresh button."""
-        tab = QWidget()
+        tab = QWidget(self)
         layout = QVBoxLayout(tab)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
         # Header with refresh button
-        header = QWidget()
+        header = QWidget(tab)
         header.setStyleSheet("background-color: #252526;")
         header_layout = QHBoxLayout(header)
         header_layout.setContentsMargins(8, 4, 8, 4)
         header_layout.addStretch()
 
-        refresh_btn = QPushButton("⟳ Refresh")
+        refresh_btn = QPushButton("⟳ Refresh", header)
         refresh_btn.setStyleSheet("""
             QPushButton {
                 background-color: #3c3c3c;
@@ -529,7 +507,7 @@ class InstrumentUI[I: ExASPIM](QMainWindow):
 
     def _create_daq_tab(self) -> QWidget:
         """Create DAQ tab with DAQ widget, maximizing space."""
-        tab = QWidget()
+        tab = QWidget(self)
         layout = QVBoxLayout(tab)
         layout.setContentsMargins(0, 0, 0, 0)  # Remove margins to maximize space
         layout.setSpacing(0)  # Remove spacing between widgets
@@ -538,7 +516,7 @@ class InstrumentUI[I: ExASPIM](QMainWindow):
             layout.addWidget(self.daq_widget, stretch=1)
         else:
             # Placeholder if no DAQ widget
-            placeholder = QLabel("No DAQ device configured")
+            placeholder = QLabel("No DAQ device configured", tab)
             placeholder.setStyleSheet("color: gray; padding: 20px;")
             layout.addWidget(placeholder)
 
@@ -546,23 +524,23 @@ class InstrumentUI[I: ExASPIM](QMainWindow):
 
     def _create_filters_tab(self) -> QScrollArea:
         """Create Filter Wheels tab with all filter wheel widgets."""
-        scroll = QScrollArea()
+        scroll = QScrollArea(self)
         scroll.setWidgetResizable(True)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         scroll.setFrameShape(QScrollArea.Shape.NoFrame)
 
-        container = QWidget()
+        container = QWidget(scroll)
         layout = QVBoxLayout(container)
         layout.setContentsMargins(8, 8, 8, 8)
         layout.setSpacing(8)
 
         if self.fw_widgets:
             for uid, widget in self.fw_widgets.items():
-                fw_card = Card(f"Filter Wheel: {uid}")
+                fw_card = Card(f"Filter Wheel: {uid}", parent=container)
                 fw_card.add_widget(widget)
                 layout.addWidget(fw_card)
         else:
-            placeholder = QLabel("No filter wheels configured")
+            placeholder = QLabel("No filter wheels configured", container)
             placeholder.setStyleSheet("color: gray; padding: 20px;")
             layout.addWidget(placeholder)
 
@@ -616,14 +594,34 @@ class InstrumentUI[I: ExASPIM](QMainWindow):
         self.right_tabs.addTab(self.devices_tab, "Devices")
 
         # TAB 2: Control (primary device controls)
+        # Get adapters for stage axes
+        stage_adapters = {
+            "x": self._adapters[self.instrument.stage.x.uid],
+            "y": self._adapters[self.instrument.stage.y.uid],
+            "z": self._adapters[self.instrument.stage.z.uid],
+        }
+        # Get adapters for focusing axes
+        focusing_adapters = {name: self._adapters[axis.uid] for name, axis in self.instrument.focusing_axes.items()}
+
         self.control_tab = ControlTab(
             camera_widget=self.camera_widget,
             camera_uid=self.instrument.camera.uid,
             laser_widgets=self.laser_widgets,
-            stage=self.instrument.stage,
-            focusing_axes=self.instrument.focusing_axes,
+            stage_adapters=stage_adapters,
+            focusing_adapters=focusing_adapters,
         )
-        self.control_tab.stageLimitsChanged.connect(self._update_limits)
+
+        def _update_limits() -> None:
+            """Update VolumeModel with current stage limits.
+
+            Reads limits from stage axes and propagates to VolumeModel,
+            which notifies all subscribed widgets (GridControls, VolumeGraphic).
+            """
+            # VolumeModel will emit limitsChanged signal to update all widgets
+            self.volume_model.limits = self._get_stage_limits(self.instrument.stage)
+
+        self.control_tab.stageLimitsChanged.connect(_update_limits)
+        self.control_tab.stageMovingChanged.connect(self._on_stage_moving_changed)
         self.right_tabs.addTab(self.control_tab, "Control")
 
         # TAB 3: Experiment
@@ -638,32 +636,36 @@ class InstrumentUI[I: ExASPIM](QMainWindow):
 
     def _create_devices_tab(self) -> DevicesTab:
         """Create the Devices tab with all instrument devices organized in accordions."""
-        devices_by_type: dict[str, dict[str, object]] = {}
+        adapters_by_type: dict[str, dict[str, DeviceAdapter]] = {}
 
         # Cameras
         if self.instrument.camera:
-            devices_by_type["Cameras"] = {"camera": self.instrument.camera}
+            adapters_by_type["Cameras"] = {self.instrument.camera.uid: self._adapters[self.instrument.camera.uid]}
 
         # Lasers
         if self.instrument.lasers:
-            devices_by_type["Lasers"] = dict(self.instrument.lasers)
+            adapters_by_type["Lasers"] = {uid: self._adapters[uid] for uid in self.instrument.lasers}
 
         # Filter Wheels
         if self.instrument.filter_wheels:
-            devices_by_type["Filter Wheels"] = dict(self.instrument.filter_wheels)
+            adapters_by_type["Filter Wheels"] = {uid: self._adapters[uid] for uid in self.instrument.filter_wheels}
 
-        # Stages / Axes
+        # Axes
         if self.instrument.axes:
-            devices_by_type["Axes"] = dict(self.instrument.axes)
+            adapters_by_type["Axes"] = {uid: self._adapters[axis.uid] for uid, axis in self.instrument.axes.items()}
 
-        # Flip Mounts
-        if self.instrument.flip_mounts:
-            devices_by_type["Flip Mounts"] = dict(self.instrument.flip_mounts)
-
-        return DevicesTab(devices_by_type, parent=self)
+        return DevicesTab(adapters_by_type, parent=self)
 
     def _toggle_livestream(self) -> None:
         """Toggle livestream and update button state."""
+
+        def _on_raw_frame(frame: np.ndarray, idx: int) -> None:
+            """Send raw frame to napari viewer (already copied by PreviewGenerator)."""
+            self.live_viewer.update_frame(frame)
+
+        def _on_preview(frame: PreviewFrame) -> None:
+            self.live_viewer.update_preview(frame)
+
         if self._is_livestreaming:
             self.instrument.stop_livestream()
             self._is_livestreaming = False
@@ -677,8 +679,8 @@ class InstrumentUI[I: ExASPIM](QMainWindow):
             self._set_camera_controls_enabled(False)
             # Prepare viewer for new acquisition (clear layers for fresh dtype)
             self.live_viewer.prepare_for_acquisition()
-            # Start livestream
-            self.instrument.start_livestream(on_frame=self._on_frame)
+            # Start livestream with preview sink (QLabel) and raw frame sink (napari)
+            self.instrument.start_livestream(on_preview=_on_preview, raw_frame_sink=_on_raw_frame)
             self._is_livestreaming = True
             self.actions_card.live_button.setText("Stop")
             # Update acquisition task widget with active task
@@ -686,33 +688,21 @@ class InstrumentUI[I: ExASPIM](QMainWindow):
                 self.acq_task_widget.set_task(self.instrument._acq_task)
 
     def _set_camera_controls_enabled(self, enabled: bool) -> None:
-        """Enable or disable camera controls that shouldn't change during acquisition.
-
-        :param enabled: True to enable controls, False to disable
-        """
+        """Enable or disable camera controls that shouldn't change during acquisition."""
         if self.camera_widget is not None:
             self.camera_widget.set_acquisition_controls_enabled(enabled)
 
-    def _on_frame(self, frame: np.ndarray) -> None:
-        """Send frame to live viewer."""
-        self.live_viewer.update_frame(frame)
-
     def _take_snapshot(self) -> None:
         """Take a single snapshot from the camera."""
-        self.log.info("Taking snapshot")
-        try:
-            frame = self.instrument.camera.latest_frame
-            self.live_viewer.update_frame(frame)
-        except Exception:
-            self.log.exception("Failed to take snapshot")
+        self.log.warning("Taking snapshot is not yet implemented.")
 
     def _toggle_crosshairs(self, checked: bool) -> None:
         """Toggle crosshairs overlay on live viewer."""
         self.log.info(f"Crosshairs {'enabled' if checked else 'disabled'}")
         # TODO: Implement crosshairs overlay on LiveViewer
 
-    def _on_channel_changed(self, channel_name: str) -> None:
-        """Handle channel change from actions card.
+    def _on_profile_changed(self, channel_name: str) -> None:
+        """Handle profile change from actions card.
 
         Uses instrument.set_active_channel() which handles stopping livestream,
         switching hardware (lasers, filters), and restarting if was streaming.
@@ -724,24 +714,12 @@ class InstrumentUI[I: ExASPIM](QMainWindow):
     def _on_halt_stage(self) -> None:
         """Handle halt stage button click."""
         self.log.warning("HALT STAGE triggered")
-        # TODO: Implement actual stage halt logic
-        # self.instrument.stage.halt()
+        self.instrument.stage.halt()
 
-    def set_stage_moving(self, is_moving: bool) -> None:
-        """Update UI to reflect stage movement state.
-
-        :param is_moving: True if stage is currently moving
-        """
+    def _on_stage_moving_changed(self, is_moving: bool) -> None:
+        """Handle stage movement state change from axis widgets."""
+        self.volume_model.is_moving = is_moving
         self.actions_card.halt_button.set_stage_moving(is_moving)
-
-    # def _setup_daq_widgets(self) -> None:
-    #     """Setup DAQ widget signal connections."""
-    #     self.daq_widget.propertyChanged.connect(lambda _name, _value: self.write_waveforms(self.instrument.daq))
-    #     self.daq_widget.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
-
-    # def write_waveforms(self, daq: object) -> None:
-    #     """Write waveforms to DAQ - placeholder for now."""
-    #     # TODO: Implement in later step when needed
 
     def _setup_menu_bar(self) -> None:
         """Create menu bar."""
@@ -758,79 +736,13 @@ class InstrumentUI[I: ExASPIM](QMainWindow):
             exit_action.triggered.connect(self.close)
             file_menu.addAction(exit_action)
 
-    def _make_widget(self, device_name: str, device, device_type: str = "Device"):
-        """Create widget for device, checking config for custom GUI class."""
-        if device_name in self.config.widgets:
-            widget = build_object(self.config.widgets[device_name])
-        else:
-            widget = SimpleWidget(type(device))
-        widget.setWindowTitle(f"{device_type} {device_name}")
-        return widget
-
-    def update_property_value(self, value, device_widget, property_name: str) -> None:
-        """Update property value in device widget."""
-        with contextlib.suppress(RuntimeError, AttributeError):
-            setattr(device_widget, property_name, value)  # setting attribute value will update widget
-
-    @pyqtSlot(str)
-    def device_property_changed(self, attr_name: str, device: object, widget) -> None:
-        """
-        pyqtSlot to signal when device widget has been changed.
-
-        :param attr_name: name of attribute
-        :param device: device object
-        :param widget: widget object relating to device
-        """
-        name_lst = attr_name.split(".")
-        self.log.debug(f"widget {attr_name} changed to {getattr(widget, name_lst[0])}")
-        value = getattr(widget, name_lst[0])
-        try:  # Make sure name is referring to same thing in UI and device
-            dictionary = getattr(device, name_lst[0])
-            for k in name_lst[1:]:
-                dictionary = dictionary[k]
-
-            # attempt to pass in correct value of correct type
-            descriptor = getattr(type(device), name_lst[0])
-            fset = descriptor.fset
-            input_type = list(inspect.signature(fset).parameters.values())[-1].annotation
-            if input_type != inspect.Parameter.empty:
-                setattr(device, name_lst[0], input_type(value))
-            else:
-                setattr(device, name_lst[0], value)
-
-            self.log.info(f"Device changed to {getattr(device, name_lst[0])}")
-            # Update ui with new device values that might have changed
-            # WARNING: Infinite recursion might occur if device property not set correctly
-            for k in widget.property_widgets:
-                if getattr(widget, k, False):
-                    device_value = getattr(device, k)
-                    setattr(widget, k, device_value)
-
-        except (KeyError, TypeError):
-            self.log.warning(f"{attr_name} can't be mapped into device properties")
-
     def close(self) -> bool:
-        """Close operations and end threads."""
         self.log.info("Closing InstrumentUI")
-
         self._is_closing = True
-
-        # Stop all device widget workers first (waits for them to finish)
-        for widget in [self.camera_widget, *self.fw_widgets.values(), *self.laser_widgets.values()]:
-            if widget is not None and hasattr(widget, "stop_workers"):
-                widget.stop_workers()
-
-        # Stop axis widget workers from control tab
-        if hasattr(self, "control_tab") and self.control_tab is not None:
-            for widget in self.control_tab.findChildren(QWidget):
-                if hasattr(widget, "stop_workers"):
-                    widget.stop_workers()
-
-        # Close live viewer
+        # Stop polling on all adapters
+        for adapter in self._adapters.values():
+            adapter.stop_polling()
         self.live_viewer.close()
-
-        # Close instrument (now safe - all workers stopped)
         with contextlib.suppress(AttributeError):
             self.instrument.close()
-
         return super().close()

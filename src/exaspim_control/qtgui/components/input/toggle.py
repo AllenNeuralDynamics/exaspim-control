@@ -15,7 +15,7 @@ from PyQt6.QtCore import (
     QRectF,
     QSize,
     Qt,
-    pyqtProperty,
+    pyqtProperty,  # pyright: ignore[reportAttributeAccessIssue]
     pyqtSlot,
 )
 from PyQt6.QtGui import QBrush, QColor, QPainter, QPaintEvent, QPen
@@ -258,7 +258,8 @@ if __name__ == "__main__":
     def main():
         """Quick test of VToggle animation."""
         app = QApplication(sys.argv)
-        app.setWindowIcon(app.style().standardIcon(QStyle.StandardPixmap.SP_DialogYesButton))
+        if style := app.style():
+            app.setWindowIcon(style.standardIcon(QStyle.StandardPixmap.SP_DialogYesButton))
         window = QWidget()
         window.setWindowTitle("VToggle Quick Test")
         window.setGeometry(300, 300, 300, 200)

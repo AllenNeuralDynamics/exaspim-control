@@ -32,8 +32,8 @@ from PyQt6.QtWidgets import (
     QSplitter,
     QWidget,
 )
-from voxel.acquisition import Acquisition
-from voxel.instrument import Instrument
+from voxel._archive.acquisition import Acquisition
+from voxel._archive.instrument import Instrument
 
 from view.widgets.acquisition_widgets.channel_plan_widget import ChannelPlanWidget
 from view.widgets.acquisition_widgets.metadata_widget import MetadataWidget

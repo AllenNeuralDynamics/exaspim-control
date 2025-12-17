@@ -1,11 +1,8 @@
 _anchors:
-  laser_driver: &laser_driver voxel.devices.laser.coherent.genesis_mx.GenesisMXLaser # voxel.devices.laser.simulated.SimulatedLaser #
-  axis_driver: &axis_driver voxel.devices.axes.asi.TigerAxis
-  # stage_widget: &stage_widget exaspim_control.widgets.stage_widget.StageWidget
-  # daq_widget: &daq_widget exaspim_control.widgets.ni_widget.NIWidget
+  laser_driver: &laser_driver voxel.drivers.lasers.coherent.genesis_mx.GenesisMX  # voxel.drivers.lasers.simulated.SimulatedLaser
+  axis_driver: &axis_driver voxel.drivers.axes.asi.TigerAxis
 
 metadata:
-  # target: exaspim_control.metadata.aind_metadata_class.AINDMetadataClass
   instrument_uid: exaspim-beta3
   instrument_type: exaSPIM
   instrument_version: 1.0
@@ -28,15 +25,14 @@ globals:
 
 writers:
   imaris:
-    target: voxel.writers.imaris.ImarisWriter
+    target: voxel.io.writers.imaris.ImarisWriter
     init:
       path: D:\\
     defaults:
       compression: lz4shuffle
       data_type: uint16
   # aqz:
-  #   target: voxel.writers.zarr
-  #   module: ZarrWriter
+  #   target: voxel.writers.zarr.ZarrWriter
   #   init:
   #     path: exaSPIM\test
   #   defaults:
@@ -58,7 +54,7 @@ writers:
 
 transfers:
   robocopy:
-    target: voxel.file_transfers.robocopy_zarr.RobocopyFileTransfer
+    target: voxel.io.file_transfers.robocopy_zarr.RobocopyFileTransfer
     init:
       external_path: Y:\\stage\\exaSPIM
       local_path: D:\\
@@ -68,28 +64,30 @@ transfers:
       timeout_s: 60
 
 devices:
+  # vp-151mx:
+  #   target: voxel.drivers.cameras.egrabber.VieworksCamera
+  #   init:
+  #     serial: MP151BDZ014
+  #     pixel_size_um: [3.76, 3.76]  # Physical pixel size in microns
+  #   defaults:
+  #     exposure_time_ms: 10.0
+  #     pixel_format: MONO16
+  #     binning: 1
   vp-151mx:
-    target: voxel.devices.camera.vieworks.egrabber.VieworksCamera
+    target: voxel.drivers.cameras.simulated.SimulatedCamera # Simulated camera for testing
     init:
-      serial: MP151BDZ014
+      pixel_size_um: [3.76, 3.76]  # Physical pixel size in microns
+      sensor_size_px: [14192, 10640]  # VP-151MX sensor size
     defaults:
       exposure_time_ms: 10.0
-      pixel_type: mono16
-      height_px: 10640
-      width_px: 14192
-      trigger:
-        mode: on
-        polarity: risingedge
-        source: line0
-      bit_packing_mode: msb
+      pixel_format: MONO16
       binning: 1
-      um_px: 3.76 # 0.748
   pcie-6738:
-    target: voxel.devices.daq.ni.NiDaq
+    target: voxel.drivers.daqs.ni.NiDaq
     init:
       dev: Dev3
   filter_wheel_main:
-    target: voxel.devices.filterwheel.ni.DAQFilterWheel
+    target: voxel.drivers.axes.daq_filter_wheel.DAQFilterWheel
     init:
       daq: pcie-6738
       slots:
@@ -111,15 +109,15 @@ devices:
     init:
       serial: A679409EM263
       wavelength: 488
-      maximum_power_mw: 1000
+      max_power_mw: 1000
   639-nm:
     target: *laser_driver
     init:
       serial: R689368EQ167
       wavelength: 639
-      maximum_power_mw: 1000
+      max_power_mw: 1000
   tigerhub:
-    target: voxel.devices.controller.tigerhub.TigerHub
+    target: voxel.drivers.tigerhub.TigerHub
     init:
       com_port: COM3
   z-axis:
@@ -128,70 +126,64 @@ devices:
       hub: tigerhub
       axis_label: z
     defaults:
-      mode: step shoot
       speed_mm_s: 1.0
       backlash_mm: 0.0
-      acceleration_ms: 200.0
+      acceleration_mm_s2: 5.0  # ~200ms to reach 1mm/s
+      # TTL step-and-shoot configured via get_ttl_stepper() capability
   x-axis:
     target: *axis_driver
     init:
       hub: tigerhub
       axis_label: x
     defaults:
-      mode: off
       speed_mm_s: 1.0
       backlash_mm: 0.004
-      acceleration_ms: 200.0
+      acceleration_mm_s2: 5.0
   y-axis:
     target: *axis_driver
     init:
       hub: tigerhub
       axis_label: v
     defaults:
-      mode: off
       speed_mm_s: 1.0
       backlash_mm: 0.004
-      acceleration_ms: 200.0
+      acceleration_mm_s2: 5.0
   theta-axis:
     target: *axis_driver
     init:
       hub: tigerhub
       axis_label: t
     defaults:
-      mode: off
       speed_mm_s: 0.3
       backlash_mm: 0.004
-      acceleration_ms: 200.0
+      acceleration_mm_s2: 1.5  # ~200ms to reach 0.3mm/s
   left_focus:
     target: *axis_driver
     init:
       hub: tigerhub
       axis_label: a
     defaults:
-      mode: off
       speed_mm_s: 0.01
       backlash_mm: 0.004
-      acceleration_ms: 5.0
+      acceleration_mm_s2: 2.0  # ~5ms to reach 0.01mm/s
   right_focus:
     target: *axis_driver
     init:
       hub: tigerhub
       axis_label: b
     defaults:
-      mode: off
       speed_mm_s: 0.01
       backlash_mm: 0.004
-      acceleration_ms: 5.0
+      acceleration_mm_s2: 2.0  # ~5ms to reach 0.01mm/s
   camera_focus:
     target: *axis_driver
     init:
       hub: tigerhub
       axis_label: m
     defaults:
-      mode: off
       speed_mm_s: 0.01
       backlash_mm: 0.004
-      acceleration_ms: 20.0
+      acceleration_mm_s2: 0.5  # ~20ms to reach 0.01mm/s
 
 stage:
   x: x-axis
@@ -311,47 +303,3 @@ profiles:
         max_volts: 0.0
       639-nm:
         max_volts: 10.0
-
-# widgets:
-#   z-axis:
-#     target: *stage_widget
-#     init:
-#       advanced_user: False
-#     updating_properties:
-#       - position_mm
-#   x-axis:
-#     target: *stage_widget
-#     init:
-#       advanced_user: False
-#     updating_properties:
-#       - position_mm
-#   y-axis:
-#     target: *stage_widget
-#     init:
-#       advanced_user: False
-#     updating_properties:
-#       - position_mm
-#   theta-axis:
-#     target: *stage_widget
-#     init:
-#       advanced_user: False
-#     updating_properties:
-#       - position_mm
-#   left_focus:
-#     target: *stage_widget
-#     init:
-#       advanced_user: False
-#     updating_properties:
-#       - position_mm
-#   right_focus:
-#     target: *stage_widget
-#     init:
-#       advanced_user: False
-#     updating_properties:
-#       - position_mm
-#   camera_focus:
-#     target: *stage_widget
-#     init:
-#       advanced_user: False
-#     updating_properties:
-#       - position_mm

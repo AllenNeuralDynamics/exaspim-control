@@ -1,17 +1,17 @@
 from collections.abc import Callable
-from typing import TypedDict
+from typing import NotRequired, TypedDict
 
 from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import QPushButton
 
 
-class ToggleButtonState(TypedDict, total=False):
+class ToggleButtonState(TypedDict):
     """Configuration for a toggle button state."""
 
-    label: str
-    background: tuple[int, int, int] | None
-    foreground: tuple[int, int, int] | None
-    on_enter: Callable[[], None] | None
+    label: str  # Required
+    background: NotRequired[tuple[int, int, int] | None]
+    foreground: NotRequired[tuple[int, int, int] | None]
+    on_enter: NotRequired[Callable[[], None] | None]
 
 
 class ToggleButton(QPushButton):

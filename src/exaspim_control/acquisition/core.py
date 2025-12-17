@@ -15,7 +15,7 @@ import numpy as np
 from gputools import get_device
 from psutil import virtual_memory
 from ruyaml import YAML
-from voxel.acquisition import Acquisition
+from voxel._archive.acquisition import Acquisition
 from voxel.writers.data_structures.shared_double_buffer import SharedDoubleBuffer
 
 from exaspim_control.instrument import ExASPIM

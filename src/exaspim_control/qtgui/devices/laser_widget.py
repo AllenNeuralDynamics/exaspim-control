@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from typing import ClassVar
+import logging
+from typing import Any
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import (
     QCheckBox,
     QFrame,
@@ -15,11 +16,11 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-from voxel.devices.laser.base import BaseLaser
+from voxel.interfaces.laser import SpimLaser
 
 from exaspim_control.qtgui.components import VToggle
 from exaspim_control.qtgui.components.chip import Chip
-from exaspim_control.qtgui.devices.device_widget import DeviceWidget
+from exaspim_control.qtgui.devices.device_adapter import DeviceAdapter
 from exaspim_control.qtgui.utils import darken_color, hex_to_rgb, rgb_to_hex, wavelength_to_hex
 
 
@@ -39,53 +40,41 @@ class PowerChip(Chip):
         self.setText(f"{power_mw:.1f} mW")
 
 
-class LaserWidget(DeviceWidget):
+class LaserWidget(QWidget):
     """Widget for laser control with three-layer power visualization.
+
+    Uses composition with DeviceAdapter rather than inheritance.
 
     Layout:
     - Row 1: Enable/Disable toggle + ON/OFF label + Power chip (actual)
     - Row 2: [Progress bar + Setpoint indicator + Command slider] + Link checkbox
     - Row 3: Status bar with temperature (left) and wavelength (right)
-
-    Three layers (bottom to top):
-    - Progress bar: Shows actual power (power_mw) - wavelength colored fill
-    - Setpoint indicator: Wider semi-transparent thumb tracking device setpoint
-    - Command slider: Narrow thumb for user to command new setpoint
-
-    Link checkbox links command slider to setpoint indicator (not to progress bar).
     """
 
-    __SKIP_PROPS__: ClassVar[set[str]] = {
-        "power_setpoint_mw",
-        "power_mw",
-        "temperature_c",
-        "wavelength",
-        "is_enabled",
-    }
+    propertyChanged = pyqtSignal(str, object)
 
-    def __init__(self, laser: BaseLaser, parent: QWidget | None = None) -> None:
-        """
-        Initialize the LaserWidget.
+    def __init__(self, adapter: DeviceAdapter[SpimLaser], parent: QWidget | None = None) -> None:
+        """Initialize the LaserWidget.
 
-        :param laser: Laser device object
+        :param adapter: DeviceAdapter for the laser device
         :param parent: Parent widget
         """
-        updating_props = ["power_mw", "power_setpoint_mw", "temperature_c", "is_enabled"]
-
-        # Initialize DeviceWidget
-        super().__init__(laser, updating_properties=updating_props, parent=parent)
+        super().__init__(parent)
+        self._adapter = adapter
+        self.log = logging.getLogger(f"{__name__}.{adapter.device.uid}")
 
         # Get device properties
-        self.wavelength_nm = self.device.wavelength
+        device = adapter.device
+        self.wavelength_nm = device.wavelength
         self.laser_color = wavelength_to_hex(self.wavelength_nm)
-        self.max_power_mw = getattr(type(laser).power_setpoint_mw, "maximum", 110)
+        self.max_power_mw = self._get_max_power(device)
 
         # Calculate color variants
         rgb = hex_to_rgb(self.laser_color)
         self.laser_color_dark = rgb_to_hex(*darken_color(*rgb, factor=0.6))
 
         # Track states
-        self._is_enabled = self.device.is_enabled
+        self._is_enabled = device.is_enabled
         self._is_linked = True  # Start linked (command follows setpoint)
         self._slider_scale = 1000
 
@@ -101,7 +90,24 @@ class LaserWidget(DeviceWidget):
             self._enable_label.setStyleSheet(f"color: {self.laser_color}; font-size: 11px; font-weight: bold;")
 
         # Build layout
-        self.main_layout.addLayout(self._build_layout())
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addLayout(self._build_layout())
+
+        # Connect to adapter property updates (thread-safe via Qt signal)
+        adapter.propertyUpdated.connect(self._on_property_update)
+
+    def _get_max_power(self, device: SpimLaser) -> float:
+        """Get max power from device property constraints."""
+        power_setpoint = getattr(device, "power_setpoint_mw", None)
+        if power_setpoint is not None and hasattr(power_setpoint, "max_value"):
+            return power_setpoint.max_value or 110.0
+        return 110.0
+
+    @property
+    def device(self) -> SpimLaser:
+        """Get the laser device."""
+        return self._adapter.device
 
     def _create_header_widgets(self) -> None:
         """Create header row widgets."""
@@ -176,7 +182,9 @@ class LaserWidget(DeviceWidget):
         # Free checkbox (unchecked = linked/disabled, checked = free/enabled)
         self._link_checkbox = QCheckBox()
         self._link_checkbox.setChecked(False)  # Start unchecked (linked)
-        self._link_checkbox.setToolTip("Check to enable slider for adjusting power.\nUncheck to lock slider to setpoint.")
+        self._link_checkbox.setToolTip(
+            "Check to enable slider for adjusting power.\nUncheck to lock slider to setpoint."
+        )
         self._link_checkbox.setStyleSheet(f"""
             QCheckBox::indicator {{
                 width: 14px;
@@ -253,9 +261,9 @@ class LaserWidget(DeviceWidget):
 
         return layout
 
-    def resizeEvent(self, event) -> None:
+    def resizeEvent(self, a0) -> None:
         """Handle resize to position track layers."""
-        super().resizeEvent(event)
+        super().resizeEvent(a0)
         if hasattr(self, "_track_widget"):
             w = self._track_widget.width()
             h = self._track_widget.height()
@@ -279,10 +287,7 @@ class LaserWidget(DeviceWidget):
         return ratio * self.max_power_mw
 
     def _update_command_slider_style(self, enabled: bool) -> None:
-        """Update command slider style based on enabled state.
-
-        :param enabled: Whether the slider is enabled (checkbox checked)
-        """
+        """Update command slider style based on enabled state."""
         if enabled:
             # Thin tall white bar when enabled
             self._command_slider.setStyleSheet("""
@@ -310,7 +315,7 @@ class LaserWidget(DeviceWidget):
                 }
             """)
         else:
-            # Hidden thumb when disabled - just show setpoint indicator and power bar
+            # Hidden thumb when disabled
             self._command_slider.setStyleSheet("""
                 QSlider::groove:horizontal {
                     background: transparent;
@@ -331,14 +336,12 @@ class LaserWidget(DeviceWidget):
             """)
 
     def _on_link_toggled(self, checked: bool) -> None:
-        """Handle free checkbox toggle. Checked = free/enabled, Unchecked = linked/disabled."""
-        self._is_linked = not checked  # Invert: checked means free (not linked)
+        """Handle free checkbox toggle."""
+        self._is_linked = not checked
         if checked:
-            # Free mode: enable command slider for adjusting power
             self._command_slider.setEnabled(True)
             self._update_command_slider_style(enabled=True)
         else:
-            # Linked mode: sync command slider to setpoint and disable
             self._command_slider.setEnabled(False)
             self._update_command_slider_style(enabled=False)
             self._command_slider.blockSignals(True)
@@ -367,19 +370,16 @@ class LaserWidget(DeviceWidget):
             self._enable_label.setText("OFF")
             self._enable_label.setStyleSheet("color: #888; font-size: 11px; font-weight: bold;")
 
-    def update_status(self, prop_name: str, value) -> None:
-        """Update display from property polling."""
+    def _on_property_update(self, prop_name: str, value: Any) -> None:
+        """Handle property updates from adapter polling."""
         if prop_name == "power_mw":
-            # Update progress bar (actual power)
             self._progress_bar.setValue(self._power_to_slider(value))
             self._power_chip.set_power(value)
 
         elif prop_name == "power_setpoint_mw":
-            # Update setpoint indicator
             slider_val = self._power_to_slider(value)
             self._setpoint_indicator.setValue(slider_val)
 
-            # If linked, command slider follows setpoint
             if self._is_linked:
                 self._command_slider.blockSignals(True)
                 self._command_slider.setValue(slider_val)
@@ -402,3 +402,8 @@ class LaserWidget(DeviceWidget):
             else:
                 self._enable_label.setText("OFF")
                 self._enable_label.setStyleSheet("color: #888; font-size: 11px; font-weight: bold;")
+
+    def closeEvent(self, a0) -> None:
+        """Clean up on close."""
+        # Qt automatically disconnects signals when objects are destroyed
+        super().closeEvent(a0)

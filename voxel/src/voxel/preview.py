@@ -1,0 +1,451 @@
+import asyncio
+import logging
+import time
+import zlib
+from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass
+from enum import StrEnum
+from typing import Self, cast
+
+import cv2
+import numpy as np
+from ome_zarr_writer.types import SchemaModel
+from pydantic import Field
+
+
+class ResizeMethod(StrEnum):
+    """Resize methods for preview generation.
+
+    Each method can be called directly: `ResizeMethod.PYRAMID(frame, width, height)`
+    """
+
+    AREA = "area"  # Single cv2.resize with INTER_AREA interpolation
+    PYRAMID = "pyramid"  # Progressive halving (pyramid) then final resize
+    SUBSAMPLE = "subsample"  # Simple decimation (take every Nth pixel)
+
+    def __call__(self, frame: np.ndarray, target_width: int, target_height: int) -> np.ndarray:
+        """Resize a frame using this method.
+
+        :param frame: Source frame to resize
+        :param target_width: Target width in pixels
+        :param target_height: Target height in pixels
+        :return: Resized frame
+        """
+        match self:
+            case ResizeMethod.AREA:
+                return _resize_area(frame, target_width, target_height)
+            case ResizeMethod.PYRAMID:
+                return _resize_pyramid(frame, target_width, target_height)
+            case ResizeMethod.SUBSAMPLE:
+                return _resize_subsample(frame, target_width, target_height)
+
+
+def _resize_area(frame: np.ndarray, target_width: int, target_height: int) -> np.ndarray:
+    """Resize using single cv2.resize with INTER_AREA interpolation.
+
+    Fast but can produce moiré artifacts on images with fine periodic patterns
+    when downscaling aggressively (e.g., 14x reduction).
+
+    :param frame: Source frame to resize
+    :param target_width: Target width in pixels
+    :param target_height: Target height in pixels
+    :return: Resized frame
+    """
+    return cv2.resize(frame, (target_width, target_height), interpolation=cv2.INTER_AREA)
+
+
+def _resize_pyramid(frame: np.ndarray, target_width: int, target_height: int) -> np.ndarray:
+    """Resize using progressive halving (pyramid) then final resize.
+
+    Each halving step acts as a low-pass filter, naturally preventing moiré.
+    Good balance of speed and quality for aggressive downscaling.
+
+    :param frame: Source frame to resize
+    :param target_width: Target width in pixels
+    :param target_height: Target height in pixels
+    :return: Resized frame
+    """
+    h, w = frame.shape[:2]
+
+    # Progressively halve until we're within 2x of target
+    while w > target_width * 2 and h > target_height * 2:
+        w //= 2
+        h //= 2
+        frame = cv2.resize(frame, (w, h), interpolation=cv2.INTER_AREA)
+
+    # Final resize to exact target dimensions
+    return cv2.resize(frame, (target_width, target_height), interpolation=cv2.INTER_AREA)
+
+
+def _resize_subsample(frame: np.ndarray, target_width: int, target_height: int) -> np.ndarray:
+    """Resize using simple subsampling (take every Nth pixel).
+
+    Fastest method but lowest quality. Takes every Nth pixel without
+    any interpolation or anti-aliasing. Can produce aliasing artifacts.
+
+    :param frame: Source frame to resize
+    :param target_width: Target width in pixels
+    :param target_height: Target height in pixels
+    :return: Resized frame
+    """
+    h, w = frame.shape[:2]
+    step_x = max(1, w // target_width)
+    step_y = max(1, h // target_height)
+
+    # Subsample by taking every Nth pixel
+    subsampled = frame[::step_y, ::step_x]
+
+    # If subsampling didn't hit exact target, do a small final resize
+    if subsampled.shape[1] != target_width or subsampled.shape[0] != target_height:
+        subsampled = cv2.resize(subsampled, (target_width, target_height), interpolation=cv2.INTER_NEAREST)
+
+    return subsampled
+
+
+class PreviewFmt(StrEnum):
+    RAW = "raw"
+    JPEG = "jpeg"
+    PNG = "png"
+    ZLIB = "zlib"
+
+    def __call__(self, frame: np.ndarray) -> bytes:
+        match self:
+            case PreviewFmt.RAW:
+                return convert_to_raw(frame)
+            case PreviewFmt.JPEG:
+                return convert_to_jpeg(frame)
+            case PreviewFmt.PNG:
+                return convert_to_png(frame)
+            case PreviewFmt.ZLIB:
+                return compress_uint16_frame_zlib(frame)
+
+
+class PreviewCrop(SchemaModel):
+    x: float = Field(default=0.0, ge=0.0, le=1.0, description="normalized X coordinate of the preview.")
+    y: float = Field(default=0.0, ge=0.0, le=1.0, description="normalized Y coordinate of the preview.")
+    k: float = Field(default=0.0, ge=0.0, le=1.0, description="zoom factor - 0.0 no zoom, 1.0 full zoom.")
+
+    @property
+    def needs_adjustment(self) -> bool:
+        return self.k != 0.0
+
+
+class PreviewLevels(SchemaModel):
+    min: float = Field(default=0.0, ge=0.0, le=1.0, description="black point of the preview")
+    max: float = Field(default=1.0, ge=0.0, le=1.0, description="white point of the preview")
+
+    @property
+    def needs_adjustment(self) -> bool:
+        return self.min != 0.0 or self.max != 1.0
+
+
+class PreviewFrameInfo(SchemaModel):
+    """Contains the preview configuration settings for a frame including the config used to generate it."""
+
+    frame_idx: int = Field(..., ge=0, description="Frame index of the captured image.")
+    preview_width: int = Field(default=1024, gt=256, description="Target preview width in pixels.")
+    preview_height: int = Field(..., gt=0, description="Target preview height in pixels.")
+    full_width: int = Field(..., gt=0, description="Full image width in pixels (from captured frame).")
+    full_height: int = Field(..., gt=0, description="Full image height in pixels (from captured frame).")
+    crop: PreviewCrop = Field(default_factory=PreviewCrop)
+    levels: PreviewLevels = Field(default_factory=PreviewLevels)
+    fmt: PreviewFmt = Field(default=PreviewFmt.JPEG)
+    histogram: list[int] | None = Field(
+        default=None,
+        description="256-bin histogram of preview intensity (0-255). Only present in full (non-cropped) frames.",
+    )
+
+
+@dataclass(frozen=True)
+class PreviewFrame:
+    info: PreviewFrameInfo
+    data: bytes
+
+    @classmethod
+    def from_array(cls, frame_array: np.ndarray, info: PreviewFrameInfo) -> Self:
+        """Create a PreviewFrame from a NumPy array and metadata.
+        The frame is compressed using the specified compression method in metadata.
+        """
+        compressed_data = info.fmt(frame_array)
+        return cls(info=info, data=compressed_data)
+
+    # @classmethod
+    # def from_packed(cls, packed_frame: bytes) -> Self:
+    #     """Unpack a packed PreviewFrame from bytes.
+    #     Returns a new PreviewFrame instance with the decompressed frame data.
+
+    #     Supports both old ('metadata'/'frame') and new ('info'/'data') field names.
+    #     """
+    #     unpacked = msgpack.unpackb(packed_frame, object_hook=mpack_numpy.decode)
+
+    #     # Support both old and new field names for backwards compatibility
+    #     info_dict = unpacked.get("info") or unpacked.get("metadata")
+    #     frame_data: bytes = unpacked.get("data") or unpacked.get("frame")
+
+    #     if info_dict is None or frame_data is None:
+    #         raise ValueError(f"Invalid packed frame format: {unpacked.keys()}")
+
+    #     info = PreviewFrameInfo(**info_dict)
+    #     return cls(info=info, data=frame_data)
+
+    # def pack(self) -> bytes:
+    #     """Pack the PreviewFrame into a bytes representation for transmission or storage.
+    #     Uses 'info' and 'data' field names to match the dataclass structure.
+    #     """
+    #     packed = msgpack.packb(
+    #         {"info": self.info.model_dump(), "data": self.data},
+    #         default=mpack_numpy.encode,
+    #     )
+    #     if packed is None:
+    #         raise ValueError("Packing PreviewFrame failed: msgpack.packb returned None")
+    #     return packed
+
+
+type PreviewFrameSink = Callable[[PreviewFrame], None]
+type RawFrameSink = Callable[[np.ndarray, int], None]  # (frame, frame_idx)
+
+
+class PreviewGenerator:
+    def __init__(
+        self,
+        preview_sink: PreviewFrameSink,
+        uid: str = "camera",
+        *,
+        target_width: int = 1024,
+        fmt: PreviewFmt = PreviewFmt.JPEG,
+        crop: PreviewCrop | None = None,
+        levels: PreviewLevels | None = None,
+        raw_frame_sink: RawFrameSink | None = None,
+        resize_method: ResizeMethod = ResizeMethod.PYRAMID,
+    ) -> None:
+        self._uid = uid
+        self._sink = preview_sink
+        self._raw_frame_sink = raw_frame_sink
+        self._target_width: int = target_width
+        self._fmt: PreviewFmt = fmt or PreviewFmt.JPEG
+        self._resize_method = resize_method
+        self.crop = crop or PreviewCrop()
+        self.levels = levels or PreviewLevels()
+        self._idx: int = 0
+        self._latest_frame: np.ndarray | None = None
+        self.log = logging.getLogger(f"{self._uid}.PreviewGenerator")
+
+        # Dedicated executor for preview processing (1 worker per camera)
+        self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="PreviewGenerator")
+
+    @property
+    def latest_frame(self) -> np.ndarray | None:
+        """Get the latest frame copy (safe to use, won't be overwritten)."""
+        return self._latest_frame
+
+    async def new_frame(self, frame: np.ndarray, idx: int) -> None:
+        """Set a new frame for previewing (async version - offloads processing to executor).
+
+        This is the default/preferred method as it offloads expensive processing
+        (resize, encoding) to a dedicated executor to avoid blocking.
+
+        Processing (resize, encode) happens in executor thread, then sink is called
+        from async context to avoid event loop issues with async ZMQ sockets.
+
+        The frame is copied immediately to avoid camera buffer reuse issues.
+        """
+        self._idx = idx
+
+        # Copy immediately to avoid camera buffer reuse issues
+        frame_copy = frame.copy()
+        self._latest_frame = frame_copy
+
+        # Send raw frame to raw sink (for napari full-res viewing)
+        if self._raw_frame_sink is not None:
+            self._raw_frame_sink(frame_copy, idx)
+
+        # Offload expensive processing to executor to avoid blocking
+        loop = asyncio.get_event_loop()
+
+        # Generate full frame preview (processing in executor, then sink in async context)
+        preview_frame = await loop.run_in_executor(self._executor, self._generate_preview_frame, frame_copy, idx, False)
+        self._sink(preview_frame)
+
+        # if display options are set, generate and publish an optimized preview
+        if self.crop.needs_adjustment or self.levels.needs_adjustment:
+            preview_frame = await loop.run_in_executor(
+                self._executor, self._generate_preview_frame, frame_copy, idx, True
+            )
+            self._sink(preview_frame)
+
+    def new_frame_sync(self, frame: np.ndarray, idx: int) -> None:
+        """Set a new frame for previewing (synchronous version - blocks until complete).
+
+        Use this only when you need synchronous processing or are not in an async context.
+        For better performance in async code, use new_frame() instead.
+
+        The frame is copied immediately to avoid camera buffer reuse issues.
+        """
+        self._idx = idx
+
+        # Copy immediately to avoid camera buffer reuse issues
+        frame_copy = frame.copy()
+        self._latest_frame = frame_copy
+
+        # Send raw frame to raw sink (for napari full-res viewing)
+        if self._raw_frame_sink is not None:
+            self._raw_frame_sink(frame_copy, idx)
+
+        def _sink_frame(adjust: bool = False) -> None:
+            preview_frame = self._generate_preview_frame(raw_frame=frame_copy, frame_idx=idx, adjust=adjust)
+            self._sink(preview_frame)
+
+        # send full frame to observers
+        _sink_frame(adjust=False)
+
+        # if display options are set, publish an optimized preview
+        if self.crop.needs_adjustment or self.levels.needs_adjustment:
+            _sink_frame(adjust=True)
+
+    def shutdown(self) -> None:
+        """Shutdown the preview generator and cleanup resources."""
+        self._executor.shutdown(wait=True, cancel_futures=True)
+
+    def _generate_preview_frame(self, raw_frame: np.ndarray, frame_idx: int, adjust: bool = False) -> PreviewFrame:
+        """Generate a PreviewFrame from the raw frame using the current preview_settings.
+        The method crops the raw frame to the ROI (using normalized coordinates) and then
+        resizes the cropped image to the target preview dimensions. It also applies black/white
+        point and gamma adjustments to produce an 8-bit preview.
+        """
+
+        gen_start = time.perf_counter()
+
+        full_width = raw_frame.shape[1]
+        full_height = raw_frame.shape[0]
+        preview_width = self._target_width
+        preview_height = int(full_height * (preview_width / full_width))
+
+        # 1) Compute absolute Crop coordinates.
+        resize_start = time.perf_counter()
+        if adjust:
+            zoom = 1 - self.crop.k  # for k 0.0 is no zoom, 1.0 is full zoom
+            crop_x0 = int(full_width * self.crop.x)
+            crop_y0 = int(full_height * self.crop.y)
+            crop_x1 = crop_x0 + int(full_width * zoom)
+            crop_y1 = crop_y0 + int(full_height * zoom)
+
+            # 2) Crop to the ROI.
+            # 3) Resize to the target dimensions (still in the original dtype, e.g. uint16).
+            raw_frame = raw_frame[crop_y0:crop_y1, crop_x0:crop_x1]
+
+        preview_img = self._resize_method(raw_frame, preview_width, preview_height)
+        resize_time = time.perf_counter() - resize_start
+
+        # Compute histogram on raw resized data BEFORE any scaling (only for full frames)
+        # This shows the actual data distribution for proper level adjustment
+        hist_data = None
+        if not adjust:
+            # Debug: check what's in the data
+            # self.log.debug(
+            #     f"Preview image stats: dtype={preview_img.dtype}, "
+            #     f"min={preview_img.min()}, max={preview_img.max()}, "
+            #     f"mean={preview_img.mean():.2f}, "
+            #     f"shape={preview_img.shape}"
+            # )
+
+            # Compute histogram with reasonable bin count for performance
+            # Use 1024 bins for good detail without overwhelming the frontend
+            max_val = np.iinfo(raw_frame.dtype).max
+            num_bins = 1024
+            histogram, _ = np.histogram(preview_img, bins=num_bins, range=(0, max_val))
+            hist_data = histogram.tolist()
+
+        # 4) Convert to float32 for levels scaling.
+        preview_float = preview_img.astype(np.float32)
+
+        # Always use the current levels setting, regardless of adjust flag
+        levels = self.levels
+
+        # 5) Determine the max possible value from the raw frame's dtype (e.g. 65535 for uint16).
+        # 6) Compute the actual black/white values from percentages.
+        # 7) Clamp to [black_val..white_val].
+        # Note: This normalization is ALWAYS applied - even with default levels (0.0, 1.0)
+        # it correctly maps dtype range (e.g., 0-65535) to 0-255.
+        dtype_max = np.iinfo(raw_frame.dtype).max
+        black_val = levels.min * dtype_max
+        white_val = levels.max * dtype_max
+        preview_float = np.clip(preview_float, black_val, white_val)
+
+        # 8) Normalize to [0..1].
+        denom = (white_val - black_val) + 1e-8
+        preview_float = (preview_float - black_val) / denom
+
+        # 9) Scale to [0..255] and convert to uint8.
+        preview_uint8 = (preview_float * 255.0).astype(np.uint8)
+
+        # Use actual crop values based on whether adjustment was applied
+        actual_crop = self.crop if adjust else PreviewCrop(x=0.0, y=0.0, k=0.0)
+
+        metadata = PreviewFrameInfo(
+            frame_idx=frame_idx,
+            preview_width=preview_width,
+            preview_height=preview_height,
+            full_width=full_width,
+            full_height=full_height,
+            levels=levels,
+            fmt=self._fmt,
+            crop=actual_crop,
+            histogram=hist_data,
+        )
+
+        # 11) Return the final 8-bit preview.
+        encode_start = time.perf_counter()
+        preview_frame = PreviewFrame.from_array(frame_array=preview_uint8, info=metadata)
+        encode_time = time.perf_counter() - encode_start
+
+        gen_time = time.perf_counter() - gen_start
+
+        # Log timing at DEBUG level for performance diagnostics
+        if frame_idx < 5 or frame_idx % 100 == 0:
+            self.log.debug(
+                f"Frame {frame_idx} preview generation: resize={resize_time * 1000:.1f}ms, "
+                f"encode={encode_time * 1000:.1f}ms, total={gen_time * 1000:.1f}ms"
+            )
+
+        return preview_frame
+
+
+def convert_to_jpeg(frame: np.ndarray, quality: int = 100) -> bytes:
+    """Convert a NumPy array (BGR image) to JPEG-encoded bytes using OpenCV."""
+    encode_params = [int(cv2.IMWRITE_JPEG_QUALITY), quality]
+    success, encoded_image = cv2.imencode(".jpg", cast("cv2.UMat", frame), encode_params)
+    if not success:
+        raise RuntimeError("JPEG encoding failed")
+    return encoded_image.tobytes()
+
+
+def convert_to_png(frame: np.ndarray) -> bytes:
+    """Convert a NumPy array (BGR image) to PNG-encoded bytes using OpenCV."""
+    encode_params = [int(cv2.IMWRITE_PNG_COMPRESSION), 0]
+    success, encoded_image = cv2.imencode(".png", frame, encode_params)
+    if not success:
+        raise RuntimeError("PNG encoding failed")
+    return encoded_image.tobytes()
+
+
+def convert_to_raw(frame: np.ndarray) -> bytes:
+    """Return the raw bytes of the NumPy array without any compression or encoding.
+    Useful if you want to preserve the full bit depth (e.g. uint16).
+    """
+    return frame.tobytes()
+
+
+def compress_uint16_frame_zlib(frame: np.ndarray) -> bytes:
+    """Compress a 2D (or 3D) NumPy array of dtype=uint16 with zlib.
+    Returns the compressed bytes.
+    """
+    # Ensure the array is C-contiguous, just in case
+    if not frame.flags["C_CONTIGUOUS"]:
+        frame = np.ascontiguousarray(frame)
+
+    # Convert to raw bytes
+    raw_bytes = frame.tobytes()
+
+    # Compress with zlib (level=9 = max compression, can adjust for speed)
+    return zlib.compress(raw_bytes, level=9)

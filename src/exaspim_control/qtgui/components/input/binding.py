@@ -11,7 +11,7 @@ from collections.abc import Callable
 from enum import Enum
 from typing import Any, ClassVar, TypedDict
 
-from PyQt6.QtCore import QObject, QTimer, pyqtProperty, pyqtSignal
+from PyQt6.QtCore import QObject, QTimer, pyqtProperty, pyqtSignal  # pyright: ignore[reportAttributeAccessIssue]
 from PyQt6.QtWidgets import QWidget
 
 logger = logging.getLogger(__name__)

@@ -8,8 +8,8 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 from aind_data_schema.core import acquisition
-from voxel.acquisition import Acquisition
-from voxel.instrument import Instrument
+from voxel._archive.acquisition import Acquisition
+from voxel._archive.instrument import Instrument
 
 if TYPE_CHECKING:
     from view.acquisition_view import AcquisitionView

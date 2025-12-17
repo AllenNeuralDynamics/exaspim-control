@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Self
 
 import click
+from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QApplication
 from rich.console import Console
 from rich.logging import RichHandler
@@ -66,10 +67,15 @@ class Launcher:
         app = QApplication(argv)
         app.aboutToQuit.connect(self._cleanup)
 
+        # Set app icon (ensures taskbar icon shows consistently)
+        icon_path = Path(__file__).parent / "qtgui" / "voxel-logo.png"
+        if icon_path.exists():
+            app.setWindowIcon(QIcon(str(icon_path)))
+
         self.instrument_ui = ExASPIMUI(instrument=self.instrument)
 
-        # Show the main window
-        self.instrument_ui.show()
+        # Show the main window maximized
+        self.instrument_ui.showMaximized()
 
         # Start event loop
         return app.exec()

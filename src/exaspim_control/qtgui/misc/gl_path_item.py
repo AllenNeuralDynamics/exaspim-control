@@ -1,7 +1,6 @@
 """OpenGL path item with arrow at endpoint."""
 
 import numpy as np
-from OpenGL.GL import *  # noqa
 from PyQt6.QtGui import QColor
 from pyqtgraph.opengl import GLLinePlotItem
 
