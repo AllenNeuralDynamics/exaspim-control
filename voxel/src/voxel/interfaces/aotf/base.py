@@ -89,7 +89,7 @@ class SpimAotf(SpimDevice):
 
     @enumerated_string(options=["internal", "external"])
     @abstractmethod
-    @describe(label="Blanking Mode")
+    @describe(label="Blanking Mode", stream=True)
     def blanking_mode(self) -> str:
         """Blanking control mode. External uses TTL input for synchronization."""
 

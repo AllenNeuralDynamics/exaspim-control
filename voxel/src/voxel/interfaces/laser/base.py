@@ -52,6 +52,6 @@ class SpimLaser(SpimDevice):
 
     @property
     @abstractmethod
-    @describe(label="Temperature", units="°C", desc="The temperature of the laser.")
+    @describe(label="Temperature", units="°C", desc="The temperature of the laser.", stream=True)
     def temperature_c(self) -> float | None:
         """Get the temperature of the laser in degrees Celsius."""

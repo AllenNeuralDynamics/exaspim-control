@@ -98,19 +98,19 @@ class SpimDaq(SpimDevice):
 
     @property
     @abstractmethod
-    @describe(label="Available Pins", desc="List of unassigned pin names")
+    @describe(label="Available Pins", desc="List of unassigned pin names", stream=True)
     def available_pins(self) -> list[str]:
         """Get list of available (unassigned) pin names."""
 
     @property
     @abstractmethod
-    @describe(label="Assigned Pins", desc="Currently assigned pin information")
+    @describe(label="Assigned Pins", desc="Currently assigned pin information", stream=True)
     def assigned_pins(self) -> dict[str, PinInfo]:
         """Get dictionary of currently assigned pins (name -> info)."""
 
     @property
     @abstractmethod
-    @describe(label="Active Tasks", desc="Currently active tasks")
+    @describe(label="Active Tasks", desc="Currently active tasks", stream=True)
     def active_tasks(self) -> Mapping[str, "AOTask | COTask"]:
         """Get dictionary of active tasks (name -> task instance)."""
 

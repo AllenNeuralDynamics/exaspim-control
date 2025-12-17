@@ -160,7 +160,6 @@ class InstrumentUI[I: ExASPIM](QMainWindow):
         self._is_closing = False  # flag to signal workers to stop
 
         # Livestream state
-        self.active_channel = None
         self._is_livestreaming = False
 
         # Live viewer (embedded + expandable to napari)
@@ -184,7 +183,9 @@ class InstrumentUI[I: ExASPIM](QMainWindow):
         # Device widgets for Instrument Control tab (using adapters)
         self.camera_widget = CameraWidget(self._adapters[self.instrument.camera.uid], parent=self)
         self.daq_widget = None
-        self.fw_widgets = {uid: FilterWheelWidget(self._adapters[uid], parent=self) for uid in self.instrument.filter_wheels}
+        self.fw_widgets = {
+            uid: FilterWheelWidget(self._adapters[uid], parent=self) for uid in self.instrument.filter_wheels
+        }
         self.laser_widgets = {uid: LaserWidget(self._adapters[uid], parent=self) for uid in self.instrument.lasers}
 
         # Volume visualization components
@@ -260,10 +261,6 @@ class InstrumentUI[I: ExASPIM](QMainWindow):
         return self.config.profiles
 
     def _calculate_fov_dimensions(self) -> tuple[float, float, float]:
-        """Calculate FOV dimensions from camera ROI and objective magnification.
-
-        FOV = (roi_px * pixel_size_um) / (magnification * 1000)
-        """
         magnification = self.config.globals.objective_magnification
         camera = self.instrument.camera
 
@@ -670,22 +667,15 @@ class InstrumentUI[I: ExASPIM](QMainWindow):
             self.instrument.stop_livestream()
             self._is_livestreaming = False
             self.actions_card.live_button.setText("Live")
-            # Clear acquisition task widget
             self.acq_task_widget.clear()
-            # Re-enable camera controls
             self._set_camera_controls_enabled(True)
         else:
-            # Disable camera controls during acquisition to prevent dtype/buffer issues
             self._set_camera_controls_enabled(False)
-            # Prepare viewer for new acquisition (clear layers for fresh dtype)
-            self.live_viewer.prepare_for_acquisition()
-            # Start livestream with preview sink (QLabel) and raw frame sink (napari)
+            self.live_viewer.reset()
             self.instrument.start_livestream(on_preview=_on_preview, raw_frame_sink=_on_raw_frame)
             self._is_livestreaming = True
             self.actions_card.live_button.setText("Stop")
-            # Update acquisition task widget with active task
-            if self.instrument._acq_task is not None:
-                self.acq_task_widget.set_task(self.instrument._acq_task)
+            self._refresh_waveforms()
 
     def _set_camera_controls_enabled(self, enabled: bool) -> None:
         """Enable or disable camera controls that shouldn't change during acquisition."""
@@ -701,15 +691,14 @@ class InstrumentUI[I: ExASPIM](QMainWindow):
         self.log.info(f"Crosshairs {'enabled' if checked else 'disabled'}")
         # TODO: Implement crosshairs overlay on LiveViewer
 
-    def _on_profile_changed(self, channel_name: str) -> None:
+    def _on_profile_changed(self, profile_name: str) -> None:
         """Handle profile change from actions card.
 
         Uses instrument.set_active_channel() which handles stopping livestream,
         switching hardware (lasers, filters), and restarting if was streaming.
         """
-        self.active_channel = channel_name
-        self.instrument.update_active_profile(channel_name)
-        self.log.info(f"Channel changed to: {channel_name}")
+        self.instrument.update_active_profile(profile_name)
+        self.log.info(f"Channel changed to: {profile_name}")
 
     def _on_halt_stage(self) -> None:
         """Handle halt stage button click."""

@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import logging
 import time
+from pathlib import Path
 
 import napari
 import numpy as np
 from napari.utils.transforms import Affine
 from PyQt6.QtCore import QByteArray, QSize, Qt, pyqtSignal
-from PyQt6.QtGui import QPixmap, QTransform
+from PyQt6.QtGui import QIcon, QPixmap, QTransform
 from PyQt6.QtWidgets import (
     QApplication,
     QLabel,
@@ -93,11 +94,7 @@ class LiveViewer(QWidget):
             return
         self._previewReceived.emit(preview)
 
-    def prepare_for_acquisition(self) -> None:
-        if self._napari_viewer is not None and len(self._napari_viewer.layers) > 0:
-            self.log.info("Clearing napari layers for new acquisition")
-            self._napari_viewer.layers.clear()
-
+    def reset(self) -> None:
         self._frame_times.clear()
         self._fps_label.setText("-- FPS")
 
@@ -203,6 +200,11 @@ class LiveViewer(QWidget):
 
         qt_window = viewer.window._qt_window
 
+        # Set window icon
+        icon_path = Path(__file__).parent / "voxel-logo.png"
+        if icon_path.exists():
+            qt_window.setWindowIcon(QIcon(str(icon_path)))
+
         # Set parent so napari closes when main window closes
         if self._parent is not None:
             qt_window.setParent(self._parent)
@@ -234,11 +236,10 @@ class LiveViewer(QWidget):
             try:
                 if len(self._napari_viewer.layers) == 0:
                     layer = self._napari_viewer.add_image(frame, name="Camera")
-                    # if self._image_rotation_deg != 0:
-                    #     layer.affine = _create_center_rotation_affine(self._image_rotation_deg, frame.shape)  # pyright: ignore[reportAttributeAccessIssue]
-                else:
-                    layer = self._napari_viewer.layers[0]
-                    layer.data = frame
+                    if self._image_rotation_deg != 0:
+                        layer.affine = _create_center_rotation_affine(self._image_rotation_deg, frame.shape)  # pyright: ignore[reportAttributeAccessIssue]
+                layer = self._napari_viewer.layers[0]
+                layer.data = frame
             except Exception:
                 self.log.exception("Failed to update napari viewer")
 

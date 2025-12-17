@@ -236,9 +236,8 @@ class LiveViewer(QWidget):
                     layer = self._napari_viewer.add_image(frame, name="Camera")
                     # if self._image_rotation_deg != 0:
                     #     layer.affine = _create_center_rotation_affine(self._image_rotation_deg, frame.shape)  # pyright: ignore[reportAttributeAccessIssue]
-                else:
-                    layer = self._napari_viewer.layers[0]
-                    layer.data = frame
+                layer = self._napari_viewer.layers[0]
+                layer.data = frame
             except Exception:
                 self.log.exception("Failed to update napari viewer")
 

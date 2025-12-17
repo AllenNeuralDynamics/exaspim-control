@@ -71,6 +71,8 @@ class Launcher:
         icon_path = Path(__file__).parent / "qtgui" / "voxel-logo.png"
         if icon_path.exists():
             app.setWindowIcon(QIcon(str(icon_path)))
+        else:
+            logger.warning("icon_path: %s does not exist", icon_path)
 
         self.instrument_ui = ExASPIMUI(instrument=self.instrument)
 

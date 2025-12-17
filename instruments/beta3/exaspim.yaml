@@ -64,24 +64,24 @@ transfers:
       timeout_s: 60
 
 devices:
+  vp-151mx:
+    target: voxel.drivers.cameras.egrabber.VieworksCamera
+    init:
+      serial: MP151BDZ014
+      pixel_size_um: [3.76, 3.76]  # Physical pixel size in microns
+    defaults:
+      pixel_format: MONO12
+      exposure_time_ms: 10.0
+      binning: 1
   # vp-151mx:
-  #   target: voxel.drivers.cameras.egrabber.VieworksCamera
+  #   target: voxel.drivers.cameras.simulated.SimulatedCamera # Simulated camera for testing
   #   init:
-  #     serial: MP151BDZ014
   #     pixel_size_um: [3.76, 3.76]  # Physical pixel size in microns
+  #     sensor_size_px: [14192, 10640]  # VP-151MX sensor size
   #   defaults:
   #     exposure_time_ms: 10.0
   #     pixel_format: MONO16
   #     binning: 1
-  vp-151mx:
-    target: voxel.drivers.cameras.simulated.SimulatedCamera # Simulated camera for testing
-    init:
-      pixel_size_um: [3.76, 3.76]  # Physical pixel size in microns
-      sensor_size_px: [14192, 10640]  # VP-151MX sensor size
-    defaults:
-      exposure_time_ms: 10.0
-      pixel_format: MONO16
-      binning: 1
   pcie-6738:
     target: voxel.drivers.daqs.ni.NiDaq
     init:

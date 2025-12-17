@@ -114,13 +114,25 @@ class PropertyWidget(QWidget):
     def _create_combobox(self, value: Any) -> VComboBox:
         """Create combobox for enumerated values."""
         combo = VComboBox()
-        options = list(value.options)
-        combo.addItems([str(o) for o in options])
+        self._update_combobox_options(combo, value)
         combo.setCurrentText(str(value))
         combo.currentTextChanged.connect(
             lambda v: self.valueChanged.emit(self._info.name, v)
         )
         return combo
+
+    def _update_combobox_options(self, combo: VComboBox, value: Any) -> None:
+        """Update combobox options from enumerated value."""
+        if not hasattr(value, "options") or not value.options:
+            return
+        new_options = [str(o) for o in value.options]
+        current_options = [combo.itemText(i) for i in range(combo.count())]
+        if new_options != current_options:
+            current_text = combo.currentText()
+            combo.clear()
+            combo.addItems(new_options)
+            if current_text in new_options:
+                combo.setCurrentText(current_text)
 
     def _create_checkbox(self, value: Any) -> VCheckBox:
         """Create checkbox for boolean values."""
@@ -134,12 +146,7 @@ class PropertyWidget(QWidget):
     def _create_spinbox(self, value: Any) -> VSpinBox:
         """Create spinbox for deliminated integers."""
         spinbox = VSpinBox()
-        if value.min_value is not None:
-            spinbox.setMinimum(int(value.min_value))
-        if value.max_value is not None:
-            spinbox.setMaximum(int(value.max_value))
-        if hasattr(value, "step") and value.step is not None:
-            spinbox.setSingleStep(int(value.step))
+        self._update_spinbox_constraints(spinbox, value)
         spinbox.setValue(int(value))
         spinbox.valueChanged.connect(
             lambda v: self.valueChanged.emit(self._info.name, v)
@@ -149,17 +156,24 @@ class PropertyWidget(QWidget):
     def _create_double_spinbox(self, value: Any) -> VDoubleSpinBox:
         """Create spinbox for deliminated floats."""
         spinbox = VDoubleSpinBox()
-        if value.min_value is not None:
-            spinbox.setMinimum(value.min_value)
-        if value.max_value is not None:
-            spinbox.setMaximum(value.max_value)
-        if hasattr(value, "step") and value.step is not None:
-            spinbox.setSingleStep(value.step)
+        self._update_spinbox_constraints(spinbox, value)
         spinbox.setValue(float(value))
         spinbox.valueChanged.connect(
             lambda v: self.valueChanged.emit(self._info.name, v)
         )
         return spinbox
+
+    def _update_spinbox_constraints(self, spinbox: VSpinBox | VDoubleSpinBox, value: Any) -> None:
+        """Update spinbox min/max/step from deliminated value."""
+        if not hasattr(value, "min_value") or not hasattr(value, "max_value"):
+            return
+        is_int = isinstance(spinbox, VSpinBox)
+        if value.min_value is not None:
+            spinbox.setMinimum(int(value.min_value) if is_int else value.min_value)
+        if value.max_value is not None:
+            spinbox.setMaximum(int(value.max_value) if is_int else value.max_value)
+        if hasattr(value, "step") and value.step is not None:
+            spinbox.setSingleStep(int(value.step) if is_int else value.step)
 
     def _create_lineedit(self, value: Any) -> VLineEdit:
         """Create line edit for unconstrained values."""
@@ -171,7 +185,7 @@ class PropertyWidget(QWidget):
         return lineedit
 
     def set_value(self, value: Any) -> None:
-        """Update widget with new value (from polling)."""
+        """Update widget with new value and constraints (from polling)."""
         widget = self._value_widget
         widget.blockSignals(True)
 
@@ -183,10 +197,13 @@ class PropertyWidget(QWidget):
             else:
                 widget.setText(text)
         elif isinstance(widget, VSpinBox):
+            self._update_spinbox_constraints(widget, value)
             widget.setValue(int(value))
         elif isinstance(widget, VDoubleSpinBox):
+            self._update_spinbox_constraints(widget, value)
             widget.setValue(float(value))
         elif isinstance(widget, VComboBox):
+            self._update_combobox_options(widget, value)
             widget.setCurrentText(str(value))
         elif isinstance(widget, VCheckBox):
             widget.setChecked(bool(value))

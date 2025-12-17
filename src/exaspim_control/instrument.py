@@ -6,7 +6,7 @@ from threading import Thread
 
 import numpy as np
 from voxel.interfaces.axes import Axis, DiscreteAxis
-from voxel.interfaces.camera import SpimCamera
+from voxel.interfaces.camera import SpimCamera, TriggerMode
 from voxel.interfaces.daq import SpimDaq
 from voxel.interfaces.laser import SpimLaser
 from voxel.interfaces.spim import SpimDevice
@@ -181,7 +181,7 @@ class ExASPIM:
         self.disable_lasers()
         self.active_channel_laser.enable()
 
-        self.camera.prepare()
+        self.camera.prepare(trigger_mode=TriggerMode.ON)
         self.camera.start(None)
 
         if self._acq_task:
@@ -218,14 +218,14 @@ class ExASPIM:
         self._is_livestreaming = False
         self.disable_lasers()
 
-        self.camera.stop()
-
         if self._acq_task is not None:
             self._acq_task.stop()
 
         if self._frame_thread is not None:
             self._frame_thread.join(timeout=2.0)
             self._frame_thread = None
+
+        self.camera.stop()
 
         self._preview_sink = lambda _: None
         self._raw_frame_sink = None

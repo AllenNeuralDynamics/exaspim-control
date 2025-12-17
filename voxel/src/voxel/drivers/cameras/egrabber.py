@@ -149,7 +149,6 @@ class VieworksCamera(SpimCamera):
         self._frame_rate_hz = MinMaxProp(min=0.0, max=12.0, val=3.0)
         self._refresh_binning_info()
         self._refresh_exposure_ms()
-        self._refresh_frame_rate_hz()
 
     @property
     def sensor_size_px(self) -> Vec2D[int]:
@@ -169,6 +168,8 @@ class VieworksCamera(SpimCamera):
         if self.pixel_format != pixel_format.upper():
             self.log.info("pixel_format updated: %s -> %s", self.pixel_format, pixel_format.upper())
             self._dev.remote.set("PixelFormat", pixel_format.capitalize())
+            self._refresh_binning_info()
+            self._refresh_exposure_ms()
 
     @enumerated_int(options=lambda self: list(self._binning.options))
     def binning(self) -> int:
@@ -185,7 +186,6 @@ class VieworksCamera(SpimCamera):
         finally:
             self._refresh_binning_info()
             self._refresh_exposure_ms()
-            self._refresh_frame_rate_hz()
 
     @deliminated_float(min_value=lambda self: self._exposure_ms.min, max_value=lambda self: self._exposure_ms.max)
     def exposure_time_ms(self) -> int:
@@ -196,8 +196,8 @@ class VieworksCamera(SpimCamera):
     @exposure_time_ms.setter
     def exposure_time_ms(self, exposure_time_ms: float) -> None:
         self._dev.set_remote(feature="ExposureTime", value=exposure_time_ms * 1000)
-        self._refresh_exposure_ms()
         self.log.info("Set exposure time to %s ms", self._exposure_ms.val)
+        self._refresh_exposure_ms()
 
     @deliminated_float(min_value=lambda self: self._frame_rate_hz.min, max_value=lambda self: self._frame_rate_hz.max)
     def frame_rate_hz(self) -> float:
@@ -208,8 +208,8 @@ class VieworksCamera(SpimCamera):
     @frame_rate_hz.setter
     def frame_rate_hz(self, value: float) -> None:
         self._dev.set_remote(feature="AcquisitionFrameRate", value=value)
-        self._refresh_frame_rate_hz()
         self.log.info("Set frame rate to %s Hz", self._frame_rate_hz.val)
+        self._refresh_exposure_ms()
 
     @property
     def stream_info(self) -> StreamInfo | None:
@@ -348,6 +348,10 @@ class VieworksCamera(SpimCamera):
         """Stop the camera from acquiring frames."""
         try:
             self._dev.grabber.stop()
+            # Reset stream to ensure clean state for next acquisition
+            bit_packing_mode = self._dev.stream.get("UnpackingMode")
+            self._dev.stream.execute("StreamReset")
+            self._dev.stream.set("UnpackingMode", bit_packing_mode)
             self.log.info("Camera stopped successfully.")
         except GenTLException as e:
             self.log.warning("EGrabber error when attempting to stop camera. Error: %s", e)
@@ -388,9 +392,7 @@ class VieworksCamera(SpimCamera):
         max_exp = self._dev.fetch_remote("ExposureTime.Max", int)
         cur_exp = self._dev.fetch_remote("ExposureTime", int)
         self._exposure_ms = ExposureTime(min=min_exp / 1000, max=max_exp / 1000, val=cur_exp / 1000)
-
-    def _refresh_frame_rate_hz(self) -> None:
-        self._exposure_ms = MinMaxProp(
+        self._frame_rate_hz = MinMaxProp(
             min=self._dev.fetch_remote("AcquisitionFrameRate.Min", float),
             max=self._dev.fetch_remote("AcquisitionFrameRate.Max", float),
             val=self._dev.fetch_remote("AcquisitionFrameRate", float),

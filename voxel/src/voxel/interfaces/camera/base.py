@@ -80,6 +80,7 @@ class SpimCamera(SpimDevice):
 
     @enumerated_string(options=list(PIXEL_FMT_TO_DTYPE.keys()))
     @abstractmethod
+    @describe(label="Pixel Format", desc="The pixel format of the camera.", stream=True)
     def pixel_format(self) -> PixelFormat:
         """Get the pixel format of the camera."""
 
@@ -96,6 +97,7 @@ class SpimCamera(SpimDevice):
 
     @enumerated_int(options=BINNING_OPTIONS)
     @abstractmethod
+    @describe(label="Binning", desc="The binning mode of the camera.", stream=True)
     def binning(self) -> int:
         """Get the binning mode of the camera. Integer value, e.g. 2 is 2x2 binning."""
 
@@ -106,6 +108,7 @@ class SpimCamera(SpimDevice):
 
     @deliminated_float()
     @abstractmethod
+    @describe(label="Exposure Time", units="ms", desc="The exposure time of the camera.", stream=True)
     def exposure_time_ms(self) -> float:
         """Get the exposure time of the camera in ms."""
 
@@ -116,6 +119,7 @@ class SpimCamera(SpimDevice):
 
     @deliminated_float()
     @abstractmethod
+    @describe(label="Frame Rate", units="Hz", desc="The frame rate of the camera.", stream=True)
     def frame_rate_hz(self) -> float:
         """Get the frame rate of the camera in Hz."""
 
@@ -126,7 +130,7 @@ class SpimCamera(SpimDevice):
 
     @property
     @abstractmethod
-    @describe(label="Frame Region", desc="Current frame region with embedded constraints.")
+    @describe(label="Frame Region", desc="Current frame region with embedded constraints.", stream=True)
     def frame_region(self) -> FrameRegion:
         """Get current frame region with embedded constraints.
 
@@ -153,14 +157,14 @@ class SpimCamera(SpimDevice):
         """
 
     @property
-    @describe(label="Frame Size", units="px", desc="The image size in pixels.")
+    @describe(label="Frame Size", units="px", desc="The image size in pixels.", stream=True)
     def frame_size_px(self) -> Vec2D[int]:
         """Get the image size in pixels."""
         r = self.frame_region
         return Vec2D(int(r.width), int(r.height))
 
     @property
-    @describe(label="Frame Size", units="MB", desc="The size of one frame in megabytes.")
+    @describe(label="Frame Size", units="MB", desc="The size of one frame in megabytes.", stream=True)
     def frame_size_mb(self) -> float:
         """Get the size of the camera image in MB."""
         return (self.frame_size_px.x * self.frame_size_px.y * self.pixel_type.itemsize) / 1_000_000
