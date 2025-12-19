@@ -115,3 +115,7 @@ ome-zarr-writer = { git = "https://github.com/AllenNeuralDynamics/ome-zarr-write
 [build-system]
 requires = ["uv_build>=0.8.2,<0.9.0"]
 build-backend = "uv_build"
+
+
+[tool.pyright]
+typeCheckingMode = "standard"
