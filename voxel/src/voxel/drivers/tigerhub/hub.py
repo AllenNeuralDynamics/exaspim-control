@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 from voxel.drivers.poller import Poller
 from voxel.drivers.tigerhub.box import TigerBox
 from voxel.drivers.tigerhub.model.models import ASIAxisInfo
+from voxel.drivers.tigerhub.ops.params import TigerParams
 from voxel.interfaces.spim import DeviceType, SpimDevice
 
 if TYPE_CHECKING:
@@ -70,8 +71,6 @@ class TigerHub(SpimDevice):
         if not reserved_axes:
             return
 
-        from voxel.drivers.tigerhub.ops.params import TigerParams
-
         # Query configuration parameters
         try:
             speeds = self.box.get_param(TigerParams.SPEED, reserved_axes)
@@ -96,8 +95,8 @@ class TigerHub(SpimDevice):
                         self._state_cache[axis]["lower_limit_mm"] = lower_limits[axis]
                     if axis in homes:
                         self._state_cache[axis]["home"] = homes[axis]
-        except Exception as e:
-            self.log.error(f"Error polling slow state: {e}", exc_info=True)
+        except Exception:
+            self.log.exception("Error polling slow state")
 
     def get_axis_state_cached(self, axis_label: str) -> dict:
         """Get the cached state for a given axis."""
@@ -139,7 +138,7 @@ class TigerHub(SpimDevice):
 
     def make_linear_axis(self, *, uid: str, asi_label: str | None = None) -> "TigerAxis":
         """Reserve and return a TigerAxis bound to a Tiger UID."""
-        from voxel.drivers.axes.asi import TigerAxis
+        from voxel.drivers.axes.asi import TigerAxis  # noqa: PLC0415
 
         asi_label = asi_label or uid.upper()
         return TigerAxis(hub=self, uid=uid, axis_label=asi_label)

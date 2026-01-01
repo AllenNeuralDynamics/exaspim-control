@@ -79,7 +79,7 @@ class SimulatedCamera(SpimCamera):
 
     @pixel_format.setter
     def pixel_format(self, pixel_format: str) -> None:
-        self._pixel_format = cast(PixelFormat, pixel_format)
+        self._pixel_format = cast("PixelFormat", pixel_format)
 
     @enumerated_int(options=BINNING_OPTIONS)
     def binning(self) -> int:

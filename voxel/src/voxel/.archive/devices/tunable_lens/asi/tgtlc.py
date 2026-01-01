@@ -1,4 +1,3 @@
-import logging
 
 from tigerasi.device_codes import TunableLensControlMode
 from voxel.devices.controller.asi.tiger import TigerController

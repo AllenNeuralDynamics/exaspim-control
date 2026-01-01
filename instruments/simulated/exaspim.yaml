@@ -1,0 +1,228 @@
+# Simulated ExASPIM Instrument Configuration
+# Uses all simulated devices for testing without hardware
+
+info:
+  instrument_uid: exaspim-simulated
+  instrument_type: exaSPIM
+  instrument_version: 1.0
+
+globals:
+  camera_rotation_deg: -90.0
+  unit: mm
+  default_overlap: 15.0
+  default_tile_order: row_wise
+  dual_sided: True
+  objective_magnification: 5.08
+
+writers:
+  imaris:
+    target: voxel.io.writers.imaris.ImarisWriter
+    init:
+      path: D:\\
+    defaults:
+      compression: lz4shuffle
+      data_type: uint16
+
+transfers:
+  robocopy:
+    target: voxel.io.file_transfers.robocopy_zarr.RobocopyFileTransfer
+    init:
+      external_path: Y:\\stage\\exaSPIM
+      local_path: D:\\
+    defaults:
+      verify_transfer: True
+      max_retry: 3
+      timeout_s: 60
+
+devices:
+  # Simulated camera matching VP-151MX specs
+  vp-151mx:
+    target: voxel.drivers.cameras.simulated.simulated.SimulatedCamera
+    init:
+      pixel_size_um: [3.76, 3.76]
+      sensor_size_px: [14192, 10640]
+    defaults:
+      exposure_time_ms: 10.0
+      pixel_format: MONO16
+      binning: 1
+
+  pcie-6738:
+    target: voxel.drivers.daqs.simulated.SimulatedDaq
+    init:
+      dev: SimDev1
+
+  filter_wheel_main:
+    target: voxel.drivers.axes.simulated.SimulatedDiscreteAxis
+    init:
+      slots:
+        0: 500LP
+        1: 535/70m
+        2: Multiband
+        3: 655LP
+        4: 575LP
+        5: 620/60BP
+      settle_seconds: 0.1
+
+  488-nm:
+    target: &laser_target voxel.drivers.lasers.simulated.SimulatedLaser
+    init:
+      wavelength: 488
+      max_power_mw: 1000
+
+  639-nm:
+    target: *laser_target
+    init:
+      wavelength: 639
+      max_power_mw: 1000
+
+  z-axis:
+    target: &axis_target voxel.drivers.axes.simulated.SimulatedLinearAxis
+    init:
+      lower_limit_mm: 0.0
+      upper_limit_mm: 100.0
+      speed_mm_s: 1.0
+      acceleration_mm_s2: 5.0
+      has_ttl_stepper: true
+
+  x-axis:
+    target: *axis_target
+    init:
+      lower_limit_mm: 0.0
+      upper_limit_mm: 50.0
+      speed_mm_s: 1.0
+      acceleration_mm_s2: 5.0
+
+  y-axis:
+    target: *axis_target
+    init:
+      lower_limit_mm: 0.0
+      upper_limit_mm: 50.0
+      speed_mm_s: 1.0
+      acceleration_mm_s2: 5.0
+
+  # Focus axes
+  left_focus:
+    target: *axis_target
+    init:
+      lower_limit_mm: 0.0
+      upper_limit_mm: 10.0
+      speed_mm_s: 0.01
+      acceleration_mm_s2: 2.0
+
+  right_focus:
+    target: *axis_target
+    init:
+      lower_limit_mm: 0.0
+      upper_limit_mm: 10.0
+      speed_mm_s: 0.01
+      acceleration_mm_s2: 2.0
+
+  camera_focus:
+    target: *axis_target
+    init:
+      lower_limit_mm: 0.0
+      upper_limit_mm: 10.0
+      speed_mm_s: 0.01
+      acceleration_mm_s2: 0.5
+
+stage:
+  x: x-axis
+  y: y-axis
+  z: z-axis
+
+acq_task:
+  daq: pcie-6738
+  timing:
+    sample_rate: "10 kHz"
+    duration: "544 ms"
+    rest_time: "50 ms"
+    clock:
+      pin: PFI0
+      counter: ctr0
+  ports:
+    vp-151mx: ao21
+    z-axis: ao5
+    "488-nm": ao17
+    "639-nm": ao9
+    left-etl: ao1
+    right-etl: ao3
+    galvo-positive: ao24
+    galvo-negative: ao25
+  waveforms:
+    vp-151mx:
+      type: pulse
+      voltage: { min: "0 V", max: "5 V" }
+      window: { min: 0.046, max: 0.064 }
+    z-axis:
+      type: pulse
+      voltage: { min: "0 V", max: "5 V" }
+      window: { min: 0.99, max: 1.0 }
+    "488-nm":
+      type: pulse
+      voltage: { min: "0 V", max: "10 V" }
+      window: { min: 0.027, max: 1.0 }
+    "639-nm":
+      type: pulse
+      voltage: { min: "0 V", max: "10 V" }
+      window: { min: 0.027, max: 1.0 }
+    left-etl:
+      type: sawtooth
+      frequency: "1.838 Hz"
+      voltage: { min: "2.88 V", max: "3.48 V" }
+    right-etl:
+      type: multi_point
+      voltage: { min: "0V", max: "10V" }
+      points: [ [0, 0.485], [1, 0.755] ]
+    galvo-positive:
+      type: triangle
+      frequency: "100 Hz"
+      symmetry: 0.5
+      voltage: { min: "-0.5 V", max: "0.1 V" }
+    galvo-negative:
+      type: triangle
+      frequency: "100 Hz"
+      symmetry: 0.5
+      voltage: { min: "-0.1 V", max: "0.5 V" }
+
+profiles:
+  "488":
+    laser: 488-nm
+    camera: vp-151mx
+    filters: { filter_wheel_main: 500LP }
+    focusing_axes: [left_focus, right_focus, camera_focus]
+    ao-task-parameters:
+      galvo-positive:
+        cutoff_frequency_hz: 0.0
+        amplitude_volts: 0.6
+      galvo-negative:
+        cutoff_frequency_hz: 0.0
+        amplitude_volts: -0.6
+      left-etl:
+        offset_volts: 3.48
+      right-etl:
+        offset_volts: 4.85
+      488-nm:
+        max_volts: 10.0
+      639-nm:
+        max_volts: 0.0
+
+  "639":
+    laser: 639-nm
+    camera: vp-151mx
+    filters: { filter_wheel_main: 655LP }
+    focusing_axes: [left_focus, right_focus, camera_focus]
+    ao-task-parameters:
+      galvo-positive:
+        cutoff_frequency_hz: 0.0
+        amplitude_volts: 0.0
+      galvo-negative:
+        cutoff_frequency_hz: 0.0
+        amplitude_volts: -0.0
+      left-etl:
+        offset_volts: 3.9
+      right-etl:
+        offset_volts: 5.0
+      488-nm:
+        max_volts: 0.0
+      639-nm:
+        max_volts: 10.0

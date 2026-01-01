@@ -1,1 +1,2 @@
-from .main import InstrumentUI as ExASPIMUI
+from .launcher import LauncherWindow as LauncherWindow
+from .main import ExASPIMUI as ExASPIMUI

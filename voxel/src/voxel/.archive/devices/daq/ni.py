@@ -1,7 +1,8 @@
 from enum import StrEnum
 
 import numpy as np
-from nidaqmx.constants import AcquisitionType as NiAcqType, Level as NiLevel
+from nidaqmx.constants import AcquisitionType as NiAcqType
+from nidaqmx.constants import Level as NiLevel
 from nidaqmx.errors import DaqError
 from nidaqmx.system import System as NiSystem
 from nidaqmx.system.device import Device as NiDevice

@@ -31,19 +31,24 @@ dependencies = [
     "aind_data_schema >= 0.26.7",
     "rich>=14.2.0",
     "voxel[all]",
-    "view",
     "ruyaml>=0.91.0",
     "pydantic>=2.11.10",
+    # processing
     "opencv-python>=4.12.0.88",
+    "gputools",
+    # gui
+    "pyqt6>=6.10.1",
+    "pyqtgraph>=0.14.0",
+    "napari>=0.6.6",
 ]
 
 [dependency-groups]
-dev = ["pytest>=8.2.1", "ruff", "coverage", "interrogate", "Sphinx", "furo"]
+dev = ["pytest>=8.2.1", "coverage", "ruff"]
 
 
 [tool.uv.sources]
 "voxel" = { workspace = true }
-"view" = { workspace = true }
+"gputools" = { path = "./vendor/gputools-src", editable = true }
 
 [project.scripts]
 "exaspim" = "exaspim_control.app:main"
@@ -56,11 +61,11 @@ requires = ["uv_build>=0.8.2,<0.9.0"]
 build-backend = "uv_build"
 
 [tool.uv.workspace]
-members = ["voxel", "view"]
+members = ["voxel"]
 
 [tool.pyright]
 typeCheckingMode = "standard"
-ignore = ["**/sdks/**", "**/sdk/**", "vendor/**"]
+ignore = ["**/sdks/**", "**/sdk/**", "vendor/**", "voxel/**/io/**"]
 
 [tool.coverage.run]
 omit = ["*__init__*"]

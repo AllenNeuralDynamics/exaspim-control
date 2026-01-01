@@ -44,7 +44,7 @@ ignore = [
     'G004',    # logging uses f-strings
     'ANN',     # Missing type annotations
     "DTZ005",  # `datetime.datetime.now()` called without a `tz` argument
-    "F8T003",  # boolean arg without arg name in function call
+    "FBT003",  # boolean arg without arg name in function call
 ]
 
 fixable = ['ALL']

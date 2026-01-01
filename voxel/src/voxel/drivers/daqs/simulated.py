@@ -68,7 +68,6 @@ class MockAOTask:
     def wait_until_done(self, timeout: float) -> None:
         """Wait for task completion (immediate in simulation)."""
         # Simulated task completes immediately
-        pass
 
     def write(self, data: np.ndarray) -> int:
         """Write data to the analog output channels.
@@ -194,7 +193,6 @@ class MockCOTask:
     def wait_until_done(self, timeout: float) -> None:
         """Wait for task completion (immediate in simulation)."""
         # Simulated task completes immediately
-        pass
 
     def cfg_dig_edge_start_trig(
         self,

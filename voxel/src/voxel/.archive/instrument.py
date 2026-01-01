@@ -12,7 +12,6 @@ from typing import TYPE_CHECKING, Any
 import inflection
 from ruyaml import YAML
 from serial import Serial
-
 from voxel.descriptors.deliminated_property import _DeliminatedProperty
 from voxel.devices.daq.base import VoxelDAQ
 

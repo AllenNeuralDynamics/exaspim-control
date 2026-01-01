@@ -4,8 +4,8 @@ from .enumarated import enumerated_int, enumerated_string
 
 __all__ = [
     "PropertyModel",
-    "deliminated_int",
     "deliminated_float",
+    "deliminated_int",
     "enumerated_int",
     "enumerated_string",
 ]

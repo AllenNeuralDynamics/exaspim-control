@@ -93,7 +93,7 @@ class SpimCamera(SpimDevice):
     @describe(label="Pixel Type", desc="The numpy dtype of pixels based on format.")
     def pixel_type(self) -> Dtype:
         """Get the pixel type of the camera."""
-        return PIXEL_FMT_TO_DTYPE[cast(PixelFormat, str(self.pixel_format))]
+        return PIXEL_FMT_TO_DTYPE[cast("PixelFormat", str(self.pixel_format))]
 
     @enumerated_int(options=BINNING_OPTIONS)
     @abstractmethod

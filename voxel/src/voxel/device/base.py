@@ -43,13 +43,12 @@ def describe(label: str, desc: str | None = None, units: str | None = None, stre
 
             return attach_metadata(async_wrapper)
 
-        else:
 
-            @wraps(func)
-            def sync_wrapper(*args, **kwargs):
-                return func(*args, **kwargs)
+        @wraps(func)
+        def sync_wrapper(*args, **kwargs):
+            return func(*args, **kwargs)
 
-            return attach_metadata(sync_wrapper)
+        return attach_metadata(sync_wrapper)
 
     return decorator
 
@@ -401,7 +400,7 @@ def runcmd[R](cmd: Command[R], *args, **kwargs):
     except CommandParamsError as e:
         err_msg = "Parameter validation failed:\n" + "\n".join(f"  - {err}" for err in e.errors)
         print(f"Error: [red]{err_msg}[/red]")
-        return
+        return None
     except Exception as e:
         print(f"Execution Error: {e}")
         raise
@@ -455,7 +454,7 @@ if __name__ == "__main__":
         """This function multiplies two numbers."""
         return a * b
 
-    def process_data(data: str | int, multiplier: int | float = 1) -> str:
+    def process_data(data: str | int, multiplier: float = 1) -> str:
         """Process data that can be string or int."""
         if isinstance(data, str):
             return f"Processed: {data}" * int(multiplier)

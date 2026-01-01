@@ -174,7 +174,6 @@ class DAQFilterWheel(DiscreteAxis):
         """
         # Pulse-triggered filter wheels complete movement during the pulse
         # No additional waiting needed
-        pass
 
     def close(self) -> None:
         """Close the filter wheel device."""

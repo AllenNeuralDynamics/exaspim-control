@@ -85,13 +85,11 @@ class ReferenceFrameGenerator:
         """Resize image using selected or automatic strategy."""
         if self.mode == ResizeMode.TILE:
             return self._tile_image(image)
-        elif self.mode == ResizeMode.UPSAMPLE:
+        if self.mode == ResizeMode.UPSAMPLE:
             return self._upsample_image(image)
-        else:  # AUTO
-            if self._should_tile(image.shape):
-                return self._tile_image(image)
-            else:
-                return self._upsample_image(image)
+        if self._should_tile(image.shape):
+            return self._tile_image(image)
+        return self._upsample_image(image)
 
     def generate(self, nframes: int = 1) -> np.ndarray:
         """Generate batch of frames.

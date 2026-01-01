@@ -10,12 +10,12 @@ from .base import (
 )
 
 __all__ = [
-    "SpimCamera",
+    "BINNING_OPTIONS",
+    "PIXEL_FMT_TO_DTYPE",
+    "FrameRegion",
     "PixelFormat",
+    "SpimCamera",
     "StreamInfo",
     "TriggerMode",
     "TriggerPolarity",
-    "PIXEL_FMT_TO_DTYPE",
-    "BINNING_OPTIONS",
-    "FrameRegion",
 ]

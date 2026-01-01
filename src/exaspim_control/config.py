@@ -2,8 +2,9 @@ import logging
 from pathlib import Path
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field, computed_field, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from ruyaml import YAML
+from voxel.device import BuildConfig
 
 from exaspim_control.acq_task import AcqTaskConfig
 
@@ -12,53 +13,24 @@ _yaml = YAML()
 logger = logging.getLogger("config")
 
 
-class BuildConfig(BaseModel):
-    target: str
-    init: dict[str, Any] = Field(default_factory=dict)
-    defaults: dict[str, Any] | None = None
-
-
 class GlobalsConfig(BaseModel):
-    coordinate_plane: tuple[str, str, str]
     camera_rotation_deg: Literal[0, 90, 180, 270, 360, -270, -180, -90, -0] = 90
     unit: str
     default_overlap: float
     default_tile_order: str
-    dual_sided: bool
-    objective_magnification: float = 1.0  # Objective magnification for FOV calculation
+    objective_magnification: float = 1.0
+    illumination_labels: list[str] = Field(default_factory=lambda: ["primary"])
+
+    @property
+    def illumination_count(self) -> int:
+        """Number of illumination paths available."""
+        return len(self.illumination_labels)
 
 
 class InstrumentInfo(BaseModel):
     instrument_uid: str
     instrument_type: str
     instrument_version: float
-
-
-type AnatomicalDirectionX = Literal["Anterior_to_posterior", "Posterior_to_anterior"]
-type AnatomicalDirectionY = Literal["Inferior_to_superior", "Superior_to_inferior"]
-type AnatomicalDirectionZ = Literal["Left_to_right", "Right_to_left"]
-type MetadataDateFmt = Literal["Year/Month/Day/Hour/Minute/Second"]
-type MetadataDelimiter = Literal["_", "."]
-
-
-class Metadata(InstrumentInfo):
-    subject_id: str | None = None
-    experimenter_full_name: list[str] | None = None
-    chamber_medium: str = "other"
-    chamber_refractive_index: float = 1.33
-    x_anatomical_direction: AnatomicalDirectionX = "Anterior_to_posterior"
-    y_anatomical_direction: AnatomicalDirectionY = "Inferior_to_superior"
-    z_anatomical_direction: AnatomicalDirectionZ = "Left_to_right"
-    date_format: MetadataDateFmt = "Year/Month/Day/Hour/Minute/Second"
-    name_delimitor: MetadataDelimiter = "_"
-
-    @property
-    def is_experiment_configured(self) -> bool:
-        return self.subject_id is not None and self.experimenter_full_name is not None
-
-    @computed_field
-    def experiement_name(self) -> str:
-        return f"{self.instrument_type}{self.name_delimitor}{self.subject_id}"
 
 
 class StageConfig(BaseModel):
@@ -68,7 +40,7 @@ class StageConfig(BaseModel):
     theta: str | None = None
 
 
-class ChannelConfig(BaseModel):
+class ProfileConfig(BaseModel):
     camera: str
     laser: str
     filters: dict[str, str] = Field(default_factory=dict)
@@ -96,14 +68,14 @@ class ConfigError(Exception):
         super().__init__("\n".join(errors))
 
 
-class ExASPIMConfig(BaseModel):
-    metadata: Metadata
+class InstrumentConfig(BaseModel):
+    info: InstrumentInfo
     globals: GlobalsConfig
     devices: dict[str, BuildConfig]
     writers: dict[str, BuildConfig] = Field(default_factory=dict)
     transfers: dict[str, BuildConfig] = Field(default_factory=dict)
     widgets: dict[str, BuildConfig] = Field(default_factory=dict)
-    profiles: dict[str, ChannelConfig]
+    profiles: dict[str, ProfileConfig]
     acq_task: AcqTaskConfig
     stage: StageConfig
     acquisition: list[TileInfo] | None = None
@@ -170,7 +142,7 @@ class ExASPIMConfig(BaseModel):
         return self
 
     @classmethod
-    def from_yaml(cls, config_path: Path) -> "ExASPIMConfig":
+    def from_yaml(cls, config_path: Path) -> "InstrumentConfig":
         config_path = Path(config_path)
         with config_path.open("r") as f:
             raw_dict = _yaml.load(f)

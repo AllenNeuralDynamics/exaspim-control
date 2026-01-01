@@ -94,6 +94,18 @@ class AcquisitionTask:
     def uid(self) -> str:
         return self._uid
 
+    @property
+    def timing(self) -> AcqTiming:
+        return self._timing
+
+    @property
+    def waveforms(self) -> dict[str, Waveform]:
+        return self._waveforms
+
+    @property
+    def ports(self) -> dict[str, str]:
+        return self._ports
+
     def setup(self) -> None:
         """Set up the task: create task with channels, configure timing."""
         if self._is_setup:

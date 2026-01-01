@@ -2,20 +2,12 @@ _anchors:
   laser_driver: &laser_driver voxel.drivers.lasers.coherent.genesis_mx.GenesisMX  # voxel.drivers.lasers.simulated.SimulatedLaser
   axis_driver: &axis_driver voxel.drivers.axes.asi.TigerAxis
 
-metadata:
+info:
   instrument_uid: exaspim-beta3
   instrument_type: exaSPIM
   instrument_version: 1.0
-  subject_id: "123456"
-  experimenter_full_name: [adam glaser]
-  chamber_medium: other
-  chamber_refractive_index: 1.33
-  x_anatomical_direction: Anterior_to_posterior
-  y_anatomical_direction: Inferior_to_superior
-  z_anatomical_direction: Left_to_right
 
 globals:
-  coordinate_plane: ["-x", "y", "z"]
   camera_rotation_deg: -90.0
   unit: mm
   default_overlap: 15.0

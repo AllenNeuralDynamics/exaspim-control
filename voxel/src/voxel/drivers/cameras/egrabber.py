@@ -161,7 +161,7 @@ class VieworksCamera(SpimCamera):
     @enumerated_string(options=lambda self: self._pixel_format_options)
     def pixel_format(self) -> PixelFormat:
         fmt = self._dev.fetch_remote(feature="PixelFormat", dtype=str)
-        return cast(PixelFormat, fmt.upper())
+        return cast("PixelFormat", fmt.upper())
 
     @pixel_format.setter
     def pixel_format(self, pixel_format: str) -> None:

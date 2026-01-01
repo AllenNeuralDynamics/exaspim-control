@@ -20,34 +20,29 @@ keywords = ["microscopy", "microscope", "acquisition", "imaging"]
 version = "0.1.0"
 
 dependencies = [
-    "ruyaml>=0.91.0",
-    "inflection>=0.5.1",
     "pydantic>=2.7.3",
-    "imohash>=1.0.5",
     "numpy>=2.1",
     # device driver dependencies
     "pyserial>=3.5",
     "pyusb>=1.2.1",
     "psutil>=5.9.8",
-    "PyVISA>=1.14.1",
     "PyVISA-py>=0.7.2",
     "pylablib-lightweight>=1.4.3",
     "nidaqmx==1.0.0",
+    "aaopto-aotf>=0.0.11",
     # data handling dependencies
     "h5py>=3.0.0",
-    # processing and utils dependencies
-    "pyclesperanto>=0.8.2",
-    "scikit-image>=0.20.0",
-    "gputools",
-    "tensorstore>=0.1.56",
-    "matplotlib>=3.8.2",
-    "scipy>=1.12.0",
-    "fast_histogram>=0.14",
-    "sympy>=1.12.1",
-    "numpy>2.0.0",
-    "siphash24>=1.7",
     "ome-zarr-writer",
-    "aaopto-aotf>=0.0.11",
+    # processing and utils dependencies
+    "opencv-python>=4.12.0.88",
+    # "pyclesperanto>=0.8.2",
+    # "scikit-image>=0.20.0",
+    # "tensorstore>=0.1.56",
+    # "matplotlib>=3.8.2",
+    # "scipy>=1.12.0",
+    # "fast_histogram>=0.14",
+    # "sympy>=1.12.1",
+    # "siphash24>=1.7",
 ]
 
 
@@ -117,5 +112,5 @@ requires = ["uv_build>=0.8.2,<0.9.0"]
 build-backend = "uv_build"
 
 
-[tool.pyright]
-typeCheckingMode = "standard"
+# [tool.pyright]
+# typeCheckingMode = "standard"

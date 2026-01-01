@@ -1,4 +1,3 @@
-import logging
 from multiprocessing import Event
 from typing import Any
 

@@ -1,4 +1,3 @@
-import logging
 
 from aaopto_aotf import MPDS
 from aaopto_aotf.device_codes import BlankingMode, InputMode

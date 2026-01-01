@@ -5,6 +5,7 @@ from pathlib import Path
 from threading import Thread
 
 import numpy as np
+from voxel.device import build_objects
 from voxel.interfaces.axes import Axis, DiscreteAxis
 from voxel.interfaces.camera import SpimCamera, TriggerMode
 from voxel.interfaces.daq import SpimDaq
@@ -13,8 +14,7 @@ from voxel.interfaces.spim import SpimDevice
 from voxel.preview import PreviewFrame, PreviewGenerator
 
 from exaspim_control.acq_task import AcquisitionTask
-from exaspim_control.build import build_objects
-from exaspim_control.config import ExASPIMConfig
+from exaspim_control.config import InstrumentConfig, ProfileConfig
 
 type DeviceGroup[T: SpimDevice] = dict[str, T]
 type PreviewFrameSink = Callable[[PreviewFrame], None]
@@ -41,10 +41,10 @@ class Stage:
             self.theta.halt()
 
 
-class ExASPIM:
+class Instrument:
     def __init__(self, config_path):
-        self.cfg = ExASPIMConfig.from_yaml(Path(config_path))
-        self.log = logging.getLogger(self.cfg.metadata.instrument_uid)
+        self.cfg = InstrumentConfig.from_yaml(Path(config_path))
+        self.log = logging.getLogger(self.cfg.info.instrument_uid)
 
         self.devices, build_errors = build_objects(self.cfg.devices)
 
@@ -95,8 +95,16 @@ class ExASPIM:
             laser.disable()
 
     @property
+    def profiles(self) -> dict[str, ProfileConfig]:
+        return self.cfg.profiles
+
+    @property
     def preview(self) -> PreviewGenerator:
         return self._preview_generator
+
+    @property
+    def acq_task(self) -> AcquisitionTask:
+        return self._acq_task
 
     @property
     def active_channel_laser(self) -> SpimLaser:

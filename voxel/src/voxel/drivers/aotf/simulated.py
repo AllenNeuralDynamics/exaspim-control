@@ -30,10 +30,10 @@ class SimulatedAotf(SpimAotf):
         self._blanking_mode = blanking_mode
 
         # Initialize channel state
-        self._channel_states: dict[int, bool] = {ch: False for ch in range(1, _NUM_CHANNELS + 1)}
-        self._channel_frequencies: dict[int, float] = {ch: 100.0 for ch in range(1, _NUM_CHANNELS + 1)}
-        self._channel_powers: dict[int, float] = {ch: 10.0 for ch in range(1, _NUM_CHANNELS + 1)}
-        self._channel_input_modes: dict[int, str] = {ch: default_input_mode for ch in range(1, _NUM_CHANNELS + 1)}
+        self._channel_states: dict[int, bool] = dict.fromkeys(range(1, _NUM_CHANNELS + 1), False)
+        self._channel_frequencies: dict[int, float] = dict.fromkeys(range(1, _NUM_CHANNELS + 1), 100.0)
+        self._channel_powers: dict[int, float] = dict.fromkeys(range(1, _NUM_CHANNELS + 1), 10.0)
+        self._channel_input_modes: dict[int, str] = dict.fromkeys(range(1, _NUM_CHANNELS + 1), default_input_mode)
 
         super().__init__(uid=uid)
 

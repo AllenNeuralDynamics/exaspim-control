@@ -222,11 +222,10 @@ class OxxiusHub(SpimDevice):
         """
         if prefix is None:
             return self._send(cmd.value)
-        elif isinstance(cmd, Query):
+        if isinstance(cmd, Query):
             return self._send(f"{prefix} {cmd.value}")
-        else:
-            # CombinerQuery uses different format
-            return self._send(f"{cmd.value}{prefix.upper().replace('L', '')}")
+        # CombinerQuery uses different format
+        return self._send(f"{cmd.value}{prefix.upper().replace('L', '')}")
 
     def command(self, cmd: Cmd | CombinerCmd, value: str | float | BoolVal, prefix: str) -> str:
         """Send a set command to the device.
@@ -241,9 +240,8 @@ class OxxiusHub(SpimDevice):
         """
         if isinstance(cmd, Cmd):
             return self._send(f"{prefix} {cmd} {value}")
-        else:
-            # CombinerCmd uses different format
-            return self._send(f"{cmd}{prefix.upper().replace('L', '')} {value}")
+        # CombinerCmd uses different format
+        return self._send(f"{cmd}{prefix.upper().replace('L', '')} {value}")
 
     # ==================== Laser Management ====================
 

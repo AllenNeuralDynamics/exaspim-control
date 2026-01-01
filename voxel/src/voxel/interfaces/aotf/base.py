@@ -7,7 +7,6 @@ from voxel.interfaces.spim import DeviceType, SpimDevice
 class ChannelCollisionError(Exception):
     """Raised when a device tries to register an already-claimed AOTF channel."""
 
-    pass
 
 
 class SpimAotf(SpimDevice):
