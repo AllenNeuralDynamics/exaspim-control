@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 from ruyaml import YAML
 from voxel.device import BuildConfig
 
-from exaspim_control.instrument.acq_task import AcqTaskConfig
+from exaspim_control.instrument.frame_task import FrameTaskConfig
 
 _yaml = YAML()
 
@@ -53,12 +53,6 @@ class Vec3D(BaseModel):
     z: float
 
 
-class TileInfo(BaseModel):
-    channel: str
-    position: Vec3D
-    settings: dict[str, dict[str, Any]] = Field(default_factory=dict)
-
-
 class ConfigError(Exception):
     def __init__(self, errors: list[str] | str):
         if isinstance(errors, str):
@@ -75,9 +69,8 @@ class InstrumentConfig(BaseModel):
     transfers: dict[str, BuildConfig] = Field(default_factory=dict)
     widgets: dict[str, BuildConfig] = Field(default_factory=dict)
     profiles: dict[str, ProfileConfig]
-    acq_task: AcqTaskConfig
+    frame_task: FrameTaskConfig
     stage: StageConfig
-    acquisition: list[TileInfo] | None = None
     config_path: Path | None = Field(default=None, exclude=True)
 
     def save(self):
@@ -94,24 +87,24 @@ class InstrumentConfig(BaseModel):
             _yaml.dump(self.dict(exclude_none=True), f)
         self.config_path = config_path
 
-    def get_channel_acq_task_config(self, channel_name: str) -> AcqTaskConfig:
-        """Get the acquisition task config for a specific channel, with parameters merged."""
+    def get_channel_frame_task_config(self, channel_name: str) -> FrameTaskConfig:
+        """Get the frame task config for a specific channel, with parameters merged."""
         if channel_name not in self.profiles:
             msg = f"Channel '{channel_name}' not found in configuration."
             raise ValueError(msg)
 
-        channel_acq_task_config = self.acq_task.model_copy(deep=True)
+        channel_frame_task_config = self.frame_task.model_copy(deep=True)
         overrides_waveforms = self.profiles[channel_name].ao_task_parameters
 
         for wave_name, override_wave_params in overrides_waveforms.items():
-            if wave_name in channel_acq_task_config.waveforms:
+            if wave_name in channel_frame_task_config.waveforms:
                 for param_name, param_value in override_wave_params.items():
-                    if hasattr(channel_acq_task_config.waveforms[wave_name], param_name):
-                        setattr(channel_acq_task_config.waveforms[wave_name], param_name, param_value)
+                    if hasattr(channel_frame_task_config.waveforms[wave_name], param_name):
+                        setattr(channel_frame_task_config.waveforms[wave_name], param_name, param_value)
                     else:
-                        logger.warning("Invalid channel acq_waveform override")
+                        logger.warning("Invalid channel frame_task_waveform override")
 
-        return channel_acq_task_config
+        return channel_frame_task_config
 
     @field_validator("profiles")
     @classmethod

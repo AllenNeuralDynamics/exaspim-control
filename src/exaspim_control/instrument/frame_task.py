@@ -17,7 +17,7 @@ class TriggerConfig(BaseModel):
     duty_cycle: float = Field(0.5, description="Duty cycle for the trigger signal (0.0 to 1.0)", ge=0, le=1)
 
 
-class AcqTiming(BaseModel):
+class FrameTiming(BaseModel):
     sample_rate: Frequency = Field(..., description="Hz", gt=0)
     duration: Time = Field(..., description="Time for one cycle seconds", gt=0)
     rest_time: Time = Field(default=Time(0.0), description="Time between cycles", ge=0)
@@ -42,9 +42,9 @@ class AcqTiming(BaseModel):
         return int(self.sample_rate * self.duration)
 
 
-class AcqTaskConfig(BaseModel):
-    timing: AcqTiming = Field(..., description="Acquisition timing parameters")
-    waveforms: dict[str, Waveform] = Field(..., description="List of waveforms to acquire")
+class FrameTaskConfig(BaseModel):
+    timing: FrameTiming = Field(..., description="Acquisition timing parameters")
+    waveforms: dict[str, Waveform] = Field(..., description="List of waveforms to run")
     ports: dict[str, str]
 
     @model_validator(mode="before")
@@ -67,7 +67,7 @@ class WaveGenChannel:
     wave: "Waveform"
 
 
-class AcquisitionTask:
+class DAQFrameTask:
     """Orchestrates DAQ task creation and control using the new SpimDaq API.
 
     This class uses the new voxel.interfaces.daq API which provides:
@@ -76,7 +76,7 @@ class AcquisitionTask:
     - Automatic pin management and cleanup
     """
 
-    def __init__(self, *, uid: str, daq: SpimDaq, cfg: AcqTaskConfig) -> None:
+    def __init__(self, *, uid: str, daq: SpimDaq, cfg: FrameTaskConfig) -> None:
         self._uid = uid
         self._log = logging.getLogger(self._uid)
         self._daq = daq
@@ -95,7 +95,7 @@ class AcquisitionTask:
         return self._uid
 
     @property
-    def timing(self) -> AcqTiming:
+    def timing(self) -> FrameTiming:
         return self._timing
 
     @property
@@ -191,7 +191,7 @@ class AcquisitionTask:
         for channel_name in channel_names:
             # Find matching port by checking if channel name ends with the pin
             matched = False
-            for name, channel in self._channels.items():
+            for channel in self._channels.values():
                 if channel_name.upper().endswith(channel.pin.upper()):
                     waveform_array = channel.wave.get_array(self._timing.num_samples)
                     data_arrays.append(waveform_array)
@@ -213,7 +213,7 @@ class AcquisitionTask:
             self._log.warning(f"Only wrote {written_samples} samples out of {self._timing.num_samples} requested.")
 
     def start(self) -> None:
-        """Write waveforms and start the acquisition task."""
+        """Write waveforms and start the frame task."""
         if not self._is_setup:
             msg = f"Task '{self._uid}' is not set up. Call setup() first."
             raise RuntimeError(msg)
@@ -233,7 +233,7 @@ class AcquisitionTask:
             self._log.info(f"Started clock task '{self._clock_task.name}'")
 
     def stop(self) -> None:
-        """Stop the acquisition task."""
+        """Stop the frame task."""
         # Stop clock task first (stops sending triggers)
         if self._clock_task:
             self._clock_task.stop()

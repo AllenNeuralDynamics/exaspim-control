@@ -151,9 +151,9 @@ class InstrumentModel(QObject):
         return self._adapters
 
     @property
-    def acq_task(self):
-        """Current acquisition task (may be None when not streaming)."""
-        return self._instrument.acq_task
+    def frame_task(self):
+        """Current frame task (may be None when not streaming)."""
+        return self._instrument.frame_task
 
     @property
     def profile_names(self) -> list[str]:

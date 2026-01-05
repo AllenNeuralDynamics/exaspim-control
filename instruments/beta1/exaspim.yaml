@@ -158,7 +158,7 @@ stage:
   y: y-axis
   z: z-axis
 
-acq_task:
+frame_task:
   daq: pcie-6738
   timing:
     sample_rate: "10 kHz"

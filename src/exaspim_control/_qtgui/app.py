@@ -18,9 +18,9 @@ from PyQt6.QtWidgets import (
 
 from exaspim_control._qtgui.model import InstrumentModel
 from exaspim_control._qtgui.primitives import Grid, VButton
-from exaspim_control._qtgui.widgets.acq_task_panel import AcquisitionTaskWidget
 from exaspim_control._qtgui.widgets.device_explorer import DevicesExplorer
 from exaspim_control._qtgui.widgets.devices.filter_wheel import FilterWheelWidget
+from exaspim_control._qtgui.widgets.frame_task_panel import FrameTaskPanel
 from exaspim_control._qtgui.widgets.live_viewer import LiveViewer
 from exaspim_control._qtgui.widgets.metadata_editor import MetadataEditor
 from exaspim_control._qtgui.widgets.primary_controls import PrimaryControls
@@ -272,7 +272,7 @@ class ExASPIMUI(QMainWindow):
         self._planner = SessionPlanner(model=self._model, plan=self._session.state.plan, parent=self)
         self._planner.planChanged.connect(self._volume_graphic.refresh)
 
-        self._acq_task_widget = AcquisitionTaskWidget(model=self._model, parent=self)
+        self._frame_task_panel = FrameTaskPanel(model=self._model, parent=self)
 
         self._devices_explorer = DevicesExplorer(model=self._model, parent=self)
 
@@ -281,7 +281,7 @@ class ExASPIMUI(QMainWindow):
 
         self._left_bottom_tabs = [
             Tab("Grid", self._planner),
-            Tab("Waveforms", self._acq_task_widget),
+            Tab("Waveforms", self._frame_task_panel),
             Tab(
                 "Filters",
                 Grid(*self._fw_widgets.values(), columns=2),

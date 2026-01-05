@@ -13,8 +13,8 @@ from voxel.interfaces.laser import SpimLaser
 from voxel.interfaces.spim import SpimDevice
 from voxel.preview import PreviewFrame, PreviewGenerator
 
-from exaspim_control.instrument.acq_task import AcquisitionTask
 from exaspim_control.instrument.config import InstrumentConfig, ProfileConfig
+from exaspim_control.instrument.frame_task import DAQFrameTask
 
 type DeviceGroup[T: SpimDevice] = dict[str, T]
 type PreviewFrameSink = Callable[[PreviewFrame], None]
@@ -84,7 +84,7 @@ class Instrument:
         self._raw_frame_sink: RawFrameSink | None = None
         self._preview_target_width: int = 1024
 
-        self._acq_task, self._preview_generator = self._set_active_profile(self._active_profile)
+        self._frame_task, self._preview_generator = self._set_active_profile(self._active_profile)
 
     def disable_lasers(self):
         for laser in self.lasers.values():
@@ -99,8 +99,8 @@ class Instrument:
         return self._preview_generator
 
     @property
-    def acq_task(self) -> AcquisitionTask:
-        return self._acq_task
+    def frame_task(self) -> DAQFrameTask:
+        return self._frame_task
 
     @property
     def active_channel_laser(self) -> SpimLaser:
@@ -113,11 +113,11 @@ class Instrument:
         self.lasers[channel_cfg.laser].disable()
         self.log.debug(f"Disabled channel '{channel_name}'")
 
-    def _set_active_profile(self, profile_name: str) -> tuple[AcquisitionTask, PreviewGenerator]:
+    def _set_active_profile(self, profile_name: str) -> tuple[DAQFrameTask, PreviewGenerator]:
         self._active_profile = profile_name
 
-        if hasattr(self, "_acq_task") and self._acq_task is not None:
-            self._acq_task.close()
+        if hasattr(self, "_frame_task") and self._frame_task is not None:
+            self._frame_task.close()
 
         if hasattr(self, "_preview_generator"):
             self._preview_generator.shutdown()
@@ -125,12 +125,12 @@ class Instrument:
         for filter_name, filter_label in self.cfg.profiles[profile_name].filters.items():
             self.filter_wheels[filter_name].select(filter_label)
 
-        acq_task = AcquisitionTask(
-            uid=f"{profile_name}_acq_task",
+        frame_task = DAQFrameTask(
+            uid=f"{profile_name}_frame_task",
             daq=self.daq,
-            cfg=self.cfg.get_channel_acq_task_config(profile_name),
+            cfg=self.cfg.get_channel_frame_task_config(profile_name),
         )
-        acq_task.setup()
+        frame_task.setup()
 
         preview_gen = PreviewGenerator(
             preview_sink=self._preview_sink,
@@ -139,7 +139,7 @@ class Instrument:
             raw_frame_sink=self._raw_frame_sink,
         )
 
-        return acq_task, preview_gen
+        return frame_task, preview_gen
 
     def update_active_profile(self, profile_name: str) -> None:
         if profile_name not in self.cfg.profiles:
@@ -156,7 +156,7 @@ class Instrument:
 
         self.stop_livestream()
 
-        self._acq_task, self._preview_generator = self._set_active_profile(profile_name)
+        self._frame_task, self._preview_generator = self._set_active_profile(profile_name)
 
         self.log.info(f"Switched profile: {old_profile} -> {profile_name}")
 
@@ -180,7 +180,7 @@ class Instrument:
         self._frame_idx = 0
 
         # Recreate preview generator with the real sink (includes raw_frame_sink)
-        self._acq_task, self._preview_generator = self._set_active_profile(self._active_profile)
+        self._frame_task, self._preview_generator = self._set_active_profile(self._active_profile)
 
         self.disable_lasers()
         self.active_channel_laser.enable()
@@ -188,10 +188,10 @@ class Instrument:
         self.camera.prepare(trigger_mode=TriggerMode.ON)
         self.camera.start(None)
 
-        if self._acq_task:
-            self._acq_task.start()
+        if self._frame_task:
+            self._frame_task.start()
         else:
-            self.log.error("Daq acq_task missing when starting livestream. Profile: %s", self._active_profile)
+            self.log.error("Daq frame_task missing when starting livestream. Profile: %s", self._active_profile)
 
         self._is_livestreaming = True
         self._frame_thread = Thread(target=self._frame_grabber_loop, daemon=True)
@@ -222,8 +222,8 @@ class Instrument:
         self._is_livestreaming = False
         self.disable_lasers()
 
-        if self._acq_task is not None:
-            self._acq_task.stop()
+        if self._frame_task is not None:
+            self._frame_task.stop()
 
         if self._frame_thread is not None:
             self._frame_thread.join(timeout=2.0)

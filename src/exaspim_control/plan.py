@@ -26,6 +26,12 @@ class OrderMode(StrEnum):
     COLUMN_WISE_SNAKE = "column_wise_snake"
 
 
+# class TileInfo(BaseModel):
+#     channel: str
+#     position: Vec3D
+#     settings: dict[str, dict[str, Any]] = Field(default_factory=dict)
+
+
 class GridCell(BaseModel):
     """A cell in the computed grid (from config)."""
 

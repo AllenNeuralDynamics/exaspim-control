@@ -12,6 +12,7 @@ from PyQt6.QtWidgets import (
     QGridLayout,
     QHBoxLayout,
     QHeaderView,
+    QLabel,
     QSizePolicy,
     QTableWidget,
     QTableWidgetItem,
@@ -26,10 +27,10 @@ if TYPE_CHECKING:
     from voxel.interfaces.daq import TaskStatus
 
     from exaspim_control._qtgui.model import InstrumentModel
-    from exaspim_control.instrument.acq_task import AcquisitionTask
+    from exaspim_control.instrument.frame_task import DAQFrameTask
 
 
-class AcquisitionTaskWidget(QWidget):
+class FrameTaskPanel(QWidget):
     """Widget to visualize and monitor an AcquisitionTask.
 
     Autonomous widget that subscribes to InstrumentModel.streamingChanged
@@ -58,7 +59,7 @@ class AcquisitionTaskWidget(QWidget):
         super().__init__(parent)
         self.log = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
         self._model = model
-        self._task: AcquisitionTask | None = None
+        self._task: DAQFrameTask | None = None
 
         # === Create all widgets ===
 
@@ -237,14 +238,14 @@ class AcquisitionTaskWidget(QWidget):
             self._clear_display()
 
     def _refresh_from_model(self) -> None:
-        """Refresh display from the model's current acquisition task."""
-        self._task = self._model.acq_task
+        """Refresh display from the model's current frame task."""
+        self._task = self._model.frame_task
         self._update_display()
 
-    def set_task(self, task: AcquisitionTask) -> None:
+    def set_task(self, task: DAQFrameTask) -> None:
         """Bind to an AcquisitionTask and display its configuration.
 
-        :param task: The acquisition task to display
+        :param task: The frame task to display
         """
         self._task = task
         self._update_display()
@@ -336,7 +337,6 @@ class AcquisitionTaskWidget(QWidget):
         layout.setSpacing(4)
 
         # Color swatch
-        from PyQt6.QtWidgets import QLabel
 
         swatch = QLabel()
         swatch.setFixedSize(12, 12)
