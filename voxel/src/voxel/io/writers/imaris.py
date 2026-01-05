@@ -1,386 +1,470 @@
-import logging
-import multiprocessing
-import os
-import re
-import sys
-from ctypes import c_wchar
-from datetime import datetime
+"""ImarisWriter - Writer for Imaris .ims files.
+
+This module provides a writer for voxel data that outputs to Imaris .ims format,
+implementing the VoxelWriter Protocol using composition.
+"""
+
+from __future__ import annotations
+
+import multiprocessing as mp
+from datetime import UTC, datetime
+from enum import Enum
 from math import ceil
-from multiprocessing import Array, Process
-from multiprocessing.shared_memory import SharedMemory
 from pathlib import Path
-from time import perf_counter, sleep
+from typing import Self
 
 import numpy as np
-from matplotlib.colors import hex2color
-from PyImarisWriter import PyImarisWriter as pw
-from voxel.writers.base import BaseWriter
+from ome_types.model import PixelType
+from PyImarisWriter import PyImarisWriter as imaris  # noqa: N813
 
-CHUNK_COUNT_PX = 64
-DIVISIBLE_FRAME_COUNT_PX = 64
-
-COMPRESSIONS = {
-    "lz4shuffle": pw.eCompressionAlgorithmShuffleLZ4,
-    "none": pw.eCompressionAlgorithmNone,
-}
+from .engine import BufferManager, WriterProcess
+from .types import FrameShape, StreamMetrics, StreamStatus, VolumeShape, WriterConfig
 
 
-class ImarisProgressChecker(pw.CallbackClass):
+class ImarisCompression(Enum):
+    """Compression algorithms supported by Imaris writer."""
+
+    LZ4SHUFFLE = imaris.eCompressionAlgorithmShuffleLZ4
+    NONE = imaris.eCompressionAlgorithmNone
+
+
+class ImarisProgressChecker(imaris.CallbackClass):
+    """Adapter to map VoxelWriter progress to ImarisWriter progress callback."""
+
+    def __init__(self, writer: ImarisWriter) -> None:
+        self.writer = writer
+
+    def RecordProgress(self, progress: float, total_bytes_written: int) -> None:  # noqa: N802
+        """Called by ImarisWriter SDK to report progress."""
+        self.writer._imaris_progress = progress
+
+
+class ImarisWriter:
+    """Writer for voxel data that outputs to Imaris .ims format.
+
+    Implements the VoxelWriter Protocol using composition with
+    BufferManager and WriterProcess components.
+
+    Example:
+        ```python
+        from voxel.io.writers import ImarisWriter, WriterConfig, FrameShape
+
+        cfg = WriterConfig(
+            name="experiment_001",
+            path="/data/output",
+            frame_count=1000,
+            frame_shape=FrameShape(2048, 2048),
+            batch_size=128,
+            compression="lz4shuffle",
+        )
+
+        with ImarisWriter(cfg, thread_count=8) as writer:
+            for frame in camera.stream():
+                writer.add_frame(frame)
+                print(writer.get_status().summary())
+        ```
     """
-    Class for tracking progress of an active Imaris writer.
-    """
 
-    def __init__(self) -> None:
+    # Class constants
+    DEFAULT_THREAD_COUNT = mp.cpu_count()
+    DEFAULT_XY_BLOCK_SIZE = 256
+
+    def __init__(self, cfg: WriterConfig, *, thread_count: int | None = None) -> None:
+        """Initialize the ImarisWriter.
+
+        Args:
+            cfg: Writer configuration specifying output path, dimensions, etc.
+            thread_count: Number of writer threads (None = auto, uses cpu_count)
         """
-        Initialize the ImarisProgressChecker class.
-        """
-        self.progress = 0  # a float representing the progress (0 to 1.0)
+        from voxel.utils.log import VoxelLogging
 
-    def RecordProgress(self, progress: float, total_bytes_written: int) -> None:
-        """
-        Record the progress of the Imaris writer.
+        self._cfg = cfg
+        self.log = VoxelLogging.get_logger(obj=self)
+        self._log_queue = VoxelLogging.get_queue()
 
-        :param progress: The current progress as a float between 0 and 1.0.
-        :type progress: float
-        :param total_bytes_written: The total bytes written so far.
-        :type total_bytes_written: int
-        """
-        self.progress = progress
-
-
-class ImarisWriter(BaseWriter):
-    """
-    Voxel driver for the Imaris writer.
-
-    Writer will save data to the following location
-
-    path\\acquisition_name\\filename.ims
-    """
-
-    def __init__(self, path: str) -> None:
-        """
-        Initialize the ImarisWriter class.
-
-        :param path: The path for the data writer.
-        :type path: str
-        """
-        super().__init__(path)
-        self._compression = pw.eCompressionAlgorithmNone  # initialize as no compression
-        self._color = "#ffffff"  # initialize as white
-        # Internal flow control attributes to monitor compression progress
-        self.callback_class = ImarisProgressChecker()
-
-    @property
-    def frame_count_px(self) -> int:
-        """Get the number of frames in the writer.
-
-        :return: Frame number in pixels
-        :rtype: int
-        """
-        return self._frame_count_px
-
-    @frame_count_px.setter
-    def frame_count_px(self, value: int) -> None:
-        """Set the number of frames in the writer.
-
-        :param value: Frame number in pixels
-        :type value: int
-        """
-        self.log.info(f"setting frame count to: {value} [px]")
-        if value % DIVISIBLE_FRAME_COUNT_PX != 0:
-            value = ceil(value / DIVISIBLE_FRAME_COUNT_PX) * DIVISIBLE_FRAME_COUNT_PX
-            self.log.info(f"adjusting frame count to: {value} [px]")
-        self._frame_count_px = value
-
-    @property
-    def chunk_count_px(self) -> int:
-        """Get the chunk count in pixels
-
-        :return: Chunk count in pixels
-        :rtype: int
-        """
-        return CHUNK_COUNT_PX
-
-    @property
-    def compression(self) -> str:
-        """Get the compression codec of the writer.
-
-        :return: Compression codec
-        :rtype: str
-        """
-        return next(key for key, value in COMPRESSIONS.items() if value == self._compression)
-
-    @compression.setter
-    def compression(self, value: str) -> None:
-        """Set the compression codec of the writer.
-
-        :param value: Compression codec
-        * **lz4shuffle**
-        * **none**
-        :type value: str
-        """
-        valid = list(COMPRESSIONS.keys())
-        if value not in valid:
-            raise ValueError("compression type must be one of %r." % valid)
-        self.log.info(f"setting compression mode to: {value}")
-        self._compression = COMPRESSIONS[value]
-
-    @property
-    def filename(self) -> str:
-        """
-        The base filename of file writer.
-
-        :return: The base filename
-        :rtype: str
-        """
-        return self._filename
-
-    @filename.setter
-    def filename(self, value: str) -> None:
-        """
-        The base filename of file writer.
-
-        :param value: The base filename
-        :type value: str
-        """
-        self._filename = value if value.endswith(".ims") else f"{value}.ims"
-        self.log.info(f"setting filename to: {value}")
-
-    @property
-    def color(self) -> str:
-        """
-        The color of the writer.
-
-        :return: Color
-        :rtype: str
-        """
-        return self._color
-
-    @color.setter
-    def color(self, value: str) -> None:
-        """
-        The color of the writer.
-
-        :param value: Color
-        :type value: str
-        """
-        if re.search(r"^#(?:[0-9a-fA-F]{3}){1,2}$", value):
-            self._color = value
-        else:
-            raise ValueError("%r is not a valid hex color code." % value)
-        self.log.info(f"setting color to: {value}")
-
-    def delete_files(self) -> None:
-        """
-        Delete all files generated by the writer.
-        """
-        filepath = Path(self._path, self._acquisition_name, self._filename).absolute()
-        os.remove(filepath)
-
-    def prepare(self) -> None:
-        """Prepare the writer."""
-        self.log.info(f"{self._filename}: intializing writer.")
-        # Specs for reconstructing the shared memory object.
-        self._shm_name = Array(c_wchar, 32)  # hidden and exposed via property.
-        # opinioated decision on chunking dimension order
-        chunk_dim_order = ("z", "y", "x")
-        # This is almost always going to be: (chunk_size, rows, columns).
-        chunk_shape_map = {
-            "x": self._column_count_px,
-            "y": self._row_count_px,
-            "z": CHUNK_COUNT_PX,
+        # Map compression string to enum
+        compression_map = {
+            "lz4shuffle": ImarisCompression.LZ4SHUFFLE,
+            "none": ImarisCompression.NONE,
         }
-        shm_shape = [chunk_shape_map[x] for x in chunk_dim_order]
-        shm_nbytes = int(np.prod(shm_shape, dtype=np.int64) * np.dtype(self._data_type).itemsize)
-        # voxel size metadata to create the converter
-        image_size_z = int(ceil(self._frame_count_px / CHUNK_COUNT_PX) * CHUNK_COUNT_PX)
-        image_size = pw.ImageSize(x=self._column_count_px, y=self._row_count_px, z=image_size_z, c=1, t=1)
-        block_size = pw.ImageSize(x=self._column_count_px, y=self._row_count_px, z=CHUNK_COUNT_PX, c=1, t=1)
-        sample_size = pw.ImageSize(x=1, y=1, z=1, c=1, t=1)
-        # compute the start/end extremes of the enclosed rectangular solid.
-        # (x0, y0, z0) position (in [um]) of the beginning of the first voxel,
-        # (xf, yf, zf) position (in [um]) of the end of the last voxel.
-        x0 = self._x_position_mm * 1000 - (self._x_voxel_size_um * 0.5 * self._column_count_px)
-        y0 = self._y_position_mm * 1000 - (self._y_voxel_size_um * 0.5 * self._row_count_px)
-        z0 = self._z_position_mm * 1000
-        xf = self._x_position_mm * 1000 + (self._x_voxel_size_um * 0.5 * self._column_count_px)
-        yf = self._y_position_mm * 1000 + (self._y_voxel_size_um * 0.5 * self._row_count_px)
-        zf = self._z_position_mm * 1000 + self._frame_count_px * self._z_voxel_size_um
-        image_extents = pw.ImageExtents(-x0, -y0, -z0, -xf, -yf, -zf)
-        # c = channel, t = time. These fields are unused for now.
-        # Note: ImarisWriter performs MUCH faster when the dimension sequence
-        #   is arranged: x, y, z, c, t.
-        #   It is more efficient to transpose/reshape the data into this
-        #   shape beforehand instead of defining an arbitrary
-        #   DimensionSequence and passing the chunk data in as-is.
-        dimension_sequence = pw.DimensionSequence("x", "y", "z", "c", "t")
-        # lookups for deducing order
-        dim_map = {"x": 0, "y": 1, "z": 2, "c": 3, "t": 4}
-        # name parameters
-        parameters = pw.Parameters()
-        parameters.set_channel_name(0, self._channel)
-        # create options object
-        opts = pw.Options()
-        opts.mEnableLogProgress = True
-        # set threads to double number of cores
-        thread_count = 2 * multiprocessing.cpu_count()
-        opts.mNumberOfThreads = thread_count
-        # set compression type
-        opts.mCompressionAlgorithmType = self._compression
-        # color parameters
-        color_infos = [pw.ColorInfo()]
-        color_infos[0].set_base_color(pw.Color(*(*hex2color(self._color), 1.0)))
-        adjust_color_range = False
-        # date time parameters
-        time_infos = [datetime.today()]
-        # create run process
-        self._process = Process(
-            target=self._run,
-            args=(
-                chunk_dim_order,
-                shm_shape,
-                shm_nbytes,
-                image_size,
-                block_size,
-                sample_size,
-                image_extents,
-                dimension_sequence,
-                dim_map,
-                parameters,
-                opts,
-                color_infos,
-                adjust_color_range,
-                time_infos,
-                self._progress,
-                self._log_queue,
-            ),
+        self._compression = compression_map.get(
+            cfg.compression.lower() if cfg.compression else "lz4shuffle",
+            ImarisCompression.LZ4SHUFFLE,
         )
 
-    def _run(
+        # Derive xy_block_size from chunk_shape if provided, else default
+        self._xy_block_size = cfg.chunk_shape.y if cfg.chunk_shape else self.DEFAULT_XY_BLOCK_SIZE
+        self._thread_count = thread_count or self.DEFAULT_THREAD_COUNT
+
+        # Imaris-specific state
+        self._block_size = VolumeShape(
+            z=cfg.batch_size,
+            y=self._xy_block_size,
+            x=self._xy_block_size,
+        )
+        self._output_file = Path(cfg.path) / f"{cfg.name}.ims"
+        self._imaris_progress = 0.0
+        self._z_blocks_written = 0
+
+        # Imaris SDK objects (initialized in subprocess)
+        self._image_converter: imaris.ImageConverter | None = None
+        self._blocks_per_batch: imaris.ImageSize | None = None
+        self._callback_class = ImarisProgressChecker(self)
+
+        # Setup output directory
+        output_dir = Path(cfg.path)
+        if not output_dir.exists():
+            output_dir.mkdir(parents=True, exist_ok=True)
+            self.log.warning("Created output directory: %s", output_dir)
+
+        # Compose components
+        self._buffer = BufferManager(
+            batch_size=cfg.batch_size,
+            frame_shape=cfg.frame_shape,
+            dtype="uint16",
+        )
+
+        self._process = WriterProcess(
+            name=f"ImarisWriter-{cfg.name}",
+            processor=self,  # ImarisWriter implements BatchProcessor
+            buffer_mgr=self._buffer,
+            frame_count=cfg.frame_count,
+            log_queue=self._log_queue,
+        )
+
+        # Performance tracking
+        self._metrics: StreamMetrics | None = None
+
+        # Start the writer
+        self._start()
+
+    @property
+    def cfg(self) -> WriterConfig:
+        """Writer configuration."""
+        return self._cfg
+
+    @property
+    def is_running(self) -> bool:
+        """Whether the writer is actively running."""
+        return self._process.is_running
+
+    @property
+    def pixel_type(self) -> PixelType:
+        """Pixel type for the written data."""
+        return PixelType.UINT16
+
+    @property
+    def frames_added(self) -> int:
+        """Number of frames added to the writer."""
+        return self._process.frames_added
+
+    @property
+    def frames_processed(self) -> int:
+        """Number of frames processed (written)."""
+        return self._process.frames_processed
+
+    @property
+    def batch_count(self) -> int:
+        """Number of batches processed."""
+        return self._process.batch_count
+
+    def _start(self) -> None:
+        """Start the writer subprocess."""
+        frame_bytes = self._cfg.frame_shape.y * self._cfg.frame_shape.x * 2
+        self._metrics = StreamMetrics(frame_bytes)
+
+        self._process.start()
+
+        self.log.info(
+            "Started ImarisWriter: %s frames, batch_size=%d, output=%s",
+            self._cfg.frame_count,
+            self._cfg.batch_size,
+            self._output_file,
+        )
+
+    def add_frame(self, frame: np.ndarray) -> None:
+        """Add a single 2D frame to the writer.
+
+        Args:
+            frame: 2D numpy array with shape matching frame_shape.
+
+        Raises:
+            RuntimeError: If writer is not running or has been closed.
+        """
+        if not self.is_running:
+            msg = "Cannot add frame: writer is not running"
+            raise RuntimeError(msg)
+
+        self._buffer.add_frame(frame)
+        self._process.frames_added += 1
+
+        if self._metrics:
+            self._metrics.tick()
+
+        is_last_frame = self.frames_added == self._cfg.frame_count
+        buffer_full = self._buffer.is_full
+
+        if buffer_full or is_last_frame:
+            self._process.signal_batch_ready()
+
+        if is_last_frame:
+            self.log.info("Added last frame %d. Waiting for processing...", self.frames_added)
+            self._process.wait_all()
+
+    def get_status(self) -> StreamStatus:
+        """Get a snapshot of the current writer status.
+
+        Returns:
+            StreamStatus with progress and performance metrics.
+        """
+        frames_remaining = self._cfg.frame_count - self.frames_added
+
+        # Estimate remaining time
+        estimated_remaining = None
+        if self._metrics and self._metrics.fps > 0 and frames_remaining > 0:
+            estimated_remaining = frames_remaining / self._metrics.fps
+
+        # Buffer status
+        buffers = {i: self._buffer.get_buffer_status(i, self.batch_count) for i in range(2)}
+
+        return StreamStatus(
+            fps=self._metrics.fps if self._metrics else 0.0,
+            fps_inst=self._metrics.fps_inst if self._metrics else 0.0,
+            throughput_gbs=self._process.avg_rate_gbs,
+            throughput_gbs_inst=self._process.avg_rate_gbs,
+            frames_acquired=self.frames_added,
+            total_frames=self._cfg.frame_count,
+            frames_remaining=frames_remaining,
+            current_batch=self.batch_count,
+            total_batches=self._cfg.num_batches,
+            current_slot=self._buffer.write_buffer_idx,
+            buffers=buffers,
+            elapsed_time=self._process.elapsed_time,
+            estimated_remaining=estimated_remaining,
+        )
+
+    def wait_all(self) -> None:
+        """Wait for all pending write operations to complete."""
+        self._process.wait_all()
+
+    def close(self) -> None:
+        """Close the writer and clean up resources."""
+        if not self.is_running:
+            return
+
+        self._process.stop()
+        self._buffer.close()
+
+        self.log.info(
+            "Closed ImarisWriter. Frames: %d/%d, Avg: %.2f GB/s",
+            self.frames_processed,
+            self._cfg.frame_count,
+            self._process.avg_rate_gbs,
+        )
+
+    def __enter__(self) -> Self:
+        """Enter context manager."""
+        return self
+
+    def __exit__(
         self,
-        chunk_dim_order: tuple[str, str, str],
-        shm_shape: list[int],
-        shm_nbytes: int,
-        image_size: pw.ImageSize,
-        block_size: pw.ImageSize,
-        sample_size: pw.ImageSize,
-        image_extents: pw.ImageExtents,
-        dimension_sequence: pw.DimensionSequence,
-        dim_map: dict[str, int],
-        parameters: pw.Parameters,
-        opts: pw.Options,
-        color_infos: list[pw.ColorInfo],
-        adjust_color_range: bool,
-        time_infos: list[datetime],
-        shared_progress: multiprocessing.Value,
-        shared_log_queue: multiprocessing.Queue,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: object,
     ) -> None:
-        """
-        Main run function of the Imaris writer.
+        """Exit context manager, ensuring close() is called."""
+        self.close()
 
-        :param chunk_dim_order: Dimension order of chunks
-        :type chunk_dim_order: tuple
-        :param shm_shape: Shared memory address shape
-        :type shm_shape: list
-        :param shm_nbytes: Shared memory address bytes
-        :type shm_nbytes: int
-        :param image_size: Size of the array to be written
-        :type image_size: PyImarisWriter.ImageSize
-        :param block_size: Size of each block to be written
-        :type block_size: PyImarisWriter.ImageSize
-        :param sample_size: Sample size (i.e. number of arrays) to be written
-        :type sample_size: PyImarisWriter.ImageSize
-        :param image_extents: Physical extents of the array to be written
-        :type image_extents: PyImarisWriter.ImageExtents
-        :param dimension_sequence: Dimension sequence of the writer
-        :type dimension_sequence: PyImarisWriter.DimensionSequence
-        :param dim_map: Dictionary map of dimension order
-        :type dim_map: dict
-        :param parameters: Parameters of the Imaris writer
-        :type parameters: PyImarisWriter.Parameters
-        :param opts: Options of the Imaris writer
-        :type opts: PyImarisWriter.Options
-        :param color_infos: Color information of the Imaris writer
-        :type color_infos: PyImarisWriter.ColorInfo
-        :param adjust_color_range: Adjust color range for the Imaris writer
-        :type adjust_color_range: bool
-        :param time_infos: Time information of the Imaris writer
-        :type time_infos: datetime
-        :param shared_progress: Shared progress value of the writer
-        :type shared_progress: multiprocessing.Value
-        :param shared_log_queue: Shared queue for passing log statements
-        :type shared_log_queue: multiprocessing.Queue
-        """
-        # internal logger for process
-        logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
-        fmt = "%(asctime)s.%(msecs)03d %(levelname)s %(name)s: %(message)s"
-        datefmt = "%Y-%m-%d,%H:%M:%S"
-        log_formatter = logging.Formatter(fmt=fmt, datefmt=datefmt)
-        log_handler = logging.StreamHandler(sys.stdout)
-        log_handler.setFormatter(log_formatter)
-        logger.addHandler(log_handler)
-        filepath = Path(self._path, self._acquisition_name, self._filename).absolute()
-
-        application_name = "PyImarisWriter"
-        application_version = "1.0.0"
-
-        converter = pw.ImageConverter(
-            self._data_type,
-            image_size,
-            sample_size,
-            dimension_sequence,
-            block_size,
-            filepath,
-            opts,
-            application_name,
-            application_version,
-            self.callback_class,
+    def __repr__(self) -> str:
+        """String representation."""
+        return (
+            f"ImarisWriter("
+            f"name={self._cfg.name!r}, "
+            f"frames={self.frames_added}/{self._cfg.frame_count}, "
+            f"running={self.is_running})"
         )
-        chunk_total = ceil(self._frame_count_px / CHUNK_COUNT_PX)
-        for chunk_num in range(chunk_total):
-            block_index = pw.ImageSize(x=0, y=0, z=chunk_num, c=0, t=0)
-            # Wait for new data.
-            while self.done_reading.is_set():
-                sleep(0.001)
-            # Attach a reference to the data from shared memory.
-            shm = SharedMemory(self.shm_name, create=False, size=shm_nbytes)
-            frames = np.ndarray(shm_shape, self._data_type, buffer=shm.buf)
-            shared_log_queue.put(
-                f"{self._filename}: writing chunk {chunk_num + 1}/{chunk_total} of size {frames.shape}."
-            )
-            start_time = perf_counter()
-            dim_order = [dim_map[x] for x in chunk_dim_order]
-            # Put the frames back into x, y, z, c, t order.
-            converter.CopyBlock(frames.transpose(dim_order), block_index)
-            frames = None
-            shared_log_queue.put(f"{self._filename}: writing chunk took {perf_counter() - start_time:.2f} [s]")
-            shm.close()
-            self.done_reading.set()
-            # update shared value progress range 0-1
-            shared_progress.value = self.callback_class.progress
 
-            shared_log_queue.put(f"{self._filename}: {self._progress.value * 100:.2f} [%] complete.")
+    # =========================================================================
+    # BatchProcessor Protocol implementation (called in subprocess)
+    # =========================================================================
 
-        # wait for file writing to finish
-        while self.callback_class.progress < 1.0:
-            sleep(0.5)
-            self._progress.value = self.callback_class.progress
-            shared_log_queue.put(
-                f"waiting for data writing to complete for "
-                f"{self._filename}: "
-                f"{self._progress.value * 100:.2f}% [%] complete."
-            )
-        f"{self._progress.value * 100:.2f}% [%] complete."
+    def initialize(self) -> None:
+        """Initialize Imaris SDK in subprocess."""
+        if self._output_file.exists():
+            self._output_file.unlink()
 
-        # check and empty queue to avoid code hanging in process
-        if not shared_log_queue.empty:
-            shared_log_queue.get_nowait()
+        opts = imaris.Options()
+        opts.mEnableLogProgress = True
+        opts.mNumberOfThreads = self._thread_count
+        opts.mCompressionAlgorithmType = self._compression.value
 
-        converter.Finish(
-            image_extents,
-            parameters,
-            time_infos,
-            color_infos,
-            adjust_color_range,
+        dimension_sequence = imaris.DimensionSequence("x", "y", "z", "c", "t")
+
+        block_size = imaris.ImageSize(
+            x=self._block_size.x,
+            y=self._block_size.y,
+            z=self._block_size.z,
+            c=1,
+            t=1,
         )
-        converter.Destroy()
+
+        batch_size = imaris.ImageSize(
+            x=self._cfg.frame_shape.x,
+            y=self._cfg.frame_shape.y,
+            z=self._cfg.batch_size,
+            c=1,
+            t=1,
+        )
+
+        self._blocks_per_batch = batch_size / block_size
+
+        # Pad Z to full batches
+        image_size = imaris.ImageSize(
+            x=self._cfg.frame_shape.x,
+            y=self._cfg.frame_shape.y,
+            z=ceil(self._cfg.frame_count / self._cfg.batch_size) * self._cfg.batch_size,
+            c=1,
+            t=1,
+        )
+
+        sample_size = imaris.ImageSize(x=1, y=1, z=1, c=1, t=1)
+
+        self._image_converter = imaris.ImageConverter(
+            datatype=self.pixel_type.numpy_dtype,
+            image_size=image_size,
+            sample_size=sample_size,
+            dimension_sequence=dimension_sequence,
+            block_size=block_size,
+            output_filename=str(self._output_file),
+            options=opts,
+            application_name=f"ImarisWriter[{self._cfg.name}]",
+            application_version="2.0",
+            progress_callback_class=self._callback_class,
+        )
+
+        self._z_blocks_written = 0
+        self.log.info("Initialized Imaris SDK. Output: %s", self._output_file)
+
+    def process_batch(self, batch_data: np.ndarray, batch_idx: int) -> None:
+        """Process a batch by dividing into blocks and writing to Imaris."""
+        if not self._image_converter:
+            msg = "ImageConverter not initialized"
+            raise RuntimeError(msg)
+
+        block_index = imaris.ImageSize(x=0, y=0, z=0, c=0, t=0)
+
+        for z in range(self._blocks_per_batch.z):
+            z0 = z * self._block_size.z
+            zf = min(z0 + self._block_size.z, batch_data.shape[0])
+            block_index.z = z + self._z_blocks_written
+
+            for y in range(self._blocks_per_batch.y):
+                y0 = y * self._block_size.y
+                yf = y0 + self._block_size.y
+                block_index.y = y
+
+                for x in range(self._blocks_per_batch.x):
+                    x0 = x * self._block_size.x
+                    xf = x0 + self._block_size.x
+                    block_index.x = x
+
+                    # Extract and transpose block
+                    block_data = batch_data[z0:zf, y0:yf, x0:xf].copy()
+                    block_data = np.transpose(block_data, (2, 1, 0))  # XYZ order
+
+                    # Pad Z if needed
+                    if block_data.shape[2] < self._block_size.z:
+                        block_data = np.pad(
+                            block_data,
+                            ((0, 0), (0, 0), (0, self._block_size.z - block_data.shape[2])),
+                            mode="constant",
+                        )
+
+                    if self._image_converter.NeedCopyBlock(block_index):
+                        self._image_converter.CopyBlock(block_data, block_index)
+
+        self._z_blocks_written += self._blocks_per_batch.z
+
+        self.log.info(
+            "Batch %d/%d: %d frames written",
+            batch_idx,
+            self._cfg.num_batches,
+            batch_data.shape[0],
+        )
+
+    def finalize(self) -> None:
+        """Finalize Imaris file with metadata."""
+        try:
+            if not self._image_converter:
+                return
+
+            image_extents = imaris.ImageExtents(
+                minX=self._cfg.position.x,
+                minY=self._cfg.position.y,
+                minZ=self._cfg.position.z,
+                maxX=self._cfg.position.x + self._cfg.voxel_size.x * self._cfg.frame_shape.x,
+                maxY=self._cfg.position.y + self._cfg.voxel_size.y * self._cfg.frame_shape.y,
+                maxZ=self._cfg.position.z + self._cfg.voxel_size.z * self._cfg.frame_count,
+            )
+
+            parameters = imaris.Parameters()
+            parameters.set_channel_name(self._cfg.channel_idx, self._cfg.channel_name)
+
+            color_infos = [imaris.ColorInfo()]
+            color_infos[0].set_base_color(imaris.Color(1.0, 1.0, 1.0, 1.0))
+
+            self._image_converter.Finish(
+                image_extents=image_extents,
+                parameters=parameters,
+                time_infos=[datetime.now(UTC)],
+                color_infos=color_infos,
+                adjust_color_range=False,
+            )
+            self._image_converter.Destroy()
+            self._image_converter = None
+
+            self.log.info(
+                "Finalized: %d frames, %.2f GB/s avg",
+                self._process.frames_processed,
+                self._process.avg_rate_gbs,
+            )
+        except Exception:
+            self.log.exception("Failed to finalize ImarisWriter")
+
+
+# =============================================================================
+# Test function
+# =============================================================================
+
+
+def test_imaris_writer() -> None:
+    """Test the ImarisWriter with sample data."""
+    from voxel.utils.log import VoxelLogging
+
+    from .types import Dtype
+
+    VoxelLogging.setup(level="DEBUG")
+
+    cfg = WriterConfig(
+        name=f"test_{datetime.now(UTC).strftime('%Y%m%d_%H%M%S')}",
+        path="test_output",
+        frame_count=256,
+        frame_shape=FrameShape(512, 512),
+        batch_size=64,
+        dtype=Dtype.UINT16,
+        compression="lz4shuffle",
+    )
+
+    with ImarisWriter(cfg) as writer:
+        for i in range(cfg.frame_count):
+            frame = np.random.randint(0, 65535, (512, 512), dtype=np.uint16)
+            writer.add_frame(frame)
+
+            if i % 50 == 0:
+                print(writer.get_status().summary())
+
+    print(f"Saved to: {cfg.path}/{cfg.name}.ims")
+
+
+if __name__ == "__main__":
+    test_imaris_writer()
