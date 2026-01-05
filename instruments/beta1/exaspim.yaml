@@ -1,0 +1,303 @@
+_anchors:
+  laser_driver: &laser_driver voxel.drivers.lasers.coherent.genesis_mx.GenesisMX
+  axis_driver: &axis_driver voxel.drivers.axes.asi.TigerAxis
+
+info:
+  instrument_uid: exaspim-beta1
+  instrument_type: exaSPIM
+  instrument_version: 1.0
+
+globals:
+  camera_rotation_deg: -90.0
+  unit: mm
+  default_overlap: 15.0
+  default_tile_order: row_wise
+  dual_sided: True
+  objective_magnification: 5.08
+
+writers:
+  imaris:
+    target: voxel.io.writers.imaris.ImarisWriter
+    init:
+      path: D:\\
+    defaults:
+      compression: lz4shuffle
+      data_type: uint16
+
+transfers:
+  robocopy:
+    target: voxel.io.file_transfers.robocopy_zarr.RobocopyFileTransfer
+    init:
+      external_path: Y:\\stage\\exaSPIM
+      local_path: D:\\
+    defaults:
+      verify_transfer: True
+      max_retry: 3
+      timeout_s: 60
+
+devices:
+  vp-151mx:
+    target: voxel.drivers.cameras.egrabber.VieworksCamera
+    init:
+      serial: MP151BDZ014
+      pixel_size_um: [3.76, 3.76]
+    defaults:
+      pixel_format: MONO12
+      exposure_time_ms: 10.0
+      binning: 1
+  pcie-6738:
+    target: voxel.drivers.daqs.ni.NiDaq
+    init:
+      dev: Dev3
+  filter_wheel_main:
+    target: voxel.drivers.axes.daq_filter_wheel.DAQFilterWheel
+    init:
+      daq: pcie-6738
+      slots:
+        0: 500LP
+        1: 535/70M
+        2: Multiband
+        3: 655LP
+        4: 575LP
+        5: 620/60BP
+      ports:
+        500LP: ao7
+        535/70M: ao11
+        Multiband: ao14
+        655LP: ao19
+        575LP: ao23
+        620/60BP: ao29
+  488-nm:
+    target: *laser_driver
+    init:
+      serial: A679409EM263
+      wavelength: 488
+      max_power_mw: 1000
+  561-nm:
+    target: *laser_driver
+    init:
+      serial: J718583CM887
+      wavelength: 561
+      max_power_mw: 1000
+  639-nm:
+    target: *laser_driver
+    init:
+      serial: R689368EQ167
+      wavelength: 639
+      max_power_mw: 1000
+  tigerhub:
+    target: voxel.drivers.tigerhub.TigerHub
+    init:
+      com_port: COM3
+  z-axis:
+    target: *axis_driver
+    init:
+      hub: tigerhub
+      axis_label: z
+    defaults:
+      speed_mm_s: 1.0
+      backlash_mm: 0.0
+      acceleration_mm_s2: 5.0
+  x-axis:
+    target: *axis_driver
+    init:
+      hub: tigerhub
+      axis_label: x
+    defaults:
+      speed_mm_s: 1.0
+      backlash_mm: 0.004
+      acceleration_mm_s2: 5.0
+  y-axis:
+    target: *axis_driver
+    init:
+      hub: tigerhub
+      axis_label: v
+    defaults:
+      speed_mm_s: 1.0
+      backlash_mm: 0.004
+      acceleration_mm_s2: 5.0
+  theta-axis:
+    target: *axis_driver
+    init:
+      hub: tigerhub
+      axis_label: t
+    defaults:
+      speed_mm_s: 0.3
+      backlash_mm: 0.004
+      acceleration_mm_s2: 1.5
+  left_focus:
+    target: *axis_driver
+    init:
+      hub: tigerhub
+      axis_label: a
+    defaults:
+      speed_mm_s: 0.01
+      backlash_mm: 0.004
+      acceleration_mm_s2: 2.0
+  right_focus:
+    target: *axis_driver
+    init:
+      hub: tigerhub
+      axis_label: b
+    defaults:
+      speed_mm_s: 0.01
+      backlash_mm: 0.004
+      acceleration_mm_s2: 2.0
+  camera_focus:
+    target: *axis_driver
+    init:
+      hub: tigerhub
+      axis_label: m
+    defaults:
+      speed_mm_s: 0.01
+      backlash_mm: 0.004
+      acceleration_mm_s2: 0.5
+
+stage:
+  x: x-axis
+  y: y-axis
+  z: z-axis
+
+acq_task:
+  daq: pcie-6738
+  timing:
+    sample_rate: "10 kHz"
+    duration: "544 ms"
+    rest_time: "150 ms"
+    clock:
+      pin: PFI0
+      counter: ctr0
+  ports:
+    vp-151mx: ao21
+    z-axis: ao5
+    "488-nm": ao17
+    "561-nm": ao13
+    "639-nm": ao9
+    left-etl: ao1
+    right-etl: ao3
+    left-piezo-x: ao7
+    left-piezo-y: ao11
+    left-piezo-z: ao14
+    galvo-positive: ao24
+    galvo-negative: ao25
+  waveforms:
+    vp-151mx:
+      type: pulse
+      voltage: { min: "0 V", max: "5 V" }
+      window: { min: 0.046, max: 0.064 }  # 25/544, 35/544
+    z-axis:
+      type: pulse
+      voltage: { min: "0 V", max: "5 V" }
+      window: { min: 0.99, max: 1.0 }  # 539/544, 544/544
+    "488-nm":
+      type: pulse
+      voltage: { min: "0 V", max: "10 V" }
+      window: { min: 0.027, max: 1.0 }  # 15/544, 544/544
+    "561-nm":
+      type: pulse
+      voltage: { min: "0 V", max: "10 V" }
+      window: { min: 0.027, max: 1.0 }  # 15/544, 544/544
+    "639-nm":
+      type: pulse
+      voltage: { min: "0 V", max: "10 V" }
+      window: { min: 0.027, max: 1.0 }  # 15/544, 544/544
+    left-etl:
+      type: sawtooth
+      frequency: "1.838 Hz"  # 1/0.544s
+      voltage: { min: "2.415 V", max: "5.21 V" }  # offset 5.21, amplitude 2.795
+    right-etl:
+      type: sawtooth
+      frequency: "1.838 Hz"
+      voltage: { min: "2.37 V", max: "2.448 V" }  # offset 2.448, amplitude -0.078
+    left-piezo-x:
+      type: pulse
+      voltage: { min: "0 V", max: "0 V" }
+      window: { min: 0, max: 1 }
+    left-piezo-y:
+      type: pulse
+      voltage: { min: "0 V", max: "0 V" }
+      window: { min: 0, max: 1 }
+    left-piezo-z:
+      type: pulse
+      voltage: { min: "0 V", max: "0 V" }
+      window: { min: 0, max: 1 }
+    galvo-positive:
+      type: triangle
+      frequency: "100 Hz"
+      symmetry: 0.5
+      voltage: { min: "-0.5 V", max: "0.1 V" }
+    galvo-negative:
+      type: triangle
+      frequency: "100 Hz"
+      symmetry: 0.5
+      voltage: { min: "-0.1 V", max: "0.5 V" }
+
+profiles:
+  "488":
+    laser: 488-nm
+    camera: vp-151mx
+    filters: { filter_wheel_main: 500LP }
+    focusing_axes: [left_focus, right_focus, camera_focus]
+    ao-task-parameters:
+      galvo-positive:
+        cutoff_frequency_hz: 0.0
+        amplitude_volts: 0.6
+      galvo-negative:
+        cutoff_frequency_hz: 0.0
+        amplitude_volts: -0.6
+      left-etl:
+        offset_volts: 5.21
+      right-etl:
+        offset_volts: 2.448
+      488-nm:
+        max_volts: 5.0
+      561-nm:
+        max_volts: 0.0
+      639-nm:
+        max_volts: 0.0
+
+  "561":
+    laser: 561-nm
+    camera: vp-151mx
+    filters: { filter_wheel_main: 620/60BP }
+    focusing_axes: [left_focus, right_focus, camera_focus]
+    ao-task-parameters:
+      galvo-positive:
+        cutoff_frequency_hz: 0.0
+        amplitude_volts: 0.6
+      galvo-negative:
+        cutoff_frequency_hz: 0.0
+        amplitude_volts: -0.6
+      left-etl:
+        offset_volts: 5.39
+      right-etl:
+        offset_volts: 2.448
+      488-nm:
+        max_volts: 0.0
+      561-nm:
+        max_volts: 10.0
+      639-nm:
+        max_volts: 0.0
+
+  "639":
+    laser: 639-nm
+    camera: vp-151mx
+    filters: { filter_wheel_main: 655LP }
+    focusing_axes: [left_focus, right_focus, camera_focus]
+    ao-task-parameters:
+      galvo-positive:
+        cutoff_frequency_hz: 0.0
+        amplitude_volts: 0.0
+      galvo-negative:
+        cutoff_frequency_hz: 0.0
+        amplitude_volts: -0.0
+      left-etl:
+        offset_volts: 5.62
+      right-etl:
+        offset_volts: 2.448
+      488-nm:
+        max_volts: 0.0
+      561-nm:
+        max_volts: 0.0
+      639-nm:
+        max_volts: 5.0
