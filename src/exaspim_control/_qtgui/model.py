@@ -21,7 +21,7 @@ from voxel.interfaces.spim import SpimDevice
 from voxel.preview import PreviewFrame
 
 if TYPE_CHECKING:
-    from exaspim_control.instrument import Instrument
+    from exaspim_control.instrument.instrument import Instrument
 
 # Callback types for streaming
 type PreviewFrameSink = Callable[[PreviewFrame], None]

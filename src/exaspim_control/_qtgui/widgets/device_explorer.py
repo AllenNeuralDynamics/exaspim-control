@@ -7,13 +7,13 @@ from typing import TYPE_CHECKING
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton, QScrollArea, QVBoxLayout, QWidget
 
-from exaspim_control.qtgui.primitives.accordion import AccordionCard
-from exaspim_control.qtgui.widgets.devices.base import DeviceWidget
+from exaspim_control._qtgui.primitives.accordion import AccordionCard
+from exaspim_control._qtgui.widgets.devices.base import DeviceWidget
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from exaspim_control.qtgui.model import DeviceAdapter, InstrumentModel
+    from exaspim_control._qtgui.model import DeviceAdapter, InstrumentModel
 
 
 class RefreshButton(QPushButton):

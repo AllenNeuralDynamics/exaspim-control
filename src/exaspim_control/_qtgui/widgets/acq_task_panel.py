@@ -19,14 +19,14 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from exaspim_control.qtgui.primitives import HStack, VButton
-from exaspim_control.qtgui.primitives.input import VLabel, VStatusBadge
+from exaspim_control._qtgui.primitives import HStack, VButton
+from exaspim_control._qtgui.primitives.input import VLabel, VStatusBadge
 
 if TYPE_CHECKING:
     from voxel.interfaces.daq import TaskStatus
 
-    from exaspim_control.acq_task import AcquisitionTask
-    from exaspim_control.qtgui.model import InstrumentModel
+    from exaspim_control._qtgui.model import InstrumentModel
+    from exaspim_control.instrument.acq_task import AcquisitionTask
 
 
 class AcquisitionTaskWidget(QWidget):

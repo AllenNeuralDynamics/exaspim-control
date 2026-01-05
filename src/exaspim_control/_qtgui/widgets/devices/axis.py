@@ -8,13 +8,13 @@ from typing import TYPE_CHECKING, Any
 from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtWidgets import QHBoxLayout, QWidget
 
-from exaspim_control.qtgui.primitives.chip import Chip
-from exaspim_control.qtgui.primitives.input import VLabel, VLockableSlider
+from exaspim_control._qtgui.primitives.chip import Chip
+from exaspim_control._qtgui.primitives.input import VLabel, VLockableSlider
 
 if TYPE_CHECKING:
     from voxel.interfaces.axes import Axis
 
-    from exaspim_control.qtgui.model import DeviceAdapter
+    from exaspim_control._qtgui.model import DeviceAdapter
 
 
 class AxisWidget(QWidget):

@@ -15,9 +15,9 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from exaspim_control.qtgui.model import DeviceAdapter
-from exaspim_control.qtgui.primitives import VButton, VSpinBox
-from exaspim_control.qtgui.widgets.devices.base import PropertyWidget
+from exaspim_control._qtgui.model import DeviceAdapter
+from exaspim_control._qtgui.primitives import VButton, VSpinBox
+from exaspim_control._qtgui.widgets.devices.base import PropertyWidget
 
 if TYPE_CHECKING:
     from voxel.interfaces.camera import SpimCamera

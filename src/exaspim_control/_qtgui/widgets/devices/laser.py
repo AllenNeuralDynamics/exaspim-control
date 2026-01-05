@@ -8,15 +8,15 @@ from typing import TYPE_CHECKING, Any
 from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
-from exaspim_control.qtgui.primitives import VToggle
-from exaspim_control.qtgui.primitives.chip import Chip
-from exaspim_control.qtgui.primitives.input import VLockableSlider
-from exaspim_control.qtgui.utils import darken_color, hex_to_rgb, rgb_to_hex, wavelength_to_hex
+from exaspim_control._qtgui.primitives import VToggle
+from exaspim_control._qtgui.primitives.chip import Chip
+from exaspim_control._qtgui.primitives.input import VLockableSlider
+from exaspim_control._qtgui.utils import darken_color, hex_to_rgb, rgb_to_hex, wavelength_to_hex
 
 if TYPE_CHECKING:
     from voxel.interfaces.laser import SpimLaser
 
-    from exaspim_control.qtgui.model import DeviceAdapter
+    from exaspim_control._qtgui.model import DeviceAdapter
 
 
 class PowerChip(Chip):

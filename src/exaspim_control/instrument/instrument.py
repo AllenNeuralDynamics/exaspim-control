@@ -13,8 +13,8 @@ from voxel.interfaces.laser import SpimLaser
 from voxel.interfaces.spim import SpimDevice
 from voxel.preview import PreviewFrame, PreviewGenerator
 
-from exaspim_control.acq_task import AcquisitionTask
-from exaspim_control.config import InstrumentConfig, ProfileConfig
+from exaspim_control.instrument.acq_task import AcquisitionTask
+from exaspim_control.instrument.config import InstrumentConfig, ProfileConfig
 
 type DeviceGroup[T: SpimDevice] = dict[str, T]
 type PreviewFrameSink = Callable[[PreviewFrame], None]
@@ -26,7 +26,6 @@ class Stage:
     x: Axis
     y: Axis
     z: Axis
-    theta: Axis | None = None
 
     @property
     def uids(self) -> set[str]:
@@ -37,8 +36,6 @@ class Stage:
         self.x.halt()
         self.y.halt()
         self.z.halt()
-        if self.theta is not None:
-            self.theta.halt()
 
 
 class Instrument:
@@ -59,7 +56,6 @@ class Instrument:
             x=self.devices[self.cfg.stage.x],
             y=self.devices[self.cfg.stage.y],
             z=self.devices[self.cfg.stage.z],
-            theta=self.devices[self.cfg.stage.theta] if self.cfg.stage.theta else None,
         )
         self.lasers: DeviceGroup[SpimLaser] = {}
         self.filter_wheels: DeviceGroup[DiscreteAxis] = {}

@@ -6,8 +6,8 @@ from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtWidgets import QFormLayout, QHBoxLayout, QVBoxLayout, QWidget
 from voxel.device import PropertyInfo
 
-from exaspim_control.qtgui.model import DeviceAdapter
-from exaspim_control.qtgui.primitives.input import (
+from exaspim_control._qtgui.model import DeviceAdapter
+from exaspim_control._qtgui.primitives.input import (
     VCheckBox,
     VComboBox,
     VDoubleSpinBox,

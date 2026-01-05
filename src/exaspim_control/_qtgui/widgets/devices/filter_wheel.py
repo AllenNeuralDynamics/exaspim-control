@@ -8,20 +8,20 @@ import math
 from functools import cached_property
 from typing import TYPE_CHECKING, Any
 
-from PyQt6.QtCore import QEasingCurve, QEvent, QRectF, Qt, QTimer, pyqtSignal
+from PyQt6.QtCore import QEasingCurve, QEvent, QRectF, QTimer, pyqtSignal
 from PyQt6.QtGui import QIcon, QMouseEvent, QPainter, QPalette
 from PyQt6.QtSvg import QSvgRenderer
 from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
-from exaspim_control.qtgui.assets import ICON_ARROW_LEFT, ICON_ARROW_RIGHT, ICON_REFRESH
-from exaspim_control.qtgui.primitives import VIconButton
+from exaspim_control._qtgui.assets import ICON_ARROW_LEFT, ICON_ARROW_RIGHT, ICON_REFRESH
+from exaspim_control._qtgui.primitives import VIconButton
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
     from voxel.interfaces.axes import DiscreteAxis
 
-    from exaspim_control.qtgui.model import DeviceAdapter
+    from exaspim_control._qtgui.model import DeviceAdapter
 
 
 class FilterWheelWidget(QFrame):

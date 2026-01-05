@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 from ruyaml import YAML
 from voxel.device import BuildConfig
 
-from exaspim_control.acq_task import AcqTaskConfig
+from exaspim_control.instrument.acq_task import AcqTaskConfig
 
 _yaml = YAML()
 
@@ -37,7 +37,6 @@ class StageConfig(BaseModel):
     x: str
     y: str
     z: str
-    theta: str | None = None
 
 
 class ProfileConfig(BaseModel):

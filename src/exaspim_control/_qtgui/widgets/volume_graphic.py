@@ -25,7 +25,7 @@ from PyQt6.QtWidgets import (
 if TYPE_CHECKING:
     from PyQt6.QtWidgets import QGraphicsSceneHoverEvent
 
-    from exaspim_control.qtgui.model import InstrumentModel
+    from exaspim_control._qtgui.model import InstrumentModel
     from exaspim_control.session import AcqPlan
 
 

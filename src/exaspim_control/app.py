@@ -11,10 +11,10 @@ from rich.console import Console
 from voxel.utils import configure_logging
 
 # from rich.logging import RichHandler
-from exaspim_control.qtgui import ExASPIMUI
-from exaspim_control.qtgui.assets import APP_ICON
-from exaspim_control.qtgui.launcher import LauncherWindow
-from exaspim_control.session import Session, SessionLauncher
+from exaspim_control._qtgui import ExASPIMUI
+from exaspim_control._qtgui.assets import APP_ICON
+from exaspim_control._qtgui.launcher import LauncherWindow
+from exaspim_control.session import Session
 
 configure_logging(logging.INFO)
 
@@ -50,7 +50,7 @@ def main(session_path: str | None) -> None:
             return
 
         # Launch session (handles file logging setup)
-        session = SessionLauncher.launch(launch_config)
+        session = Session.launch(launch_config)
 
         ui = ExASPIMUI(session=session)
         ui.showMaximized()

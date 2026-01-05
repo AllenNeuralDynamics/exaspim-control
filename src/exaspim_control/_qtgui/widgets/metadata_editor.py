@@ -7,12 +7,12 @@ from typing import TYPE_CHECKING
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import QScrollArea, QVBoxLayout, QWidget
 
-from exaspim_control.qtgui.primitives import Card, Field, HStack, InfoRow
-from exaspim_control.qtgui.primitives.input import VComboBox, VDoubleSpinBox, VLineEdit
+from exaspim_control._qtgui.primitives import Card, Field, HStack, InfoRow
+from exaspim_control._qtgui.primitives.input import VComboBox, VDoubleSpinBox, VLineEdit
 
 if TYPE_CHECKING:
     from exaspim_control.session import Session
-    from exaspim_control.session.state import (
+    from exaspim_control.state import (
         AnatomicalDirectionX,
         AnatomicalDirectionY,
         AnatomicalDirectionZ,

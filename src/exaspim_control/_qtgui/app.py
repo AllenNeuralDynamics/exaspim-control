@@ -16,17 +16,17 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from exaspim_control.instrument import Instrument
-from exaspim_control.qtgui.model import InstrumentModel
-from exaspim_control.qtgui.primitives import Grid, VButton
-from exaspim_control.qtgui.widgets.acq_task_panel import AcquisitionTaskWidget
-from exaspim_control.qtgui.widgets.device_explorer import DevicesExplorer
-from exaspim_control.qtgui.widgets.devices.filter_wheel import FilterWheelWidget
-from exaspim_control.qtgui.widgets.live_viewer import LiveViewer
-from exaspim_control.qtgui.widgets.metadata_editor import MetadataEditor
-from exaspim_control.qtgui.widgets.primary_controls import PrimaryControls
-from exaspim_control.qtgui.widgets.session_planner import SessionPlanner
-from exaspim_control.qtgui.widgets.volume_graphic import VolumeGraphic
+from exaspim_control._qtgui.model import InstrumentModel
+from exaspim_control._qtgui.primitives import Grid, VButton
+from exaspim_control._qtgui.widgets.acq_task_panel import AcquisitionTaskWidget
+from exaspim_control._qtgui.widgets.device_explorer import DevicesExplorer
+from exaspim_control._qtgui.widgets.devices.filter_wheel import FilterWheelWidget
+from exaspim_control._qtgui.widgets.live_viewer import LiveViewer
+from exaspim_control._qtgui.widgets.metadata_editor import MetadataEditor
+from exaspim_control._qtgui.widgets.primary_controls import PrimaryControls
+from exaspim_control._qtgui.widgets.session_planner import SessionPlanner
+from exaspim_control._qtgui.widgets.volume_graphic import VolumeGraphic
+from exaspim_control.instrument.instrument import Instrument
 from exaspim_control.session import Session
 
 # Shared stylesheet for bottom-positioned tab widgets
@@ -267,9 +267,9 @@ class ExASPIMUI(QMainWindow):
         self._primary_controls = PrimaryControls(model=self._model, parent=self)
         self._fw_widgets = {uid: FilterWheelWidget(fw, parent=self) for uid, fw in self._model.filter_wheels.items()}
 
-        self._volume_graphic = VolumeGraphic(model=self._model, plan=self._session.plan, parent=self)
+        self._volume_graphic = VolumeGraphic(model=self._model, plan=self._session.state.plan, parent=self)
 
-        self._planner = SessionPlanner(model=self._model, plan=self._session.plan, parent=self)
+        self._planner = SessionPlanner(model=self._model, plan=self._session.state.plan, parent=self)
         self._planner.planChanged.connect(self._volume_graphic.refresh)
 
         self._acq_task_widget = AcquisitionTaskWidget(model=self._model, parent=self)
@@ -306,8 +306,8 @@ class ExASPIMUI(QMainWindow):
 
     def _sync_fov_to_plan(self, dims: list[float]) -> None:
         """Sync FOV dimensions from stage model to acquisition plan."""
-        self._session.plan.fov_width = dims[0]
-        self._session.plan.fov_height = dims[1]
+        self._session.state.plan.fov_width = dims[0]
+        self._session.state.plan.fov_height = dims[1]
 
     ############################### Setup UI ###############################
 

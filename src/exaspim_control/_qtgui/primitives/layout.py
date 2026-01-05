@@ -6,7 +6,7 @@ from typing import Self
 
 from PyQt6.QtWidgets import QFormLayout, QGridLayout, QHBoxLayout, QVBoxLayout, QWidget
 
-from exaspim_control.qtgui.primitives.input.label import VLabel
+from exaspim_control._qtgui.primitives.input.label import VLabel
 
 
 class HStack(QWidget):

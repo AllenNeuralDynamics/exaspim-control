@@ -7,13 +7,13 @@ from typing import TYPE_CHECKING
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import QScrollArea, QVBoxLayout, QWidget
 
-from exaspim_control.qtgui.primitives.card import Card
-from exaspim_control.qtgui.widgets.devices.axis import AxisWidget
-from exaspim_control.qtgui.widgets.devices.camera import CameraWidget
-from exaspim_control.qtgui.widgets.devices.laser import LaserWidget
+from exaspim_control._qtgui.primitives.card import Card
+from exaspim_control._qtgui.widgets.devices.axis import AxisWidget
+from exaspim_control._qtgui.widgets.devices.camera import CameraWidget
+from exaspim_control._qtgui.widgets.devices.laser import LaserWidget
 
 if TYPE_CHECKING:
-    from exaspim_control.qtgui.model import InstrumentModel
+    from exaspim_control._qtgui.model import InstrumentModel
 
 
 class PrimaryControls(QScrollArea):

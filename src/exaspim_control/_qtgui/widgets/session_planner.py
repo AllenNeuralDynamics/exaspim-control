@@ -6,7 +6,6 @@ from typing import TYPE_CHECKING
 
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import (
-    QHBoxLayout,
     QHeaderView,
     QScrollArea,
     QSplitter,
@@ -16,20 +15,19 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from exaspim_control.qtgui.primitives import (
+from exaspim_control._qtgui.primitives import (
     FormBuilder,
     HStack,
     VButton,
     VCheckBox,
     VComboBox,
     VDoubleSpinBox,
-    VLabel,
     VSpinBox,
 )
-from exaspim_control.session import AcqPlan, OrderMode
+from exaspim_control.plan import AcqPlan, OrderMode
 
 if TYPE_CHECKING:
-    from exaspim_control.qtgui.model import InstrumentModel
+    from exaspim_control._qtgui.model import InstrumentModel
 
 
 class SessionPlanner(QWidget):
