@@ -3,6 +3,8 @@ from collections.abc import Callable
 
 from PyQt6.QtWidgets import QLineEdit, QVBoxLayout, QWidget
 
+from exaspim_control._qtgui.primitives.colors import Colors
+
 
 class VLineEdit(QLineEdit):
     """A styled text input component.
@@ -29,27 +31,29 @@ class VLineEdit(QLineEdit):
 
     def _apply_styles(self):
         """Apply subtle styling to the text input."""
-        style = """
-            QLineEdit {
-                background-color: #2d2d30;
-                color: #d4d4d4;
-                border: 1px solid #505050;
-                border-radius: 3px;
-                padding: 4px 8px;
-                min-height: 18px;
-                font-size: 11px;
-            }
-            QLineEdit:hover {
-                border-color: #585858;
-            }
-            QLineEdit:focus {
-                border-color: #0078d4;
-            }
-            QLineEdit::placeholder {
-                color: #6d6d6d;
-            }
-        """
-        self.setStyleSheet(style)
+        self.setStyleSheet(f"""
+            QLineEdit {{
+                background-color: {Colors.BG_MEDIUM};
+                color: {Colors.TEXT};
+                border: 1px solid {Colors.BORDER};
+                border-radius: 4px;
+                padding: 8px 12px;
+                font-size: 12px;
+            }}
+            QLineEdit:hover {{
+                border-color: {Colors.BORDER_LIGHT};
+            }}
+            QLineEdit:focus {{
+                border-color: {Colors.ACCENT};
+            }}
+            QLineEdit:disabled {{
+                color: {Colors.TEXT_DISABLED};
+                background-color: {Colors.BG_DARK};
+            }}
+            QLineEdit::placeholder {{
+                color: {Colors.TEXT_MUTED};
+            }}
+        """)
 
 
 class VTextInput(QWidget):

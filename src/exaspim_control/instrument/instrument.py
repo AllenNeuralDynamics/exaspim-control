@@ -1,6 +1,7 @@
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass
+from enum import StrEnum
 from pathlib import Path
 from threading import Thread
 
@@ -19,6 +20,14 @@ from exaspim_control.instrument.frame_task import DAQFrameTask
 type DeviceGroup[T: SpimDevice] = dict[str, T]
 type PreviewFrameSink = Callable[[PreviewFrame], None]
 type RawFrameSink = Callable[[np.ndarray, int], None]  # (frame, frame_idx)
+
+
+class InstrumentMode(StrEnum):
+    """Operating mode of the instrument."""
+
+    IDLE = "idle"
+    PREVIEW = "preview"
+    ACQUISITION = "acquisition"
 
 
 @dataclass
@@ -74,8 +83,8 @@ class Instrument:
 
         self._active_profile = next(iter(self.cfg.profiles))
 
-        # Livestream state
-        self._is_livestreaming = False
+        # Operating mode and frame capture state
+        self._mode = InstrumentMode.IDLE
         self._frame_thread: Thread | None = None
         self._frame_idx: int = 0
 
@@ -150,28 +159,28 @@ class Instrument:
             return
 
         old_profile = self._active_profile
-        was_streaming = self._is_livestreaming
+        was_previewing = self._mode == InstrumentMode.PREVIEW
         preview_sink = self._preview_sink
         raw_frame_sink = self._raw_frame_sink
 
-        self.stop_livestream()
+        self.stop_live_preview()
 
         self._frame_task, self._preview_generator = self._set_active_profile(profile_name)
 
         self.log.info(f"Switched profile: {old_profile} -> {profile_name}")
 
-        if was_streaming:
-            self.start_livestream(preview_sink, raw_frame_sink)
+        if was_previewing:
+            self.start_live_preview(preview_sink, raw_frame_sink)
 
-    def start_livestream(
+    def start_live_preview(
         self,
         on_preview: PreviewFrameSink,
         raw_frame_sink: RawFrameSink | None = None,
         *,
         target_width: int = 1024,
     ) -> None:
-        if self._is_livestreaming:
-            self.log.warning("Livestream already running")
+        if self._mode != InstrumentMode.IDLE:
+            self.log.warning(f"Cannot start preview: instrument is in {self._mode} mode")
             return
 
         self._preview_sink = on_preview
@@ -191,18 +200,18 @@ class Instrument:
         if self._frame_task:
             self._frame_task.start()
         else:
-            self.log.error("Daq frame_task missing when starting livestream. Profile: %s", self._active_profile)
+            self.log.error("Daq frame_task missing when starting preview. Profile: %s", self._active_profile)
 
-        self._is_livestreaming = True
+        self._mode = InstrumentMode.PREVIEW
         self._frame_thread = Thread(target=self._frame_grabber_loop, daemon=True)
         self._frame_thread.start()
 
-        self.log.info(f"Started livestream on profile '{self._active_profile}'")
+        self.log.info(f"Started preview on profile '{self._active_profile}'")
 
     def _frame_grabber_loop(self) -> None:
         self.log.debug("Frame grabber started")
 
-        while self._is_livestreaming:
+        while self._mode != InstrumentMode.IDLE:
             try:
                 frame = self.camera.grab_frame()
                 if frame is not None:
@@ -215,11 +224,11 @@ class Instrument:
 
         self.log.debug("Frame grabber stopped")
 
-    def stop_livestream(self) -> None:
-        if not self._is_livestreaming:
+    def stop_live_preview(self) -> None:
+        if self._mode != InstrumentMode.PREVIEW:
             return
 
-        self._is_livestreaming = False
+        self._mode = InstrumentMode.IDLE
         self.disable_lasers()
 
         if self._frame_task is not None:
@@ -234,14 +243,25 @@ class Instrument:
         self._preview_sink = lambda _: None
         self._raw_frame_sink = None
 
-        self.log.info("Stopped livestream")
+        self.log.info("Stopped preview")
 
     @property
-    def is_livestreaming(self) -> bool:
-        return self._is_livestreaming
+    def mode(self) -> InstrumentMode:
+        """Current operating mode of the instrument."""
+        return self._mode
+
+    @property
+    def is_previewing(self) -> bool:
+        """Check if instrument is in preview mode."""
+        return self._mode == InstrumentMode.PREVIEW
+
+    @property
+    def is_acquiring(self) -> bool:
+        """Check if instrument is in acquisition mode."""
+        return self._mode == InstrumentMode.ACQUISITION
 
     def close(self) -> None:
-        self.stop_livestream()
+        self.stop_live_preview()
         self._preview_generator.shutdown()
 
         for device in self.devices.values():

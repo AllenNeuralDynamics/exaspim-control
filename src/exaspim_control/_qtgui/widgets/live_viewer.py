@@ -1,4 +1,4 @@
-"""Unified live viewer for camera frames - embeddable or expandable to napari window."""
+"""LiveViewer - Lightweight embedded preview widget for camera frames."""
 
 from __future__ import annotations
 
@@ -6,164 +6,36 @@ import logging
 import time
 from typing import TYPE_CHECKING
 
-import napari
-import numpy as np
-from napari.utils.transforms import Affine
-from PyQt6.QtCore import QByteArray, QObject, QSize, Qt, pyqtSignal
+from PyQt6.QtCore import QByteArray, QSize, Qt, pyqtSignal
 from PyQt6.QtGui import QPixmap, QTransform
 from PyQt6.QtWidgets import QLabel, QSizePolicy, QVBoxLayout, QWidget
 
-from exaspim_control._qtgui.primitives.input import VIconButton, VLabel
+from exaspim_control._qtgui.primitives import Colors, Label
 
 if TYPE_CHECKING:
     from voxel.preview import PreviewFrame
 
 
-class NapariWindow(QObject):
-    """Wrapper for napari viewer window with show/hide and frame update functionality."""
-
-    visibilityChanged = pyqtSignal(bool)
-
-    def __init__(
-        self,
-        title: str = "Live Viewer",
-        image_rotation_deg: float = 0.0,
-        parent: QWidget | None = None,
-    ):
-        super().__init__(parent)
-        self.log = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
-        self._title = title
-        self._parent_widget = parent
-        self._image_rotation_deg = image_rotation_deg
-        self._is_closing = False
-
-        # Create napari viewer (hidden initially)
-        self.log.info("Creating napari viewer")
-        self._viewer = napari.Viewer(title=self._title, ndisplay=2, axis_labels=("x", "y"), show=False)
-
-        # Configure scale bar but keep hidden until viewer is shown (avoids vispy font warning)
-        self._viewer.scale_bar.unit = "um"
-        self._viewer.scale_bar.position = "bottom_left"
-
-        # Set parent so napari closes when main window closes
-        if self._parent_widget is not None:
-            self.qt_window.setParent(self._parent_widget)
-            # Re-apply window flags to keep it as a separate window (not embedded)
-            self.qt_window.setWindowFlags(self.qt_window.windowFlags() | Qt.WindowType.Window)
-
-        # Custom close event - hide instead of close
-        original_close = self.qt_window.closeEvent
-
-        def on_close(event):
-            if self._is_closing:
-                original_close(event)
-                return
-            event.ignore()
-            self.hide()
-
-        self.qt_window.closeEvent = on_close
-
-    @property
-    def qt_window(self):
-        """Get the underlying Qt window."""
-        return self._viewer.window._qt_window  # noqa: SLF001
-
-    @property
-    def is_visible(self) -> bool:
-        """Check if napari window is currently visible."""
-        return self.qt_window.isVisible()
-
-    @property
-    def viewer(self) -> napari.Viewer:
-        """Get the napari viewer instance."""
-        return self._viewer
-
-    def show(self) -> None:
-        """Show the napari window."""
-        self._viewer.scale_bar.visible = True
-        self.qt_window.show()
-        self.qt_window.raise_()
-        self.qt_window.activateWindow()
-        self.log.info("Napari viewer shown")
-        self.visibilityChanged.emit(True)
-
-    def hide(self) -> None:
-        """Hide the napari window."""
-        self._viewer.scale_bar.visible = False
-        self.qt_window.hide()
-        self.log.info("Napari viewer hidden")
-        self.visibilityChanged.emit(False)
-
-    def toggle(self) -> None:
-        """Toggle napari window visibility."""
-        self.set_visible(not self.is_visible)
-
-    def set_visible(self, visible: bool) -> None:
-        """Set napari window visibility."""
-        if visible:
-            self.show()
-        else:
-            self.hide()
-
-    def update_frame(self, frame: np.ndarray) -> None:
-        if not self.is_visible or frame is None or frame.size == 0:
-            return
-
-        try:
-            if len(self._viewer.layers) == 0:
-                layer = self._viewer.add_image(frame, name="Camera")
-                if self._image_rotation_deg != 0:
-                    layer.affine = _create_center_rotation_affine(self._image_rotation_deg, frame.shape)  # pyright: ignore[reportAttributeAccessIssue]
-            self._viewer.layers[0].data = frame
-        except Exception:
-            self.log.exception("Failed to update napari viewer")
-
-    def close(self) -> None:
-        """Close the napari viewer."""
-        self._is_closing = True
-        if self._viewer is not None:
-            try:
-                self._viewer.close()
-            except Exception:
-                self.log.exception("Error closing napari viewer")
-
-    def _setup_viewer(self) -> None:
-        """Configure napari viewer as child window."""
-        self.log.info("Creating napari viewer")
-
-        # Configure scale bar but keep hidden until viewer is shown (avoids vispy font warning)
-        self._viewer.scale_bar.unit = "um"
-        self._viewer.scale_bar.position = "bottom_left"
-
-        # Set parent so napari closes when main window closes
-        if self._parent_widget is not None:
-            self.qt_window.setParent(self._parent_widget)
-            # Re-apply window flags to keep it as a separate window (not embedded)
-            self.qt_window.setWindowFlags(self.qt_window.windowFlags() | Qt.WindowType.Window)
-
-        # Custom close event - hide instead of close
-        original_close = self.qt_window.closeEvent
-
-        def on_close(event):
-            if self._is_closing:
-                original_close(event)
-                return
-            event.ignore()
-            self.hide()
-
-        self.qt_window.closeEvent = on_close
-
-
 class LiveViewer(QWidget):
-    """Live viewer with embedded preview and optional napari window for full-res."""
+    """Lightweight embedded preview widget for camera frames.
 
-    expandToggled = pyqtSignal(bool)
-    _frameReceived = pyqtSignal(object)  # Internal signal for thread-safe frame updates
-    _previewReceived = pyqtSignal(object)  # Internal signal for pre-processed preview frames
+    Displays downscaled preview frames in the embedded view.
+    Full-resolution frames can be routed to an external napari window
+    via the frameReceived signal.
+
+    Signals:
+        frameReceived: Emitted with raw numpy frame for external viewers.
+        previewUpdated: Emitted after preview frame is displayed.
+    """
+
+    frameReceived = pyqtSignal(object)  # numpy array for napari
+    previewUpdated = pyqtSignal()
+
+    # Internal signal for thread-safe preview updates
+    _previewReceived = pyqtSignal(object)
 
     def __init__(
         self,
-        title: str = "Live Viewer",
         camera_rotation_deg: float = 0.0,
         parent: QWidget | None = None,
     ):
@@ -180,7 +52,6 @@ class LiveViewer(QWidget):
 
         # Embedded view widgets
         self._image_label = self._create_image_label()
-        self._expand_button = self._create_expand_button()
         self._fps_label = self._create_fps_label()
 
         # Build layout
@@ -189,41 +60,38 @@ class LiveViewer(QWidget):
         layout.setSpacing(0)
         layout.addWidget(self._image_label)
 
-        self.setStyleSheet("background-color: black;")
+        self.setStyleSheet(f"background-color: {Colors.BG_DARK};")
         self.setMinimumSize(300, 200)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
-        # Create napari window (hidden initially)
-        self._napari_window = NapariWindow(
-            title=title,
-            image_rotation_deg=self._image_rotation_deg,
-            parent=parent,
-        )
+    def update_frame(self, frame) -> None:
+        """Emit raw frame for external viewers (e.g., napari).
 
-        # Connect signals directly to napari window
-        self._frameReceived.connect(self._napari_window.update_frame)
-        self._expand_button.toggled.connect(self._napari_window.set_visible)
-        self._napari_window.visibilityChanged.connect(self._on_napari_visibility_changed)
-
-    def update_frame(self, frame: np.ndarray) -> None:
-        """Update napari viewer with raw frame (for full-res viewing).
-
-        Note: The frame is already copied by PreviewGenerator, so no copy is needed here.
+        Args:
+            frame: numpy array with raw camera data.
         """
         if frame is None or frame.size == 0:
             return
-        self._frameReceived.emit(frame)
+        self.frameReceived.emit(frame)
 
     def update_preview(self, preview: PreviewFrame) -> None:
-        """Update embedded display with pre-processed preview frame."""
-        self._previewReceived.emit(preview) if preview is not None else None
+        """Update embedded display with pre-processed preview frame.
+
+        Args:
+            preview: PreviewFrame with JPEG data and metadata.
+        """
+        if preview is not None:
+            self._previewReceived.emit(preview)
 
     def reset(self) -> None:
+        """Reset FPS counter and display."""
         self._frame_times.clear()
         self._fps_label.setText("-- FPS")
+        self._image_label.clear()
+        self._image_label.setText("No Image")
 
     def close(self) -> bool:
-        self._napari_window.close()
+        """Clean up resources."""
         return True
 
     def sizeHint(self) -> QSize:
@@ -233,15 +101,8 @@ class LiveViewer(QWidget):
         """Position overlay widgets when resized."""
         super().resizeEvent(a0)
 
-        # Position expand button in top-right corner
-        margin = 8
-        btn_size = self._expand_button.sizeHint()
-        self._expand_button.move(
-            self.width() - btn_size.width() - margin,
-            margin,
-        )
-
         # Position FPS label in bottom-left corner
+        margin = 8
         fps_size = self._fps_label.sizeHint()
         self._fps_label.move(
             margin,
@@ -252,31 +113,21 @@ class LiveViewer(QWidget):
         """Create the embedded image display label."""
         label = QLabel(self)
         label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        label.setStyleSheet("background-color: black; color: #888;")
+        label.setStyleSheet(f"background-color: {Colors.BG_DARK}; color: {Colors.TEXT_MUTED};")
         label.setText("No Image")
         label.setScaledContents(False)
         return label
 
-    def _create_expand_button(self) -> VIconButton:
-        """Create the expand button overlay."""
-        button = VIconButton(
-            standard_icon="SP_TitleBarMaxButton",
-            variant="overlay",
-            parent=self,
-        )
-        button.setCheckable(True)
-        button.setToolTip("Expand to napari viewer")
-        return button
-
-    def _create_fps_label(self) -> VLabel:
+    def _create_fps_label(self) -> Label:
         """Create the FPS display label overlay."""
-        label = VLabel("-- FPS", variant="overlay", parent=self)
+        label = Label("-- FPS", variant="overlay", parent=self)
         label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         label.setMinimumWidth(60)
         label.adjustSize()
         return label
 
     def _process_preview(self, preview: PreviewFrame) -> None:
+        """Process and display preview frame (runs on main thread)."""
         try:
             now = time.time()
             self._frame_times.append(now)
@@ -296,7 +147,7 @@ class LiveViewer(QWidget):
                 self.log.warning("Failed to decode preview image data")
                 return
 
-            # Apply rotation if needed (same rotation as napari viewer)
+            # Apply rotation if needed
             if self._image_rotation_deg != 0:
                 transform = QTransform().rotate(self._image_rotation_deg)
                 pixmap = pixmap.transformed(transform, Qt.TransformationMode.FastTransformation)
@@ -307,37 +158,12 @@ class LiveViewer(QWidget):
                 Qt.TransformationMode.FastTransformation,
             )
             self._image_label.setPixmap(scaled)
+            self.previewUpdated.emit()
 
         except Exception:
             self.log.exception("Failed to process preview frame")
 
-    def _on_napari_visibility_changed(self, visible: bool) -> None:
-        """Handle napari window visibility changes (e.g., user closes window directly)."""
-        # Sync button state without triggering toggle signal
-        self._expand_button.blockSignals(True)
-        self._expand_button.setChecked(visible)
-        self._expand_button.blockSignals(False)
-        self.expandToggled.emit(visible)
-
-
-def _create_center_rotation_affine(image_rotation_deg, shape: tuple[int, ...]) -> Affine:
-    """Create affine transform for rotation around image center."""
-    h, w = shape[:2]
-    cy, cx = h / 2, w / 2
-    theta = np.radians(image_rotation_deg)
-    cos_t, sin_t = np.cos(theta), np.sin(theta)
-
-    # Rotation around center: translate to origin, rotate, translate back
-    # Combined into single affine matrix (column vector convention)
-    # Translation compensates for rotation around origin to make it appear as center rotation
-    ty = cy - (cy * cos_t - cx * sin_t)
-    tx = cx - (cy * sin_t + cx * cos_t)
-
-    matrix = np.array(
-        [
-            [cos_t, -sin_t, ty],
-            [sin_t, cos_t, tx],
-            [0, 0, 1],
-        ]
-    )
-    return Affine(affine_matrix=matrix)
+    @property
+    def last_histogram(self) -> list[int] | None:
+        """Get the histogram from the last processed frame."""
+        return self._last_histogram

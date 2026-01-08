@@ -8,8 +8,8 @@ from typing import TYPE_CHECKING, Any
 from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
-from exaspim_control._qtgui.primitives import VToggle
-from exaspim_control._qtgui.primitives.chip import Chip
+from exaspim_control._qtgui.primitives import Colors, Toggle
+from exaspim_control._qtgui.primitives.display import Chip
 from exaspim_control._qtgui.primitives.input import VLockableSlider
 from exaspim_control._qtgui.utils import darken_color, hex_to_rgb, rgb_to_hex, wavelength_to_hex
 
@@ -22,11 +22,11 @@ if TYPE_CHECKING:
 class PowerChip(Chip):
     """Chip displaying actual power."""
 
-    def __init__(self, power_mw: float, color: str = "#3c3c3c", parent: QWidget | None = None) -> None:
+    def __init__(self, power_mw: float, color: str = Colors.BORDER, parent: QWidget | None = None) -> None:
         super().__init__(
             text=f"{power_mw:.1f} mW",
             color=color,
-            border_color="#505050",
+            border_color=Colors.BORDER_FOCUS,
             parent=parent,
         )
 
@@ -75,7 +75,7 @@ class LaserWidget(QWidget):
         self._is_enabled = device.is_enabled
 
         # Create widgets
-        self._enable_toggle = VToggle(
+        self._enable_toggle = Toggle(
             setter=self._on_enable_changed,
             checked_color=self.laser_color,
         )
@@ -117,7 +117,7 @@ class LaserWidget(QWidget):
     def _create_enable_label(self) -> QLabel:
         """Create the ON/OFF label."""
         label = QLabel("OFF")
-        label.setStyleSheet("color: #888; font-size: 11px; font-weight: bold;")
+        label.setStyleSheet(f"color: {Colors.TEXT_MUTED}; font-size: 11px; font-weight: bold;")
         label.setMinimumWidth(30)
         return label
 
@@ -125,11 +125,11 @@ class LaserWidget(QWidget):
         """Create status bar with temperature and wavelength."""
         frame = QFrame()
         frame.setObjectName("laserStatusBar")
-        frame.setStyleSheet("""
-            QFrame#laserStatusBar {
-                background-color: #252526;
-                border-top: 1px solid #404040;
-            }
+        frame.setStyleSheet(f"""
+            QFrame#laserStatusBar {{
+                background-color: {Colors.BG_LIGHT};
+                border-top: 1px solid {Colors.HOVER};
+            }}
         """)
 
         layout = QHBoxLayout(frame)
@@ -138,11 +138,11 @@ class LaserWidget(QWidget):
 
         # Temperature (left)
         temp_label = QLabel("Temp:")
-        temp_label.setStyleSheet("color: #888; font-size: 10px; border: none;")
+        temp_label.setStyleSheet(f"color: {Colors.TEXT_MUTED}; font-size: 10px; border: none;")
         layout.addWidget(temp_label)
 
         self._temp_value_label = QLabel("-- °C")
-        self._temp_value_label.setStyleSheet("color: #ccc; font-size: 10px; border: none;")
+        self._temp_value_label.setStyleSheet(f"color: {Colors.TEXT}; font-size: 10px; border: none;")
         layout.addWidget(self._temp_value_label)
 
         layout.addStretch()
@@ -199,7 +199,7 @@ class LaserWidget(QWidget):
             self.device.disable()
             self._is_enabled = False
             self._enable_label.setText("OFF")
-            self._enable_label.setStyleSheet("color: #888; font-size: 11px; font-weight: bold;")
+            self._enable_label.setStyleSheet(f"color: {Colors.TEXT_MUTED}; font-size: 11px; font-weight: bold;")
 
     def _on_property_update(self, prop_name: str, value: Any) -> None:
         """Handle property updates from adapter polling."""
@@ -226,4 +226,4 @@ class LaserWidget(QWidget):
                 self._enable_label.setStyleSheet(f"color: {self.laser_color}; font-size: 11px; font-weight: bold;")
             else:
                 self._enable_label.setText("OFF")
-                self._enable_label.setStyleSheet("color: #888; font-size: 11px; font-weight: bold;")
+                self._enable_label.setStyleSheet(f"color: {Colors.TEXT_MUTED}; font-size: 11px; font-weight: bold;")

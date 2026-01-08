@@ -20,8 +20,8 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from exaspim_control._qtgui.primitives import HStack, VButton
-from exaspim_control._qtgui.primitives.input import VLabel, VStatusBadge
+from exaspim_control._qtgui.primitives import Button, Colors, HStack, Label
+from exaspim_control.instrument.instrument import InstrumentMode
 
 if TYPE_CHECKING:
     from voxel.interfaces.daq import TaskStatus
@@ -33,8 +33,8 @@ if TYPE_CHECKING:
 class FrameTaskPanel(QWidget):
     """Widget to visualize and monitor an AcquisitionTask.
 
-    Autonomous widget that subscribes to InstrumentModel.streamingChanged
-    and refreshes its display when streaming starts/stops.
+    Autonomous widget that subscribes to InstrumentModel.modeChanged
+    and refreshes its display when mode changes (preview/acquisition starts/stops).
 
     Shows:
     - Task name and status
@@ -64,33 +64,35 @@ class FrameTaskPanel(QWidget):
         # === Create all widgets ===
 
         # Header widgets
-        self._task_name_label = VLabel("No Task", variant="title")
-        self._refresh_btn = VButton("↻", variant="secondary")
+        self._task_name_label = Label("No Task", variant="title")
+        self._refresh_btn = Button("↻", variant="secondary")
         self._refresh_btn.setFixedSize(24, 24)
         self._refresh_btn.setToolTip("Refresh waveforms from instrument")
-        self._status_badge = VStatusBadge()
+        self._status_label = Label("Idle", color=Colors.TEXT_MUTED)
+        self._status_label.setFixedWidth(80)
+        self._status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         # Timing value labels
-        self._sample_rate_value = VLabel("--", variant="value")
+        self._sample_rate_value = Label("--", variant="value")
         self._sample_rate_value.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._duration_value = VLabel("--", variant="value")
+        self._duration_value = Label("--", variant="value")
         self._duration_value.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._rest_time_value = VLabel("--", variant="value")
+        self._rest_time_value = Label("--", variant="value")
         self._rest_time_value.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._num_samples_value = VLabel("--", variant="value")
+        self._num_samples_value = Label("--", variant="value")
         self._num_samples_value.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         # Waveform plot
         self._plot_widget = pg.PlotWidget()
-        self._plot_widget.setBackground("#1e1e1e")
+        self._plot_widget.setBackground(Colors.BG_DARK)
         self._plot_widget.showGrid(x=True, y=True, alpha=0.3)
         self._plot_widget.setLabel("bottom", "Time", units="ms")
         self._plot_widget.setLabel("left", "Voltage", units="V")
         self._plot_widget.setMinimumHeight(200)
         self._plot_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         for axis in ["bottom", "left"]:
-            self._plot_widget.getAxis(axis).setTextPen("#888")
-            self._plot_widget.getAxis(axis).setPen("#404040")
+            self._plot_widget.getAxis(axis).setTextPen(Colors.TEXT_MUTED)
+            self._plot_widget.getAxis(axis).setPen(Colors.BORDER)
 
         # Legend layout (populated dynamically)
         self._legend_layout = QHBoxLayout()
@@ -109,26 +111,26 @@ class FrameTaskPanel(QWidget):
         self._channels_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self._channels_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self._channels_table.setMaximumHeight(120)
-        self._channels_table.setStyleSheet("""
-            QTableWidget {
-                background-color: #2d2d30;
-                border: 1px solid #404040;
+        self._channels_table.setStyleSheet(f"""
+            QTableWidget {{
+                background-color: {Colors.BG_LIGHT};
+                border: 1px solid {Colors.BORDER};
                 border-radius: 4px;
-                gridline-color: #404040;
-            }
-            QTableWidget::item {
-                color: #d4d4d4;
+                gridline-color: {Colors.BORDER};
+            }}
+            QTableWidget::item {{
+                color: {Colors.TEXT};
                 padding: 4px;
-            }
-            QHeaderView::section {
-                background-color: #252526;
-                color: #888;
+            }}
+            QHeaderView::section {{
+                background-color: {Colors.BG_MEDIUM};
+                color: {Colors.TEXT_MUTED};
                 font-size: 10px;
                 font-weight: bold;
                 border: none;
-                border-bottom: 1px solid #404040;
+                border-bottom: 1px solid {Colors.BORDER};
                 padding: 4px;
-            }
+            }}
         """)
 
         # === Build layout and connect signals ===
@@ -136,7 +138,7 @@ class FrameTaskPanel(QWidget):
         self._connect_signals()
 
         # Subscribe to streaming state changes
-        model.streamingChanged.connect(self._on_streaming_changed)
+        model.modeChanged.connect(self._on_mode_changed)
 
     def _setup_ui(self) -> None:
         """Compose layout from pre-created widgets."""
@@ -154,11 +156,11 @@ class FrameTaskPanel(QWidget):
         self._refresh_btn.clicked.connect(self._refresh_from_model)
 
     def _build_header(self) -> QWidget:
-        """Build header with task name, refresh button, and status badge."""
+        """Build header with task name, refresh button, and status label."""
         header = HStack(
             self._task_name_label,
             self._refresh_btn,
-            self._status_badge,
+            self._status_label,
             spacing=8,
         )
         # Add stretch between name and buttons
@@ -169,12 +171,12 @@ class FrameTaskPanel(QWidget):
     def _build_timing_section(self) -> QWidget:
         """Build timing parameters section."""
         section = QFrame()
-        section.setStyleSheet("""
-            QFrame {
-                background-color: #2d2d30;
-                border: 1px solid #404040;
+        section.setStyleSheet(f"""
+            QFrame {{
+                background-color: {Colors.BG_LIGHT};
+                border: 1px solid {Colors.BORDER};
                 border-radius: 4px;
-            }
+            }}
         """)
 
         layout = QGridLayout(section)
@@ -185,7 +187,7 @@ class FrameTaskPanel(QWidget):
         # Labels row
         labels = ["Sample Rate", "Duration", "Rest Time", "Num Samples"]
         for i, label_text in enumerate(labels):
-            label = VLabel(label_text, variant="muted")
+            label = Label(label_text, variant="muted")
             label.setAlignment(Qt.AlignmentFlag.AlignCenter)
             layout.addWidget(label, 0, i)
 
@@ -205,7 +207,7 @@ class FrameTaskPanel(QWidget):
         layout.setSpacing(4)
 
         # Section label
-        layout.addWidget(VLabel("Waveforms", variant="section"))
+        layout.addWidget(Label("Waveforms", variant="section"))
 
         # Plot widget
         layout.addWidget(self._plot_widget)
@@ -223,16 +225,16 @@ class FrameTaskPanel(QWidget):
         layout.setSpacing(4)
 
         # Section label
-        layout.addWidget(VLabel("Channels", variant="section"))
+        layout.addWidget(Label("Channels", variant="section"))
 
         # Table
         layout.addWidget(self._channels_table)
 
         return section
 
-    def _on_streaming_changed(self, is_streaming: bool) -> None:
-        """Handle streaming state changes - refresh or clear display."""
-        if is_streaming:
+    def _on_mode_changed(self, mode: InstrumentMode) -> None:
+        """Handle mode changes - refresh display when active, clear when idle."""
+        if mode != InstrumentMode.IDLE:
             self._refresh_from_model()
         else:
             self._clear_display()
@@ -275,7 +277,7 @@ class FrameTaskPanel(QWidget):
     def _clear_display(self) -> None:
         """Clear all display elements."""
         self._task_name_label.setText("No Task")
-        self._status_badge.setStatus("idle")
+        self._set_status("idle")
         self._sample_rate_value.setText("--")
         self._duration_value.setText("--")
         self._rest_time_value.setText("--")
@@ -344,7 +346,7 @@ class FrameTaskPanel(QWidget):
         layout.addWidget(swatch)
 
         # Name
-        layout.addWidget(VLabel(name, variant="muted"))
+        layout.addWidget(Label(name, variant="muted"))
 
         # Insert before the stretch
         self._legend_layout.insertWidget(self._legend_layout.count() - 1, item)
@@ -386,12 +388,26 @@ class FrameTaskPanel(QWidget):
                 self._channels_table.setItem(row, 2, QTableWidgetItem("--"))
                 self._channels_table.setItem(row, 3, QTableWidgetItem("--"))
 
+    # Status-to-color mapping (simple approach vs. separate StatusBadge component)
+    STATUS_COLORS: ClassVar[dict[str, tuple[str, str]]] = {
+        # status: (color, display_text)
+        "idle": (Colors.TEXT_MUTED, "Idle"),
+        "running": (Colors.SUCCESS, "Running"),
+        "error": (Colors.ERROR, "Error"),
+    }
+
+    def _set_status(self, status: str) -> None:
+        """Set status label text and color."""
+        color, text = self.STATUS_COLORS.get(status, (Colors.TEXT_MUTED, status.title()))
+        self._status_label.setText(text)
+        self._status_label.color = color
+
     def update_status(self, status: TaskStatus) -> None:
         """Update the status indicator.
 
         :param status: Task status (TaskStatus enum)
         """
-        self._status_badge.setStatus(status.value)  # type: ignore[arg-type]
+        self._set_status(status.value)
 
     def refresh(self) -> None:
         """Refresh the display from the current task."""

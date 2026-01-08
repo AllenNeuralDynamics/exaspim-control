@@ -7,13 +7,13 @@ from PyQt6.QtWidgets import QFormLayout, QHBoxLayout, QVBoxLayout, QWidget
 from voxel.device import PropertyInfo
 
 from exaspim_control._qtgui.model import DeviceAdapter
-from exaspim_control._qtgui.primitives.input import (
-    VCheckBox,
-    VComboBox,
-    VDoubleSpinBox,
-    VLabel,
-    VLineEdit,
-    VSpinBox,
+from exaspim_control._qtgui.primitives import (
+    CheckBox,
+    ComboBox,
+    DoubleSpinBox,
+    Label,
+    LineEdit,
+    SpinBox,
 )
 
 
@@ -71,12 +71,12 @@ class PropertyWidget(QWidget):
         """Get the underlying input widget."""
         return self._value_widget
 
-    def _create_label(self) -> VLabel:
+    def _create_label(self) -> Label:
         """Create label from PropertyInfo."""
         text = self._info.label
         if self._info.units:
             text = f"{text} [{self._info.units}]"
-        return VLabel(text)
+        return Label(text)
 
     def _create_value_widget(self, value: Any) -> QWidget:
         """Create appropriate input widget based on value type and PropertyInfo."""
@@ -103,24 +103,24 @@ class PropertyWidget(QWidget):
         # Default: line edit
         return self._create_lineedit(value)
 
-    def _create_label_widget(self, value: Any) -> VLabel:
+    def _create_label_widget(self, value: Any) -> Label:
         """Create read-only label."""
         text = str(value)
         if len(text) > 60:
-            label = VLabel(text[:57] + "...")
+            label = Label(text[:57] + "...")
             label.setToolTip(text)
             return label
-        return VLabel(text)
+        return Label(text)
 
-    def _create_combobox(self, value: Any) -> VComboBox:
+    def _create_combobox(self, value: Any) -> ComboBox:
         """Create combobox for enumerated values."""
-        combo = VComboBox()
+        combo = ComboBox()
         self._update_combobox_options(combo, value)
         combo.setCurrentText(str(value))
         combo.currentTextChanged.connect(lambda v: self.valueChanged.emit(self._info.name, v))
         return combo
 
-    def _update_combobox_options(self, combo: VComboBox, value: Any) -> None:
+    def _update_combobox_options(self, combo: ComboBox, value: Any) -> None:
         """Update combobox options from enumerated value."""
         if not hasattr(value, "options") or not value.options:
             return
@@ -133,34 +133,34 @@ class PropertyWidget(QWidget):
             if current_text in new_options:
                 combo.setCurrentText(current_text)
 
-    def _create_checkbox(self, value: Any) -> VCheckBox:
+    def _create_checkbox(self, value: Any) -> CheckBox:
         """Create checkbox for boolean values."""
-        checkbox = VCheckBox()
+        checkbox = CheckBox()
         checkbox.setChecked(bool(value))
         checkbox.toggled.connect(lambda v: self.valueChanged.emit(self._info.name, v))
         return checkbox
 
-    def _create_spinbox(self, value: Any) -> VSpinBox:
+    def _create_spinbox(self, value: Any) -> SpinBox:
         """Create spinbox for deliminated integers."""
-        spinbox = VSpinBox()
+        spinbox = SpinBox()
         self._update_spinbox_constraints(spinbox, value)
         spinbox.setValue(int(value))
         spinbox.valueChanged.connect(lambda v: self.valueChanged.emit(self._info.name, v))
         return spinbox
 
-    def _create_double_spinbox(self, value: Any) -> VDoubleSpinBox:
+    def _create_double_spinbox(self, value: Any) -> DoubleSpinBox:
         """Create spinbox for deliminated floats."""
-        spinbox = VDoubleSpinBox()
+        spinbox = DoubleSpinBox()
         self._update_spinbox_constraints(spinbox, value)
         spinbox.setValue(float(value))
         spinbox.valueChanged.connect(lambda v: self.valueChanged.emit(self._info.name, v))
         return spinbox
 
-    def _update_spinbox_constraints(self, spinbox: VSpinBox | VDoubleSpinBox, value: Any) -> None:
+    def _update_spinbox_constraints(self, spinbox: SpinBox | DoubleSpinBox, value: Any) -> None:
         """Update spinbox min/max/step from deliminated value."""
         if not hasattr(value, "min_value") or not hasattr(value, "max_value"):
             return
-        is_int = isinstance(spinbox, VSpinBox)
+        is_int = isinstance(spinbox, SpinBox)
         if value.min_value is not None:
             spinbox.setMinimum(int(value.min_value) if is_int else value.min_value)
         if value.max_value is not None:
@@ -168,9 +168,9 @@ class PropertyWidget(QWidget):
         if hasattr(value, "step") and value.step is not None:
             spinbox.setSingleStep(int(value.step) if is_int else value.step)
 
-    def _create_lineedit(self, value: Any) -> VLineEdit:
+    def _create_lineedit(self, value: Any) -> LineEdit:
         """Create line edit for unconstrained values."""
-        lineedit = VLineEdit()
+        lineedit = LineEdit()
         lineedit.setText(str(value))
         lineedit.editingFinished.connect(lambda: self.valueChanged.emit(self._info.name, lineedit.text()))
         return lineedit
@@ -188,25 +188,25 @@ class PropertyWidget(QWidget):
 
         widget.blockSignals(True)
 
-        if isinstance(widget, VLabel):
+        if isinstance(widget, Label):
             text = str(value)
             if len(text) > 60:
                 widget.setText(text[:57] + "...")
                 widget.setToolTip(text)
             else:
                 widget.setText(text)
-        elif isinstance(widget, VSpinBox):
+        elif isinstance(widget, SpinBox):
             self._update_spinbox_constraints(widget, value)
             widget.setValue(int(value))
-        elif isinstance(widget, VDoubleSpinBox):
+        elif isinstance(widget, DoubleSpinBox):
             self._update_spinbox_constraints(widget, value)
             widget.setValue(float(value))
-        elif isinstance(widget, VComboBox):
+        elif isinstance(widget, ComboBox):
             self._update_combobox_options(widget, value)
             widget.setCurrentText(str(value))
-        elif isinstance(widget, VCheckBox):
+        elif isinstance(widget, CheckBox):
             widget.setChecked(bool(value))
-        elif isinstance(widget, VLineEdit):
+        elif isinstance(widget, LineEdit):
             widget.setText(str(value))
 
         widget.blockSignals(False)
@@ -214,15 +214,15 @@ class PropertyWidget(QWidget):
     def get_value(self) -> Any:
         """Get current value from widget."""
         widget = self._value_widget
-        if isinstance(widget, VLabel):
+        if isinstance(widget, Label):
             return widget.text()
-        if isinstance(widget, (VSpinBox, VDoubleSpinBox)):
+        if isinstance(widget, (SpinBox, DoubleSpinBox)):
             return widget.value()
-        if isinstance(widget, VComboBox):
+        if isinstance(widget, ComboBox):
             return widget.currentText()
-        if isinstance(widget, VCheckBox):
+        if isinstance(widget, CheckBox):
             return widget.isChecked()
-        if isinstance(widget, VLineEdit):
+        if isinstance(widget, LineEdit):
             return widget.text()
         return None
 
@@ -255,7 +255,7 @@ class DeviceWidget(QWidget):
             label_text = info.label
             if info.units:
                 label_text = f"{label_text} [{info.units}]"
-            layout.addRow(VLabel(label_text), prop_widget.value_widget)
+            layout.addRow(Label(label_text), prop_widget.value_widget)
 
         adapter.propertyUpdated.connect(self._on_property_update)
 

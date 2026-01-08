@@ -1,2 +1,2 @@
-from .app import ExASPIMUI as ExASPIMUI
-from .launcher import LauncherWindow as LauncherWindow
+from .main import ExASPIMApp as ExASPIMApp
+from .main import run_app as run_app

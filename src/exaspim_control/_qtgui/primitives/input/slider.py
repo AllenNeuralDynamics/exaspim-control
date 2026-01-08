@@ -3,8 +3,10 @@
 from PyQt6.QtCore import Qt, pyqtSignal, pyqtSlot
 from PyQt6.QtWidgets import QCheckBox, QHBoxLayout, QProgressBar, QSlider, QWidget
 
+from exaspim_control._qtgui.primitives.colors import Colors
 
-class VLockableSlider(QWidget):
+
+class LockableSlider(QWidget):
     """3-layer value track: actual (progress) -> target (indicator) -> input (command).
 
     Visual layers (bottom to top):
@@ -69,8 +71,8 @@ class VLockableSlider(QWidget):
         self._progress.setTextVisible(False)
         self._progress.setStyleSheet(f"""
             QProgressBar {{
-                background-color: #2d2d30;
-                border: 1px solid #505050;
+                background-color: {Colors.BG_LIGHT};
+                border: 1px solid {Colors.BORDER_FOCUS};
                 border-radius: 4px;
             }}
             QProgressBar::chunk {{
@@ -122,8 +124,8 @@ class VLockableSlider(QWidget):
                 height: 14px;
             }}
             QCheckBox::indicator:unchecked {{
-                background-color: #3c3c3c;
-                border: 1px solid #505050;
+                background-color: {Colors.BORDER};
+                border: 1px solid {Colors.BORDER_FOCUS};
                 border-radius: 2px;
             }}
             QCheckBox::indicator:checked {{
@@ -263,8 +265,8 @@ class VLockableSlider(QWidget):
         # Re-apply progress bar style
         self._progress.setStyleSheet(f"""
             QProgressBar {{
-                background-color: #2d2d30;
-                border: 1px solid #505050;
+                background-color: {Colors.BG_LIGHT};
+                border: 1px solid {Colors.BORDER_FOCUS};
                 border-radius: 4px;
             }}
             QProgressBar::chunk {{
@@ -300,8 +302,8 @@ class VLockableSlider(QWidget):
                 height: 14px;
             }}
             QCheckBox::indicator:unchecked {{
-                background-color: #3c3c3c;
-                border: 1px solid #505050;
+                background-color: {Colors.BORDER};
+                border: 1px solid {Colors.BORDER_FOCUS};
                 border-radius: 2px;
             }}
             QCheckBox::indicator:checked {{

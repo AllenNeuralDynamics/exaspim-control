@@ -16,7 +16,7 @@ from PyQt6.QtWidgets import (
 )
 
 from exaspim_control._qtgui.model import DeviceAdapter
-from exaspim_control._qtgui.primitives import VButton, VSpinBox
+from exaspim_control._qtgui.primitives import Button, Colors, Separator, SpinBox
 from exaspim_control._qtgui.widgets.devices.base import PropertyWidget
 
 if TYPE_CHECKING:
@@ -73,7 +73,7 @@ class CameraWidget(QWidget):
 
         def make_value_label(text: str) -> QLabel:
             label = QLabel(text)
-            label.setStyleSheet("color: #ccc; font-size: 11px; border: none; background: transparent;")
+            label.setStyleSheet(f"color: {Colors.TEXT}; font-size: 11px; border: none; background: transparent;")
             label.setAlignment(Qt.AlignmentFlag.AlignCenter)
             label.setFixedHeight(ROW_HEIGHT)
             return label
@@ -83,14 +83,14 @@ class CameraWidget(QWidget):
         self._sensor_height_label = make_value_label(str(device.sensor_size_px.y))
 
         # ROI inputs (staged, applied on button click)
-        self._roi_width_input = VSpinBox()
+        self._roi_width_input = SpinBox()
         self._roi_width_input.setRange(region.width.min_value or 1, region.width.max_value or device.sensor_size_px.x)
         self._roi_width_input.setSingleStep(region.width.step or 1)
         self._roi_width_input.setValue(int(region.width))
         self._roi_width_input.setFixedHeight(ROW_HEIGHT)
         self._roi_width_input.valueChanged.connect(lambda v: self._stage_roi_change("width", v))
 
-        self._roi_height_input = VSpinBox()
+        self._roi_height_input = SpinBox()
         self._roi_height_input.setRange(
             region.height.min_value or 1, region.height.max_value or device.sensor_size_px.y
         )
@@ -100,14 +100,14 @@ class CameraWidget(QWidget):
         self._roi_height_input.valueChanged.connect(lambda v: self._stage_roi_change("height", v))
 
         # Offset inputs
-        self._offset_x_input = VSpinBox()
+        self._offset_x_input = SpinBox()
         self._offset_x_input.setRange(region.x.min_value or 0, region.x.max_value or device.sensor_size_px.x)
         self._offset_x_input.setSingleStep(region.x.step or 1)
         self._offset_x_input.setValue(int(region.x))
         self._offset_x_input.setFixedHeight(ROW_HEIGHT)
         self._offset_x_input.valueChanged.connect(lambda v: self._stage_roi_change("x", v))
 
-        self._offset_y_input = VSpinBox()
+        self._offset_y_input = SpinBox()
         self._offset_y_input.setRange(region.y.min_value or 0, region.y.max_value or device.sensor_size_px.y)
         self._offset_y_input.setSingleStep(region.y.step or 1)
         self._offset_y_input.setValue(int(region.y))
@@ -120,20 +120,20 @@ class CameraWidget(QWidget):
         self._frame_height_label = make_value_label(str(frame_size.y))
 
         # Apply ROI button
-        self._apply_roi_btn = VButton("Apply ROI", variant="secondary")
+        self._apply_roi_btn = Button("Apply ROI", variant="secondary")
         self._apply_roi_btn.setEnabled(False)
         self._apply_roi_btn.clicked.connect(self._apply_staged_roi)
 
     def _create_status_labels(self) -> None:
         """Create status bar value labels."""
         self._frame_number_label = QLabel("0")
-        self._frame_number_label.setStyleSheet("color: #ccc; font-size: 10px; border: none;")
+        self._frame_number_label.setStyleSheet(f"color: {Colors.TEXT}; font-size: 10px; border: none;")
 
         self._frame_rate_label = QLabel("-- fps")
-        self._frame_rate_label.setStyleSheet("color: #ccc; font-size: 10px; border: none;")
+        self._frame_rate_label.setStyleSheet(f"color: {Colors.TEXT}; font-size: 10px; border: none;")
 
         self._data_rate_label = QLabel("-- MB/s")
-        self._data_rate_label.setStyleSheet("color: #ccc; font-size: 10px; border: none;")
+        self._data_rate_label.setStyleSheet(f"color: {Colors.TEXT}; font-size: 10px; border: none;")
 
     def _build_layout(self) -> QVBoxLayout:
         """Build the complete camera widget layout."""
@@ -168,7 +168,7 @@ class CameraWidget(QWidget):
             col.setSpacing(2)
 
             label = QLabel(label_text)
-            label.setStyleSheet("color: #888; font-size: 10px;")
+            label.setStyleSheet(f"color: {Colors.TEXT_MUTED}; font-size: 10px;")
             col.addWidget(label)
 
             if prop_name in self._adapter.properties:
@@ -194,14 +194,14 @@ class CameraWidget(QWidget):
 
         def make_row_label(text: str) -> QLabel:
             label = QLabel(text)
-            label.setStyleSheet("color: #aaa; font-size: 11px; border: none; background: transparent;")
+            label.setStyleSheet(f"color: {Colors.TEXT}; font-size: 11px; border: none; background: transparent;")
             label.setFixedHeight(ROW_HEIGHT)
             return label
 
         def make_header(text: str) -> QLabel:
             label = QLabel(text)
             label.setStyleSheet(
-                "color: #888; font-size: 10px; font-weight: bold; border: none; background: transparent;"
+                f"color: {Colors.TEXT_MUTED}; font-size: 10px; font-weight: bold; border: none; background: transparent;"
             )
             label.setAlignment(Qt.AlignmentFlag.AlignCenter)
             label.setFixedHeight(ROW_HEIGHT)
@@ -244,11 +244,11 @@ class CameraWidget(QWidget):
         """Build status bar with streaming info."""
         frame = QFrame()
         frame.setObjectName("statusBar")
-        frame.setStyleSheet("""
-            QFrame#statusBar {
-                background-color: #252526;
-                border-top: 1px solid #404040;
-            }
+        frame.setStyleSheet(f"""
+            QFrame#statusBar {{
+                background-color: {Colors.BG_LIGHT};
+                border-top: 1px solid {Colors.HOVER};
+            }}
         """)
 
         layout = QHBoxLayout(frame)
@@ -262,7 +262,7 @@ class CameraWidget(QWidget):
             item_layout.setSpacing(4)
 
             label = QLabel(label_text)
-            label.setStyleSheet("color: #888; font-size: 10px; border: none;")
+            label.setStyleSheet(f"color: {Colors.TEXT_MUTED}; font-size: 10px; border: none;")
 
             item_layout.addWidget(label)
             item_layout.addWidget(value_label)
@@ -270,12 +270,8 @@ class CameraWidget(QWidget):
 
             return container
 
-        def make_separator() -> QFrame:
-            sep = QFrame()
-            sep.setFrameShape(QFrame.Shape.VLine)
-            sep.setFixedWidth(1)
-            sep.setStyleSheet("background-color: #404040;")
-            return sep
+        def make_separator() -> Separator:
+            return Separator(orientation="vertical", color=Colors.HOVER)
 
         layout.addWidget(make_status_item("Frame:", self._frame_number_label), stretch=1)
         layout.addWidget(make_separator())

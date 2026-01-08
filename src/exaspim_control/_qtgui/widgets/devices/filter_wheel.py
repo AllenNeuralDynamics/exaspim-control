@@ -14,7 +14,7 @@ from PyQt6.QtSvg import QSvgRenderer
 from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
 from exaspim_control._qtgui.assets import ICON_ARROW_LEFT, ICON_ARROW_RIGHT, ICON_REFRESH
-from exaspim_control._qtgui.primitives import VIconButton
+from exaspim_control._qtgui.primitives import Colors, IconButton
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -50,12 +50,12 @@ class FilterWheelWidget(QFrame):
         self.log = logging.getLogger(f"{__name__}.{adapter.device.uid}")
 
         # Card-like styling
-        self.setStyleSheet("""
-            FilterWheelWidget {
-                background-color: #252526;
-                border: 1px solid #3c3c3c;
+        self.setStyleSheet(f"""
+            FilterWheelWidget {{
+                background-color: {Colors.BG_LIGHT};
+                border: 1px solid {Colors.BORDER};
                 border-radius: 4px;
-            }
+            }}
         """)
 
         # Hue mapping for filter colors
@@ -101,17 +101,17 @@ class FilterWheelWidget(QFrame):
             hue_mapping=self._hues,
         )
 
-    def _create_control_widgets(self) -> tuple[VIconButton, VIconButton, VIconButton]:
+    def _create_control_widgets(self) -> tuple[IconButton, IconButton, IconButton]:
         """Create control buttons (left, right, reset)."""
-        left_btn = VIconButton(icon=QIcon(str(ICON_ARROW_LEFT)), size=24)
+        left_btn = IconButton(icon=QIcon(str(ICON_ARROW_LEFT)), size=24)
         left_btn.setToolTip("Spin left")
         left_btn.clicked.connect(self._graphic.step_to_next)
 
-        right_btn = VIconButton(icon=QIcon(str(ICON_ARROW_RIGHT)), size=24)
+        right_btn = IconButton(icon=QIcon(str(ICON_ARROW_RIGHT)), size=24)
         right_btn.setToolTip("Spin right")
         right_btn.clicked.connect(self._graphic.step_to_previous)
 
-        reset_btn = VIconButton(icon=QIcon(str(ICON_REFRESH)), size=24)
+        reset_btn = IconButton(icon=QIcon(str(ICON_REFRESH)), size=24)
         reset_btn.setToolTip("Reset wheel rotation")
         reset_btn.clicked.connect(self._graphic.reset_rotation)
 
@@ -128,10 +128,10 @@ class FilterWheelWidget(QFrame):
         header.setSpacing(4)
 
         title_label = QLabel(self._adapter.device.uid)
-        title_label.setStyleSheet("""
+        title_label.setStyleSheet(f"""
             font-size: 12px;
             font-weight: 600;
-            color: #cccccc;
+            color: {Colors.TEXT};
         """)
         header.addWidget(title_label)
         header.addStretch()

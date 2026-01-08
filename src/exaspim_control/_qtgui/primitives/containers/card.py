@@ -1,6 +1,10 @@
+"""Card container component."""
+
 from typing import Literal
 
-from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout, QWidget
+from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel, QLayout, QVBoxLayout, QWidget
+
+from exaspim_control._qtgui.primitives.colors import Colors
 
 
 class Card(QFrame):
@@ -20,6 +24,12 @@ class Card(QFrame):
             flow="horizontal",
         )
 
+        # Mixed widgets and layouts
+        Card("Config",
+            self._radio_button,
+            some_horizontal_layout,
+        )
+
         # Untitled
         Card(None, self._widget)
     """
@@ -27,7 +37,7 @@ class Card(QFrame):
     def __init__(
         self,
         title: str | None,
-        *widgets: QWidget,
+        *children: QWidget | QLayout,
         flow: Literal["vertical", "horizontal"] = "vertical",
         spacing: int = 8,
         parent: QWidget | None = None,
@@ -48,34 +58,34 @@ class Card(QFrame):
 
         # Content layout (vertical or horizontal)
         content = QWidget()
-        if flow == "horizontal":
-            content_layout = QHBoxLayout(content)
-        else:
-            content_layout = QVBoxLayout(content)
+        content_layout = QHBoxLayout(content) if flow == "horizontal" else QVBoxLayout(content)
         content_layout.setContentsMargins(0, 0, 0, 0)
         content_layout.setSpacing(spacing)
 
-        for w in widgets:
-            content_layout.addWidget(w)
+        for child in children:
+            if isinstance(child, QLayout):
+                content_layout.addLayout(child)
+            else:
+                content_layout.addWidget(child)
 
         main_layout.addWidget(content)
 
         self._apply_style()
 
     def _apply_style(self) -> None:
-        self.setStyleSheet("""
-            Card {
-                background-color: #252526;
-                border: 1px solid #3c3c3c;
+        self.setStyleSheet(f"""
+            Card {{
+                background-color: {Colors.BG_MEDIUM};
+                border: 1px solid {Colors.BORDER};
                 border-radius: 4px;
-            }
-            #cardTitle {
+            }}
+            #cardTitle {{
                 font-size: 12px;
                 font-weight: 600;
-                color: #cccccc;
+                color: {Colors.TEXT};
                 padding-bottom: 4px;
-                border-bottom: 1px solid #3c3c3c;
-            }
+                border-bottom: 1px solid {Colors.BORDER};
+            }}
         """)
 
     @property

@@ -6,7 +6,8 @@ from typing import Self
 
 from PyQt6.QtWidgets import QFormLayout, QGridLayout, QHBoxLayout, QVBoxLayout, QWidget
 
-from exaspim_control._qtgui.primitives.input.label import VLabel
+from exaspim_control._qtgui.primitives.colors import Colors
+from exaspim_control._qtgui.primitives.display.label import Label
 
 
 class HStack(QWidget):
@@ -66,7 +67,6 @@ class Grid(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(spacing)
 
-        # Set equal stretch for all columns so they share space evenly
         for col in range(columns):
             layout.setColumnStretch(col, 1)
 
@@ -75,7 +75,6 @@ class Grid(QWidget):
             col = i % columns
             layout.addWidget(widget, row, col)
 
-        # Add stretch to row after last widget row to prevent vertical expansion
         if widgets:
             last_row = (len(widgets) - 1) // columns
             layout.setRowStretch(last_row + 1, 1)
@@ -100,7 +99,7 @@ class Field(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(spacing)
-        layout.addWidget(VLabel(label))
+        layout.addWidget(Label(label))
         layout.addWidget(widget)
 
         self.widget = widget
@@ -126,10 +125,10 @@ class InfoRow(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(4)
 
-        layout.addWidget(VLabel(label))
+        layout.addWidget(Label(label))
 
-        self._value_label = VLabel(value)
-        self._value_label.setStyleSheet("color: #888; font-size: 11px;")
+        self._value_label = Label(value)
+        self._value_label.setStyleSheet(f"color: {Colors.TEXT_MUTED}; font-size: 11px;")
         layout.addWidget(self._value_label)
 
         if stretch:
@@ -160,8 +159,8 @@ class FormBuilder:
 
     def header(self, title: str) -> Self:
         """Add a section header."""
-        label = VLabel(title)
-        label.setStyleSheet("font-weight: bold; color: #888; margin-top: 8px;")
+        label = Label(title)
+        label.setStyleSheet(f"font-weight: bold; color: {Colors.TEXT_MUTED}; margin-top: 8px;")
         self._layout.addRow(label)
         return self
 

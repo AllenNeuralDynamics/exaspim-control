@@ -11,16 +11,18 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from exaspim_control._qtgui.primitives.colors import Colors
+
 
 class AccordionCard(QWidget):
     """A collapsible card with header and expandable content.
 
     Layout:
-        ┌─────────────────────────────────────────┐
-        │ ▾  Title                    [actions]   │  ← header
-        ├─────────────────────────────────────────┤
-        │   Content widget                        │  ← content (when expanded)
-        └─────────────────────────────────────────┘
+        +-----------------------------------------+
+        | >  Title                    [actions]   |  <- header
+        +-----------------------------------------+
+        |   Content widget                        |  <- content (when expanded)
+        +-----------------------------------------+
 
     Usage:
         card = AccordionCard("Settings", settings_widget)
@@ -45,11 +47,12 @@ class AccordionCard(QWidget):
     ):
         """Initialize accordion card.
 
-        :param title: Section title
-        :param content: Content widget
-        :param expanded: Initial expanded state
-        :param action_widgets: Optional list of action widgets (buttons) for header
-        :param parent: Parent widget
+        Args:
+            title: Section title
+            content: Content widget
+            expanded: Initial expanded state
+            action_widgets: Optional list of action widgets (buttons) for header
+            parent: Parent widget
         """
         super().__init__(parent)
         self._title = title
@@ -62,16 +65,15 @@ class AccordionCard(QWidget):
         if content is not None:
             self.set_content(content)
 
-        # Set initial state
         self._update_state()
 
     def _setup_ui(self) -> None:
         """Setup the accordion card UI."""
         layout = QVBoxLayout(self)
         layout.setSpacing(0)
-        layout.setContentsMargins(0, 0, 0, 4)  # Small bottom margin between cards
+        layout.setContentsMargins(0, 0, 0, 4)
 
-        # Card container (holds both header and content)
+        # Card container
         self._card = QFrame(self)
         self._card.setObjectName("accordionCard")
         card_layout = QVBoxLayout(self._card)
@@ -100,7 +102,6 @@ class AccordionCard(QWidget):
         self._title_label.setObjectName("accordionTitle")
         header_layout.addWidget(self._title_label)
 
-        # Stretch to push actions to right
         header_layout.addStretch()
 
         # Action widgets
@@ -118,7 +119,6 @@ class AccordionCard(QWidget):
         self._content_layout.setSpacing(0)
 
         card_layout.addWidget(self._content_area)
-
         layout.addWidget(self._card)
 
         self._apply_styles()
@@ -129,76 +129,56 @@ class AccordionCard(QWidget):
             click_pos = event.pos()
             for widget in self._action_widgets:
                 if widget.geometry().contains(click_pos):
-                    return  # Let widget handle it
+                    return
         self.toggle()
 
     def _apply_styles(self) -> None:
-        """Apply styling to the accordion card."""
-        self.setStyleSheet("""
-            /* Card container */
-            #accordionCard {
-                background-color: #2d2d30;
-                border: 1px solid #3c3c3c;
+        """Apply styling using design system colors."""
+        self.setStyleSheet(f"""
+            #accordionCard {{
+                background-color: {Colors.BG_LIGHT};
+                border: 1px solid {Colors.BORDER};
                 border-radius: 4px;
-            }
-
-            /* Header */
-            #accordionHeader {
+            }}
+            #accordionHeader {{
                 background-color: transparent;
                 border: none;
                 border-top-left-radius: 3px;
                 border-top-right-radius: 3px;
-            }
-            #accordionHeader:hover {
-                background-color: rgba(255, 255, 255, 0.03);
-            }
-
-            /* Title */
-            #accordionTitle {
-                color: #d4d4d4;
+            }}
+            #accordionHeader:hover {{
+                background-color: {Colors.HOVER};
+            }}
+            #accordionTitle {{
+                color: {Colors.TEXT};
                 font-size: 12px;
                 font-weight: 500;
-            }
-
-            /* Arrow indicator */
-            #accordionArrow {
-                color: #808080;
+            }}
+            #accordionArrow {{
+                color: {Colors.TEXT_MUTED};
                 font-size: 10px;
-            }
-
-            /* Content area */
-            #accordionContent {
+            }}
+            #accordionContent {{
                 background-color: transparent;
                 border: none;
-                border-top: 1px solid #3c3c3c;
-            }
+                border-top: 1px solid {Colors.BORDER};
+            }}
         """)
 
     def _update_state(self) -> None:
         """Update visual state based on expanded/collapsed."""
-        # Update arrow
         arrow = "▼" if self._expanded else "▶"
         self._arrow_label.setText(arrow)
-
-        # Show/hide content
         self._content_area.setVisible(self._expanded)
 
-        # Update border radius - when collapsed, all corners rounded
-        # When expanded, only top corners rounded (content continues below)
-        if self._expanded:
-            self._header.setStyleSheet("""
-                #accordionHeader {
-                    border-bottom-left-radius: 0px;
-                    border-bottom-right-radius: 0px;
-                }
-            """)
-        else:
-            self._header.setStyleSheet("""
-                #accordionHeader {
-                    border-bottom-left-radius: 3px;
-                    border-bottom-right-radius: 3px;
-                }
-            """)
+        # Update border radius based on state
+        radius = "0px" if self._expanded else "3px"
+        self._header.setStyleSheet(f"""
+            #accordionHeader {{
+                border-bottom-left-radius: {radius};
+                border-bottom-right-radius: {radius};
+            }}
+        """)
 
     def set_content(self, widget: QWidget) -> None:
         """Set the content widget for this section."""

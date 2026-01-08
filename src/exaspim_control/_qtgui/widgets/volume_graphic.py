@@ -22,11 +22,13 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from exaspim_control._qtgui.primitives import Colors
+
 if TYPE_CHECKING:
     from PyQt6.QtWidgets import QGraphicsSceneHoverEvent
 
     from exaspim_control._qtgui.model import InstrumentModel
-    from exaspim_control.session import AcqPlan
+    from exaspim_control.plan import AcqPlan
 
 
 # Colors for illumination indices
@@ -37,11 +39,11 @@ ILLUMINATION_COLORS = [
     QColor("#ffab40"),  # Orange - index 3
 ]
 
-INACTIVE_COLOR = QColor("#666666")
-FOV_COLOR = QColor("#ffeb3b")  # Yellow
-PATH_COLOR = QColor("#4caf50")  # Green
-BACKGROUND_COLOR = QColor("#1e1e1e")
-GRID_COLOR = QColor("#2d2d30")
+INACTIVE_COLOR = QColor(Colors.TEXT_MUTED)
+FOV_COLOR = QColor("#ffeb3b")  # Yellow - domain color
+PATH_COLOR = QColor("#4caf50")  # Green - domain color
+BACKGROUND_COLOR = QColor(Colors.BG_DARK)
+GRID_COLOR = QColor(Colors.BG_MEDIUM)
 
 
 class GridCellItem(QGraphicsRectItem):
@@ -271,12 +273,12 @@ class LimitsRectItem(QGraphicsRectItem):
 
     def _setup_appearance(self) -> None:
         # Very faint gray background
-        fill = QColor("#404040")
+        fill = QColor(Colors.HOVER)
         fill.setAlpha(15)
         self.setBrush(QBrush(fill))
 
         # Cosmetic dashed border (constant 1px)
-        pen = QPen(QColor("#444444"), 1)
+        pen = QPen(QColor(Colors.BORDER_FOCUS), 1)
         pen.setStyle(Qt.PenStyle.DashLine)
         pen.setCosmetic(True)
         self.setPen(pen)
@@ -301,16 +303,16 @@ class PositionDisplay(QWidget):
         layout.setContentsMargins(6, 4, 6, 4)
         layout.setSpacing(8)
 
-        self.setStyleSheet("""
-            PositionDisplay {
+        self.setStyleSheet(f"""
+            PositionDisplay {{
                 background-color: rgba(30, 30, 30, 200);
                 border-radius: 4px;
-            }
-            QLabel {
-                color: #aaaaaa;
+            }}
+            QLabel {{
+                color: {Colors.TEXT_MUTED};
                 font-size: 11px;
                 font-family: monospace;
-            }
+            }}
         """)
 
         # Position labels
@@ -351,27 +353,27 @@ class FloatingToolbar(QWidget):
         layout.setContentsMargins(4, 4, 4, 4)
         layout.setSpacing(2)
 
-        self.setStyleSheet("""
-            FloatingToolbar {
+        self.setStyleSheet(f"""
+            FloatingToolbar {{
                 background-color: rgba(30, 30, 30, 200);
                 border-radius: 4px;
-            }
-            QToolButton {
+            }}
+            QToolButton {{
                 background-color: transparent;
                 border: none;
                 padding: 4px 8px;
                 border-radius: 3px;
-                color: #888888;
+                color: {Colors.TEXT_MUTED};
                 font-size: 11px;
-            }
-            QToolButton:hover {
+            }}
+            QToolButton:hover {{
                 background-color: rgba(255, 255, 255, 20);
-                color: #aaaaaa;
-            }
-            QToolButton:checked {
+                color: {Colors.TEXT};
+            }}
+            QToolButton:checked {{
                 background-color: rgba(0, 120, 212, 80);
-                color: #ffffff;
-            }
+                color: {Colors.TEXT_BRIGHT};
+            }}
         """)
 
         # Grid toggle (computed borders)
@@ -760,11 +762,11 @@ class ZBarWidget(QFrame):
         self.setMinimumWidth(50)
         self.setMaximumWidth(60)
         # Subtle border matching TileGridView style
-        self.setStyleSheet("""
-            ZBarWidget {
-                border: 1px solid #2d2d30;
+        self.setStyleSheet(f"""
+            ZBarWidget {{
+                border: 1px solid {Colors.BG_MEDIUM};
                 border-radius: 2px;
-            }
+            }}
         """)
 
         # State
@@ -820,7 +822,7 @@ class ZBarWidget(QFrame):
 
         # Draw the bar outline (subtle)
         bar_rect = QRectF(bar_left, bar_top, bar_right - bar_left, bar_height)
-        painter.setPen(QPen(QColor("#3a3a3a"), 1))
+        painter.setPen(QPen(QColor(Colors.BORDER), 1))
         painter.drawRect(bar_rect)
 
         # Helper to convert Z value to Y pixel
@@ -845,7 +847,7 @@ class ZBarWidget(QFrame):
         painter.drawLine(int(bar_left - 5), int(fov_y), int(bar_right + 5), int(fov_y))
 
         # Draw Z values at bottom
-        painter.setPen(QPen(QColor("#888888")))
+        painter.setPen(QPen(QColor(Colors.TEXT_MUTED)))
         font = painter.font()
         font.setPointSize(8)
         painter.setFont(font)

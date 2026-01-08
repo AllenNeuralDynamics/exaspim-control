@@ -156,6 +156,9 @@ class Session:
         self._autosave_thread.start()
 
     # ===== Properties =====
+    @property
+    def directory(self) -> Path:
+        return self._session_dir
 
     @property
     def config_path(self) -> Path:

@@ -7,10 +7,11 @@ from typing import TYPE_CHECKING
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import QScrollArea, QVBoxLayout, QWidget
 
-from exaspim_control._qtgui.primitives.card import Card
+from exaspim_control._qtgui.primitives.containers import Card
 from exaspim_control._qtgui.widgets.devices.axis import AxisWidget
 from exaspim_control._qtgui.widgets.devices.camera import CameraWidget
 from exaspim_control._qtgui.widgets.devices.laser import LaserWidget
+from exaspim_control.instrument.instrument import InstrumentMode
 
 if TYPE_CHECKING:
     from exaspim_control._qtgui.model import InstrumentModel
@@ -20,8 +21,8 @@ class PrimaryControls(QScrollArea):
     """Self-contained widget for primary device controls.
 
     Creates and manages device widgets internally. Subscribes to
-    InstrumentModel.streamingChanged to reactively enable/disable
-    camera acquisition controls.
+    InstrumentModel.modeChanged to reactively enable/disable
+    camera acquisition controls based on instrument mode.
 
     Layout:
     - Camera card
@@ -48,8 +49,8 @@ class PrimaryControls(QScrollArea):
         # Setup UI
         self._setup_ui()
 
-        # Subscribe to streaming state for reactive camera control enable/disable
-        model.streamingChanged.connect(self._on_streaming_changed)
+        # Subscribe to mode changes for reactive camera control enable/disable
+        model.modeChanged.connect(self._on_mode_changed)
 
     def _create_stage_widgets(self) -> dict[str, AxisWidget]:
         """Create axis widgets for stage axes."""
@@ -117,6 +118,7 @@ class PrimaryControls(QScrollArea):
         self._model.stageLimitsChanged.emit(self._model.stage_limits)
         self.limitsChanged.emit()
 
-    def _on_streaming_changed(self, is_streaming: bool) -> None:
-        """Enable/disable camera acquisition controls based on streaming state."""
-        self._camera_widget.set_acquisition_controls_enabled(not is_streaming)
+    def _on_mode_changed(self, mode: InstrumentMode) -> None:
+        """Enable/disable camera acquisition controls based on instrument mode."""
+        # Only enable acquisition controls when idle (not previewing or acquiring)
+        self._camera_widget.set_acquisition_controls_enabled(mode == InstrumentMode.IDLE)

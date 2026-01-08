@@ -5,9 +5,10 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton, QScrollArea, QVBoxLayout, QWidget
+from PyQt6.QtWidgets import QHBoxLayout, QLabel, QScrollArea, QVBoxLayout, QWidget
 
-from exaspim_control._qtgui.primitives.accordion import AccordionCard
+from exaspim_control._qtgui.primitives import Colors, IconButton, Separator
+from exaspim_control._qtgui.primitives.containers import AccordionCard
 from exaspim_control._qtgui.widgets.devices.base import DeviceWidget
 
 if TYPE_CHECKING:
@@ -16,30 +17,12 @@ if TYPE_CHECKING:
     from exaspim_control._qtgui.model import DeviceAdapter, InstrumentModel
 
 
-class RefreshButton(QPushButton):
-    """Small refresh button for accordion headers."""
-
-    def __init__(self, on_click: Callable[[], None], parent: QWidget | None = None):
-        super().__init__("↻", parent)
-        self.setFixedSize(22, 22)
-        self.setToolTip("Refresh")
-        self.clicked.connect(on_click)
-        self.setStyleSheet("""
-            QPushButton {
-                background-color: transparent;
-                border: none;
-                border-radius: 3px;
-                color: #808080;
-                font-size: 14px;
-            }
-            QPushButton:hover {
-                background-color: rgba(255, 255, 255, 0.1);
-                color: #d0d0d0;
-            }
-            QPushButton:pressed {
-                background-color: rgba(255, 255, 255, 0.15);
-            }
-        """)
+def _create_refresh_button(on_click: Callable[[], None]) -> IconButton:
+    """Create a small refresh button for accordion headers."""
+    btn = IconButton(text="↻", size=22)
+    btn.setToolTip("Refresh")
+    btn.clicked.connect(on_click)
+    return btn
 
 
 class SectionHeader(QWidget):
@@ -52,19 +35,16 @@ class SectionHeader(QWidget):
         layout.setSpacing(8)
 
         label = QLabel(title)
-        label.setStyleSheet("""
-            QLabel {
-                color: #808080;
+        label.setStyleSheet(f"""
+            QLabel {{
+                color: {Colors.TEXT_MUTED};
                 font-size: 11px;
                 font-weight: bold;
-            }
+            }}
         """)
         layout.addWidget(label)
 
-        line = QFrame()
-        line.setFrameShape(QFrame.Shape.HLine)
-        line.setStyleSheet("background-color: #505050; opacity:0.5")
-        line.setFixedHeight(1)
+        line = Separator(orientation="horizontal", color=Colors.BORDER_FOCUS)
         layout.addWidget(line, stretch=1)
 
 
@@ -139,7 +119,7 @@ class DevicesExplorer(QWidget):
                 widget = DeviceWidget(adapter, parent=container)
                 self._device_widgets[f"{device_type}.{device_id}"] = widget
 
-                refresh_btn = RefreshButton(adapter.refresh)
+                refresh_btn = _create_refresh_button(adapter.refresh)
                 section = AccordionCard(
                     device_id,
                     widget,

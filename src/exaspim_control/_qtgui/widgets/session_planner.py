@@ -16,13 +16,13 @@ from PyQt6.QtWidgets import (
 )
 
 from exaspim_control._qtgui.primitives import (
+    Button,
+    CheckBox,
+    ComboBox,
+    DoubleSpinBox,
     FormBuilder,
     HStack,
-    VButton,
-    VCheckBox,
-    VComboBox,
-    VDoubleSpinBox,
-    VSpinBox,
+    SpinBox,
 )
 from exaspim_control.plan import AcqPlan, OrderMode
 
@@ -63,48 +63,48 @@ class SessionPlanner(QWidget):
         # === Create all widgets ===
 
         # Grid configuration
-        self._set_origin_btn = VButton("Set from FOV", variant="secondary")
+        self._set_origin_btn = Button("Set from FOV", variant="secondary")
 
-        self._rows = VSpinBox(min=1, max=100)
-        self._columns = VSpinBox(min=1, max=100)
+        self._rows = SpinBox(min=1, max=100)
+        self._columns = SpinBox(min=1, max=100)
 
-        self._overlap = VDoubleSpinBox(min=0.0, max=99.0, decimals=1)
+        self._overlap = DoubleSpinBox(min=0.0, max=99.0, decimals=1)
         self._overlap.setSuffix(" %")
 
-        self._order = VComboBox(items=[m.value for m in OrderMode])
+        self._order = ComboBox(items=[m.value for m in OrderMode])
 
-        self._reverse = VCheckBox()
+        self._reverse = CheckBox()
 
-        self._z_start = VDoubleSpinBox(min=-10000.0, max=10000.0, decimals=2)
+        self._z_start = DoubleSpinBox(min=-10000.0, max=10000.0, decimals=2)
 
-        self._z_start_fov_btn = VButton("FOV", variant="secondary")
+        self._z_start_fov_btn = Button("FOV", variant="secondary")
         self._z_start_fov_btn.setToolTip("Set Z start from current FOV position")
         self._z_start_fov_btn.setFixedWidth(40)
 
-        self._z_end = VDoubleSpinBox(min=-10000.0, max=10000.0, decimals=2)
+        self._z_end = DoubleSpinBox(min=-10000.0, max=10000.0, decimals=2)
 
-        self._z_end_fov_btn = VButton("FOV", variant="secondary")
+        self._z_end_fov_btn = Button("FOV", variant="secondary")
         self._z_end_fov_btn.setToolTip("Set Z end from current FOV position")
         self._z_end_fov_btn.setFixedWidth(40)
 
-        self._illum_count = VSpinBox(min=1, max=4)
+        self._illum_count = SpinBox(min=1, max=4)
 
         # Table header widgets
-        self._init_row = VSpinBox(min=0, max=99)
+        self._init_row = SpinBox(min=0, max=99)
         self._init_row.setToolTip("Starting row")
         self._init_row.setFixedWidth(50)
 
-        self._init_col = VSpinBox(min=0, max=99)
+        self._init_col = SpinBox(min=0, max=99)
         self._init_col.setToolTip("Starting column")
         self._init_col.setFixedWidth(50)
 
-        self._commit_btn = VButton("Commit", variant="primary")
+        self._commit_btn = Button("Commit", variant="primary")
         self._commit_btn.setToolTip("Lock grid configuration and create tiles")
 
-        self._clear_btn = VButton("Clear", variant="secondary")
+        self._clear_btn = Button("Clear", variant="secondary")
         self._clear_btn.setToolTip("Clear tiles and unlock grid configuration")
 
-        self._reset_btn = VButton("Reset Status", variant="secondary")
+        self._reset_btn = Button("Reset Status", variant="secondary")
         self._reset_btn.setToolTip("Reset all tiles to pending status")
 
         self._table = QTableWidget()

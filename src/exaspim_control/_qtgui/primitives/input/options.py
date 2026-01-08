@@ -3,6 +3,8 @@ from collections.abc import Callable
 
 from PyQt6.QtWidgets import QComboBox, QVBoxLayout, QWidget
 
+from exaspim_control._qtgui.primitives.colors import Colors
+
 
 class VComboBox(QComboBox):
     """A styled combobox with convenient constructor parameters.
@@ -24,6 +26,41 @@ class VComboBox(QComboBox):
             self.addItems(items)
         if value is not None:
             self.setCurrentText(value)
+        self._apply_styles()
+
+    def _apply_styles(self) -> None:
+        """Apply consistent styling to the combobox."""
+        self.setStyleSheet(f"""
+            QComboBox {{
+                background-color: {Colors.BG_MEDIUM};
+                color: {Colors.TEXT};
+                border: 1px solid {Colors.BORDER};
+                border-radius: 4px;
+                padding: 6px 12px;
+                font-size: 12px;
+                min-height: 20px;
+            }}
+            QComboBox:hover {{
+                border-color: {Colors.BORDER_LIGHT};
+            }}
+            QComboBox:focus {{
+                border-color: {Colors.ACCENT};
+            }}
+            QComboBox:disabled {{
+                color: {Colors.TEXT_DISABLED};
+                background-color: {Colors.BG_DARK};
+            }}
+            QComboBox::drop-down {{
+                border: none;
+                width: 20px;
+            }}
+            QComboBox QAbstractItemView {{
+                background-color: {Colors.BG_MEDIUM};
+                color: {Colors.TEXT};
+                border: 1px solid {Colors.BORDER};
+                selection-background-color: {Colors.ACCENT};
+            }}
+        """)
 
 
 class VSelect(QWidget):

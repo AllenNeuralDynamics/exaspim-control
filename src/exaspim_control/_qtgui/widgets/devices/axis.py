@@ -1,4 +1,4 @@
-"""Axis position widget using VLockableSlider primitive."""
+"""Axis position widget using LockableSlider primitive."""
 
 from __future__ import annotations
 
@@ -8,8 +8,7 @@ from typing import TYPE_CHECKING, Any
 from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtWidgets import QHBoxLayout, QWidget
 
-from exaspim_control._qtgui.primitives.chip import Chip
-from exaspim_control._qtgui.primitives.input import VLabel, VLockableSlider
+from exaspim_control._qtgui.primitives import Chip, Label, LockableSlider
 
 if TYPE_CHECKING:
     from voxel.interfaces.axes import Axis
@@ -20,12 +19,12 @@ if TYPE_CHECKING:
 class AxisWidget(QWidget):
     """Compact axis control widget with position display and move command slider.
 
-    Uses VLockableSlider primitive for the 3-layer track visualization:
+    Uses LockableSlider primitive for the 3-layer track visualization:
     - Actual: current position (progress bar)
     - Target: move destination (colored indicator)
     - Input: user command (white handle when unlocked)
 
-    Layout: [Label] [====VLockableSlider====] [value] [unit]
+    Layout: [Label] [====LockableSlider====] [value] [unit]
     """
 
     limitsChanged = pyqtSignal(float, float)  # (min, max) emitted when limits change
@@ -59,7 +58,7 @@ class AxisWidget(QWidget):
 
         # Create widgets
         self._name_chip = self._create_name_chip()
-        self._track = VLockableSlider(
+        self._track = LockableSlider(
             min_value=min_pos,
             max_value=max_pos,
             color="#0078d4",
@@ -90,15 +89,15 @@ class AxisWidget(QWidget):
         chip.setFixedWidth(100)
         return chip
 
-    def _create_value_label(self) -> VLabel:
+    def _create_value_label(self) -> Label:
         """Create the position value label."""
-        label = VLabel("0.00", variant="value")
+        label = Label("0.00", variant="value")
         label.setFixedWidth(60)
         return label
 
-    def _create_unit_label(self) -> VLabel:
+    def _create_unit_label(self) -> Label:
         """Create the unit label."""
-        label = VLabel(self._unit, variant="muted")
+        label = Label(self._unit, variant="muted")
         label.setFixedWidth(20)
         return label
 

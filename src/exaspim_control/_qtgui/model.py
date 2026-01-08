@@ -23,6 +23,8 @@ from voxel.preview import PreviewFrame
 if TYPE_CHECKING:
     from exaspim_control.instrument.instrument import Instrument
 
+from exaspim_control.instrument.instrument import InstrumentMode
+
 # Callback types for streaming
 type PreviewFrameSink = Callable[[PreviewFrame], None]
 type RawFrameSink = Callable[[np.ndarray, int], None]  # (frame, frame_idx)
@@ -50,7 +52,7 @@ class InstrumentModel(QObject):
     fovDimensionsChanged = pyqtSignal(list)
     stageLimitsChanged = pyqtSignal(list)
     stageMovingChanged = pyqtSignal(bool)
-    streamingChanged = pyqtSignal(bool)
+    modeChanged = pyqtSignal(InstrumentMode)
 
     def __init__(self, instrument: Instrument, parent: QObject | None = None):
         """Initialize InstrumentModel.
@@ -91,7 +93,6 @@ class InstrumentModel(QObject):
         # === Config values ===
         self._unit = self._globals.unit
         self._fov_dimensions: list[float] = list(self._calculate_fov_dimensions())
-        self._is_streaming: bool = False
 
         # Subscribe to stage adapter property updates for signal emission
         for adapter in self.stage_adapters.values():
@@ -133,15 +134,9 @@ class InstrumentModel(QObject):
         return any(a.device.is_moving for a in self.stage_adapters.values())
 
     @property
-    def is_streaming(self) -> bool:
-        """Whether camera is currently streaming."""
-        return self._is_streaming
-
-    @is_streaming.setter
-    def is_streaming(self, value: bool) -> None:
-        if value != self._is_streaming:
-            self._is_streaming = value
-            self.streamingChanged.emit(value)
+    def mode(self) -> InstrumentMode:
+        """Current operating mode of the instrument."""
+        return self._instrument.mode
 
     # === Adapter Access ===
 
@@ -174,26 +169,26 @@ class InstrumentModel(QObject):
         self._instrument.update_active_profile(profile_name)
         self.log.info(f"Profile changed to: {profile_name}")
 
-    def start_streaming(
+    def start_preview(
         self,
         on_preview: PreviewFrameSink,
         raw_frame_sink: RawFrameSink | None = None,
     ) -> None:
-        """Start camera livestream with preview callbacks.
+        """Start camera preview with callbacks.
 
         Args:
             on_preview: Callback for processed preview frames (for QLabel display)
             raw_frame_sink: Optional callback for raw frames (for napari viewer)
         """
-        self._instrument.start_livestream(on_preview=on_preview, raw_frame_sink=raw_frame_sink)
-        self.is_streaming = True
-        self.log.debug("Streaming started")
+        self._instrument.start_live_preview(on_preview=on_preview, raw_frame_sink=raw_frame_sink)
+        self.modeChanged.emit(self._instrument.mode)
+        self.log.debug("Preview started")
 
-    def stop_streaming(self) -> None:
-        """Stop camera livestream."""
-        self._instrument.stop_livestream()
-        self.is_streaming = False
-        self.log.debug("Streaming stopped")
+    def stop_preview(self) -> None:
+        """Stop camera preview."""
+        self._instrument.stop_live_preview()
+        self.modeChanged.emit(self._instrument.mode)
+        self.log.debug("Preview stopped")
 
     def take_snapshot(self) -> np.ndarray | None:
         """Capture a single frame from the camera.
