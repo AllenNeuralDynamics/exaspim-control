@@ -28,13 +28,13 @@ dependencies = [
     "psutil>=5.9.8",
     "PyVISA-py>=0.7.2",
     "pylablib-lightweight>=1.4.3",
-    "nidaqmx==1.0.0",
+    "nidaqmx>=1.3.0",
     "aaopto-aotf>=0.0.11",
     # data handling dependencies
     "h5py>=3.0.0",
     "ome-zarr-writer",
     # processing and utils dependencies
-    "opencv-python>=4.12.0.88",
+    "opencv-python-headless>=4.11.0.86",
     # "pyclesperanto>=0.8.2",
     # "scikit-image>=0.20.0",
     # "tensorstore>=0.1.56",
@@ -66,14 +66,18 @@ obis-laser = [
     "obis_laser @ git+https://github.com/AllenNeuralDynamics/obis-laser.git",
 ]
 egrabber-camera = [
-    "egrabber @ https://github.com/adamkglaser/egrabber-python/releases/download/v24.09.0.5/egrabber-24.09.0.5-py2.py3-none-any.whl",
+    "egrabber @ https://github.com/waltermwaniki/voxel-wheels/releases/download/v1/egrabber-24.09.0.5-py2.py3-none-any.whl",
 ]
-pco-camera = ["pco"]
+# pco-camera = ["pco"]
 ximea-camera = [
     "ximea-python @ https://github.com/adamkglaser/ximea-python/releases/download/v4.29.10/ximea_python-4.29.10-py3-none-any.whl",
 ]
-# optokummenberg-etl = ["optokummenberg @https://github.com/adamkglaser/optotune-icc4c/releases/download/v2.0.4922/optoKummenberg-1.0.4894-py3-none-any.whl"]
-# optoicc-etl = ["optoicc @https://github.com/adamkglaser/optotune-icc4c/releases/download/v2.0.4922/optoICC-2.0.4922-py3-none-any.whl"]
+optokummenberg-etl = [
+    "optoKummenberg @ https://github.com/waltermwaniki/voxel-wheels/releases/download/v1/optoKummenberg-1.0.4894-py3-none-any.whl",
+]
+optoicc-etl = [
+    "optoICC @ https://github.com/waltermwaniki/voxel-wheels/releases/download/v1/optoICC-2.0.4922-py3-none-any.whl",
+]
 tigerasi-controller = ["tigerasi"]
 scikit-tensor = [
     "scikit-tensor-py3 @ https://github.com/adamkglaser/scikit-tensor-py3/releases/download/v0.1.0/scikit_tensor_py3-0.4.1-py3-none-any.whl",
@@ -90,7 +94,7 @@ all = [
     "voxel[oxxius-laser]",
     "voxel[obis-laser]",
     "voxel[egrabber-camera]",
-    "voxel[pco-camera]",
+    # "voxel[pco-camera]",
     "voxel[ximea-camera]",
     "voxel[optokummenberg-etl]",
     "voxel[optoicc-etl]",
@@ -110,7 +114,3 @@ ome-zarr-writer = { git = "https://github.com/AllenNeuralDynamics/ome-zarr-write
 [build-system]
 requires = ["uv_build>=0.8.2,<0.9.0"]
 build-backend = "uv_build"
-
-
-# [tool.pyright]
-# typeCheckingMode = "standard"
