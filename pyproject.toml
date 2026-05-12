@@ -28,8 +28,8 @@ keywords = [
 dynamic = ["version"]
 
 dependencies = [
-    "voxel[all] @ git+https://github.com/AllenNeuralDynamics/voxel.git@classic",
-    "view @ git+https://github.com/AllenNeuralDynamics/view.git",
+    # "voxel[all] @ git+https://github.com/AllenNeuralDynamics/voxel-classic.git",
+    # "view @ git+https://github.com/AllenNeuralDynamics/view.git",
     "aind_data_schema >= 0.26.7",
 ]
 

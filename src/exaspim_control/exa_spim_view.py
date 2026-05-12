@@ -2,10 +2,11 @@ import time
 from datetime import datetime
 from pathlib import Path
 from typing import Iterator
-import ruamel
-import numpy as np
+
 import inflection
-from napari.qt.threading import thread_worker, create_worker
+import numpy as np
+import ruamel
+from napari.qt.threading import create_worker, thread_worker
 from napari.utils.events import Event
 from qtpy.QtCore import Qt, Signal
 from qtpy.QtWidgets import (
@@ -21,7 +22,6 @@ from qtpy.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-
 from view.acquisition_view import AcquisitionView
 from view.instrument_view import InstrumentView
 from view.widgets.acquisition_widgets.channel_plan_widget import ChannelPlanWidget
@@ -108,7 +108,6 @@ class ExASPIMInstrumentView(InstrumentView):
         Set up camera widgets.
         """
         for camera_name, camera_widget in self.camera_widgets.items():
-
             # Add functionality to snapshot button
             self.snapshot_button = getattr(camera_widget, "snapshot_button", QPushButton())
             self.snapshot_button.pressed.connect(
@@ -476,7 +475,9 @@ class ExASPIMInstrumentView(InstrumentView):
 
         for laser in self.channels[self.livestream_channel].get("lasers", []):
             self.log.info(f"Enabling laser {laser}")
+            ## KAELIN
             self.instrument.lasers[laser].enable()
+            ## KAELIN
             for child in self.laser_widget.children()[1::]:  # skip first child widget
                 laser_name = child.children()[1].text()  # first child is label widget
                 if laser != laser_name:
@@ -520,18 +521,14 @@ class ExASPIMInstrumentView(InstrumentView):
         :param camera_name: Camera name
         :type camera_name: str
         """
+
         self.instrument.cameras[camera_name].abort()
-        for _, daq in self.instrument.daqs.items():
-            # wait for daq tasks to finish - prevents devices from stopping in
-            # unsafe state, i.e. lasers still on
-            daq.co_task.stop()
-            # sleep to allow last ao to play with 10% buffer
-            time.sleep(1.0 / daq.co_frequency_hz * 1.1)
-            # stop the ao task
-            daq.ao_task.stop()
-            # close the tasks
-            daq.co_task.close()
-            daq.ao_task.close()
+
+        for laser in self.channels[self.livestream_channel].get("lasers", []):
+            self.log.info(f"Disabling laser {laser}")
+            ## KAELIN
+            self.instrument.lasers[laser].disable()
+            ## KAELIN
 
         for laser in self.channels[self.livestream_channel].get("lasers", []):
             for child in self.laser_widget.children()[1::]:  # skip first child widget
@@ -539,6 +536,19 @@ class ExASPIMInstrumentView(InstrumentView):
                 if laser != laser_name:
                     child.setDisabled(False)
                     child.children()[2].setDisabled(False)
+
+        for daq_name, daq in self.instrument.daqs.items():
+            # wait for daq tasks to finish - prevents devices from stopping in
+            # unsafe state, i.e. lasers still on
+            if daq.tasks.get("co_task", None) is not None:
+                daq.co_task.stop()
+                daq.co_task.close()
+                # sleep to allow last ao to play with 10% buffer
+                time.sleep(1.0 / daq.co_frequency_hz * 1.1)
+            # stop the ao task
+            daq.ao_task.stop()
+            # close the tasks
+            daq.ao_task.close()
 
         # TODO fix this, messy way to figure out FOV dimensions from camera properties
         if hasattr(self.instrument, "indicator_lights"):
@@ -749,7 +759,6 @@ class ExASPIMAcquisitionView(AcquisitionView):
         """
 
         if image is not None:
-
             # for binning in range(0, self.binning_levels):
             #     image = self.instrument_view.downsampler.run(image)
 
@@ -758,7 +767,7 @@ class ExASPIMAcquisitionView(AcquisitionView):
             y_center_um = image.shape[0] // 2 * pixel_size_um
             x_center_um = image.shape[1] // 2 * pixel_size_um
 
-            layer_name = f"acquisition"
+            layer_name = "acquisition"
             if layer_name in self.instrument_view.viewer.layers:
                 layer = self.instrument_view.viewer.layers[layer_name]
                 layer.data = image
