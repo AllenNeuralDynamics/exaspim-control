@@ -28,8 +28,11 @@ keywords = [
 dynamic = ["version"]
 
 dependencies = [
-    # "voxel[all] @ git+https://github.com/AllenNeuralDynamics/voxel-classic.git",
-    # "view @ git+https://github.com/AllenNeuralDynamics/view.git",
+    # voxel and view are installed separately as editable installs from sibling
+    # checkouts, e.g. `pip install -e ../voxel[all] -e ../view` before
+    # `pip install -e .` on this package.
+    "voxel[all]",
+    "view",
     "aind_data_schema >= 0.26.7",
 ]
 
