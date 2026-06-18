@@ -191,6 +191,72 @@ class MetaDataLaunchTests(unittest.TestCase):
         # Re-parse to validate it survives a v2 model round-trip.
         Acquisition.model_validate(payload)
 
+    def test_integration_write_to_temp_directory(self):
+        """
+        Integration test: generate a real acquisition.json in a temp directory for manual review.
+
+        This test writes the actual JSON artifact so you can inspect field mappings
+        end-to-end without relying on mock introspection.
+        """
+        launch = _build_metadata_launch()
+        model = launch.parse_metadata()
+
+        # Mirror the production script flow: serialize, validate_json, then write.
+        serialized = model.model_dump_json()
+        deserialized = Acquisition.model_validate_json(serialized)
+
+        output_dir = Path(__file__).parent / "output"
+        output_dir.mkdir(exist_ok=True)
+
+        deserialized.write_standard_file(output_directory=str(output_dir), prefix="test")
+        json_file = list(output_dir.glob("*acquisition.json"))[-1]  # Get latest
+
+        # Load and validate the JSON
+        with open(json_file, "r", encoding="utf-8") as f:
+            payload = json.load(f)
+
+        # Spot-check key v2 fields
+        self.assertEqual(payload["schema_version"], "2.5.2")
+        self.assertEqual(payload["object_type"], "Acquisition")
+        self.assertEqual(payload["subject_id"], "123")
+        self.assertEqual(payload["specimen_id"], "123")
+        self.assertEqual(payload["acquisition_type"], "ExASPIM")
+        self.assertIn("data_streams", payload)
+        self.assertEqual(len(payload["data_streams"]), 1)
+
+        # Validate the coordinate_system mapping (X/Y swap preserved from v0.x)
+        cs = payload["coordinate_system"]
+        self.assertEqual(cs["name"], "ExASPIM-XYZ")
+        axes_by_name = {ax["name"]: ax["direction"] for ax in cs["axes"]}
+        self.assertEqual(axes_by_name["X"], "Inferior_to_superior")  # y_anatomical_direction
+        self.assertEqual(axes_by_name["Y"], "Anterior_to_posterior")  # x_anatomical_direction
+        self.assertEqual(axes_by_name["Z"], "Left_to_right")
+
+        # Validate DataStream structure
+        stream = payload["data_streams"][0]
+        self.assertEqual(stream["object_type"], "Data stream")
+        self.assertEqual(len(stream["modalities"]), 1)
+        self.assertEqual(stream["modalities"][0]["abbreviation"], "SPIM")
+        self.assertGreater(len(stream["active_devices"]), 0)
+        self.assertEqual(len(stream["configurations"]), 2)  # ImagingConfig + SampleChamberConfig
+
+        # Validate ImagingConfig structure
+        configs_by_type = {cfg["object_type"]: cfg for cfg in stream["configurations"]}
+        imaging = configs_by_type["Imaging config"]
+        self.assertEqual(len(imaging["channels"]), 1)
+        self.assertEqual(imaging["channels"][0]["channel_name"], "CH639")
+        self.assertEqual(len(imaging["images"]), 1)
+        image = imaging["images"][0]
+        self.assertIn("tile_000000_ch_CH639.ims", image["file_name"])
+
+        # Validate SampleChamberConfig structure
+        chamber = configs_by_type["Sample chamber config"]
+        self.assertEqual(chamber["chamber_immersion"]["medium"], "oil")
+        self.assertAlmostEqual(chamber["chamber_immersion"]["refractive_index"], 1.33)
+
+        # Print location for manual inspection
+        print(f"\n✓ Integration test: acquisition.json written to {json_file}")
+
 
 if __name__ == "__main__":
     unittest.main()
