@@ -17,18 +17,19 @@ from aind_data_schema.components.configs import (
     SampleChamberConfig,
     TriggerType,
 )
-from aind_data_schema.components.coordinates import (
-    Axis,
-    CoordinateSystem,
-    Scale,
-    Translation,
-)
+from aind_data_schema.components.coordinates import Scale, Translation
 from aind_data_schema.components.wrappers import AssetPath
 from aind_data_schema.core.acquisition import Acquisition, DataStream
-from aind_data_schema_models.coordinates import AxisName, Direction, Origin
+from aind_data_schema.core.instrument import Instrument
+from aind_data_schema_models.coordinates import Direction
 from aind_data_schema_models.devices import ImmersionMedium
 from aind_data_schema_models.modalities import Modality
-from aind_data_schema_models.units import PowerUnit, SizeUnit
+from aind_data_schema_models.units import PowerUnit
+
+from exaspim_control.instrument_metadata import (
+    build_instrument as _build_instrument,
+    _build_coordinate_system,
+)
 
 if TYPE_CHECKING:  # pragma: no cover - type-only imports avoid voxel/view at runtime
     from exaspim_control.exa_spim_acquisition import ExASPIMAcquisition
@@ -147,6 +148,10 @@ class MetadataLaunch:
                     save_to = str(Path(transfer.external_path, transfer.acquisition_name))
                     acquisition_model = self.parse_metadata()
                     acquisition_model.write_standard_file(output_directory=save_to, prefix=None)
+                    instrument_model = self.parse_instrument(
+                        coordinate_system=acquisition_model.coordinate_system
+                    )
+                    instrument_model.write_standard_file(output_directory=save_to, prefix=None)
                     # move the log file
                     self.log.info(f"copying {self.log_filename} to {save_to}")
                     shutil.copy(
@@ -182,6 +187,10 @@ class MetadataLaunch:
                     save_to = str(Path(writer.path, writer.acquisition_name))
                     acquisition_model = self.parse_metadata()
                     acquisition_model.write_standard_file(output_directory=save_to, prefix="exaspim")
+                    instrument_model = self.parse_instrument(
+                        coordinate_system=acquisition_model.coordinate_system
+                    )
+                    instrument_model.write_standard_file(output_directory=save_to, prefix="exaspim")
                     # move the log file
                     self.log.info(f"copying {self.log_filename} to {save_to}")
                     shutil.copy(
@@ -217,18 +226,8 @@ class MetadataLaunch:
         start_time = _ensure_aware(self.acquisition_start_time)
         end_time = _ensure_aware(self.acquisition_end_time)
 
-        # Original v0.x layout had X/Y axes pulling from y/x anatomical directions respectively
-        # (a deliberate swap). Preserve that mapping when constructing the v2 CoordinateSystem.
-        coordinate_system = CoordinateSystem(
-            name=f"{acquisition_type}-XYZ",
-            origin=Origin.ORIGIN,
-            axes=[
-                Axis(name=AxisName.X, direction=_to_direction(getattr(meta, "y_anatomical_direction", None))),
-                Axis(name=AxisName.Y, direction=_to_direction(getattr(meta, "x_anatomical_direction", None))),
-                Axis(name=AxisName.Z, direction=_to_direction(getattr(meta, "z_anatomical_direction", None))),
-            ],
-            axis_unit=SizeUnit.UM,
-        )
+        # Shared helper keeps the Acquisition and Instrument coordinate systems in sync.
+        coordinate_system = _build_coordinate_system(meta, system_name=f"{acquisition_type}-XYZ")
 
         chamber_immersion = _build_immersion(getattr(meta, "chamber_immersion", None))
         sample_chamber = SampleChamberConfig(
@@ -322,4 +321,24 @@ class MetadataLaunch:
             notes=notes,
             coordinate_system=coordinate_system,
             data_streams=[data_stream],
+        )
+
+    def parse_instrument(self, *, coordinate_system=None) -> Instrument:
+        """Build an aind-data-schema v2 :class:`Instrument` from the live instrument state.
+
+        Parameters
+        ----------
+        coordinate_system : CoordinateSystem, optional
+            Reuse the coordinate system from the matching :class:`Acquisition` so the two
+            JSON files agree. Built from metadata if not supplied.
+
+        Returns
+        -------
+        Instrument
+            A populated v2 :class:`Instrument` model ready for ``write_standard_file``.
+        """
+        return _build_instrument(
+            self.instrument,
+            self.acquisition.metadata,
+            coordinate_system=coordinate_system,
         )

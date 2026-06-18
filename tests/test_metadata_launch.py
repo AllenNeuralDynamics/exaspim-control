@@ -257,6 +257,44 @@ class MetaDataLaunchTests(unittest.TestCase):
         # Print location for manual inspection
         print(f"\n✓ Integration test: acquisition.json written to {json_file}")
 
+    def test_parse_instrument_returns_v2_instrument(self):
+        """Smoke test: ``MetadataLaunch.parse_instrument`` returns a populated v2 Instrument.
+
+        Exhaustive coverage of the device-mapping logic lives in
+        ``test_instrument_metadata.py``; this only verifies the wiring through
+        ``MetadataLaunch``.
+        """
+        from aind_data_schema.core.instrument import Instrument
+
+        launch = _build_metadata_launch()
+        # The mocked instrument in this module exposes a minimal ``config["instrument"]``
+        # with just ``channels``; attach a tiny ``devices`` block so the walker has work to do.
+        launch.instrument.config["instrument"]["devices"] = {
+            "639 nm": {
+                "type": "laser",
+                "driver": "voxel.devices.laser.oxxius.lbx",
+                "init": {"wavelength": 639},
+            },
+            "vp-151mx": {
+                "type": "camera",
+                "driver": "voxel.devices.camera.vieworks.egrabber",
+                "properties": {"sensor_width_px": 14192, "sensor_height_px": 10640},
+            },
+            "z": {
+                "type": "scanning_stage",
+                "driver": "voxel.devices.stage.asi.tiger",
+                "init": {"instrument_axis": "z"},
+            },
+        }
+        instrument_model = launch.parse_instrument()
+        self.assertIsInstance(instrument_model, Instrument)
+        self.assertEqual(instrument_model.instrument_id, "exaspim123")
+        self.assertEqual([m.abbreviation for m in instrument_model.modalities], ["SPIM"])
+        names = {c.name for c in instrument_model.components}
+        self.assertIn("639 nm", names)
+        self.assertIn("vp-151mx", names)
+        self.assertIn("z", names)
+
 
 if __name__ == "__main__":
     unittest.main()
