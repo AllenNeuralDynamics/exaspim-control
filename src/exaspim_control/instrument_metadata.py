@@ -15,21 +15,26 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import TYPE_CHECKING, Any, Callable, Iterator
 
-from aind_data_schema.components.coordinates import Axis, CoordinateSystem
+from aind_data_schema.components.connections import Connection
+from aind_data_schema.components.coordinates import CoordinateSystem, CoordinateSystemLibrary
 from aind_data_schema.components.devices import (
     Camera,
+    Computer,
+    DAQChannel,
     DAQDevice,
     Detector,
     Device,
     Filter,
     Laser,
+    Microscope,
     MotorizedStage,
     Objective,
     ScanningStage,
 )
 from aind_data_schema.core.instrument import Instrument
-from aind_data_schema_models.coordinates import AxisName, Direction, Origin
+from aind_data_schema_models.coordinates import AxisName
 from aind_data_schema_models.devices import (
+    DaqChannelType,
     DataInterface,
     DetectorType,
     FilterType,
@@ -38,30 +43,10 @@ from aind_data_schema_models.devices import (
 )
 from aind_data_schema_models.modalities import Modality
 from aind_data_schema_models.organizations import Organization
-from aind_data_schema_models.units import SizeUnit
+from aind_data_schema_models.units import FrequencyUnit
 
 if TYPE_CHECKING:  # pragma: no cover - type-only imports avoid voxel at runtime
     from exaspim_control.exa_spim_instrument import ExASPIM
-
-
-# ---------------------------------------------------------------------------
-# Direction map (mirrors metadata_launch._DIRECTION_MAP). Duplicated here so
-# this module has no dependency back on metadata_launch.
-# ---------------------------------------------------------------------------
-_DIRECTION_MAP: dict[str, Direction] = {
-    "Anterior to Posterior": Direction.AP,
-    "Anterior_to_posterior": Direction.AP,
-    "Posterior to Anterior": Direction.PA,
-    "Posterior_to_anterior": Direction.PA,
-    "Inferior to Superior": Direction.IS,
-    "Inferior_to_superior": Direction.IS,
-    "Superior to Inferior": Direction.SI,
-    "Superior_to_inferior": Direction.SI,
-    "Left to Right": Direction.LR,
-    "Left_to_right": Direction.LR,
-    "Right to Left": Direction.RL,
-    "Right_to_left": Direction.RL,
-}
 
 
 # ---------------------------------------------------------------------------
@@ -70,12 +55,14 @@ _DIRECTION_MAP: dict[str, Direction] = {
 # token to an :class:`Organization`. Fallback is ``Organization.OTHER``.
 # ---------------------------------------------------------------------------
 _VENDOR_TOKEN_TO_ORG: dict[str, Organization] = {
-    "oxxius": Organization.from_name("Oxxius"),
-    "asi": Organization.from_name("Applied Scientific Instrumentation"),
-    "vieworks": Organization.from_name("Vieworks"),
-    "thorlabs": Organization.from_name("Thorlabs"),
-    "ni": Organization.from_name("National Instruments"),
-    "national_instruments": Organization.from_name("National Instruments"),
+    "oxxius": Organization.OXXIUS,
+    "asi": Organization.ASI,
+    "vieworks": Organization.VIEWORKS,
+    "thorlabs": Organization.THORLABS,
+    "ni": Organization.NATIONAL_INSTRUMENTS,
+    "national_instruments": Organization.NATIONAL_INSTRUMENTS,
+    "optotune": Organization.OPTOTUNE,
+    "chroma": Organization.CHROMA,
 }
 
 
@@ -99,9 +86,7 @@ def _resolve_organization(driver_or_name: Any) -> Organization:
     for token, org in _VENDOR_TOKEN_TO_ORG.items():
         if token in text:
             return org
-    # Allow callers to pass a literal organization name as a last resort.
-    looked_up = Organization.from_name(str(driver_or_name))
-    return looked_up if looked_up is not None else Organization.OTHER
+    return Organization.OTHER
 
 
 _PRIMITIVES: tuple[type, ...] = (int, float, str, bool, bytes)
@@ -163,36 +148,6 @@ def _common_kwargs(name: str, voxel_device: Any, spec: dict[str, Any]) -> dict[s
         "manufacturer": manufacturer,
         "model": str(model) if model is not None else None,
     }
-
-
-# ---------------------------------------------------------------------------
-# Coordinate system (shared between Acquisition and Instrument JSONs)
-# ---------------------------------------------------------------------------
-def _to_direction(value: Any) -> Direction | None:
-    """Coerce a GUI string or :class:`Direction` enum into a :class:`Direction`."""
-    if value is None:
-        return None
-    if isinstance(value, Direction):
-        return value
-    return _DIRECTION_MAP.get(str(value)) or Direction(str(value))
-
-
-def _build_coordinate_system(metadata: Any, *, system_name: str = "ExASPIM-XYZ") -> CoordinateSystem:
-    """Build the v2 :class:`CoordinateSystem` from anatomical-direction metadata.
-
-    Preserves the original ExASPIM v0.x convention: the X axis pulls from
-    ``y_anatomical_direction`` and the Y axis from ``x_anatomical_direction``.
-    """
-    return CoordinateSystem(
-        name=system_name,
-        origin=Origin.ORIGIN,
-        axes=[
-            Axis(name=AxisName.X, direction=_to_direction(getattr(metadata, "y_anatomical_direction", None))),
-            Axis(name=AxisName.Y, direction=_to_direction(getattr(metadata, "x_anatomical_direction", None))),
-            Axis(name=AxisName.Z, direction=_to_direction(getattr(metadata, "z_anatomical_direction", None))),
-        ],
-        axis_unit=SizeUnit.UM,
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -268,13 +223,36 @@ def _build_filter(name: str, device: Any, spec: dict[str, Any]) -> Filter:
 
 
 def _build_daq(name: str, device: Any, spec: dict[str, Any]) -> DAQDevice:
-    """Build a :class:`DAQDevice` from a voxel DAQ description."""
+    """Build a :class:`DAQDevice` from a voxel DAQ description.
+
+    Channels are emitted from ``properties.tasks.<task_name>.ports.<port_name>``: the
+    ``port`` value (e.g., ``"ao16"``) becomes ``DAQChannel.channel_name`` and the channel
+    type is inferred from the prefix (``ao``→AO, ``ai``→AI, ``do``→DO, ``di``→DI).
+    """
     common = _common_kwargs(name, device, spec)
     if common["manufacturer"] == Organization.OTHER:
-        common["manufacturer"] = Organization.from_name("National Instruments")
+        common["manufacturer"] = Organization.NATIONAL_INSTRUMENTS
+
+    channels: list[DAQChannel] = []
+    tasks = (spec.get("properties") or {}).get("tasks") or {}
+    for task in tasks.values():
+        for port_spec in (task or {}).get("ports", {}).values():
+            port_id = (port_spec or {}).get("port")
+            if not isinstance(port_id, str):
+                continue
+            channels.append(
+                DAQChannel(
+                    channel_name=port_id,
+                    channel_type=_DAQ_PORT_TYPE_BY_PREFIX.get(port_id[:2].lower(), DaqChannelType.AO),
+                    sample_rate=10000,
+                    sample_rate_unit=FrequencyUnit.HZ,
+                )
+            )
+
     return DAQDevice(
         **common,
         data_interface=DataInterface.PCIE,
+        channels=channels,
     )
 
 
@@ -310,25 +288,78 @@ _DISPATCH: dict[str, Callable[[str, Any, dict[str, Any]], Any]] = {
 }
 
 
-# ---------------------------------------------------------------------------
-# Synthetic objective (SPIM modality requires one)
-# ---------------------------------------------------------------------------
-_SYNTHETIC_OBJECTIVE_NOTES = (
-    "Placeholder objective synthesized to satisfy SPIM modality validation; "
-    "supply an 'objective' device in the instrument YAML to override."
-)
+_DAQ_PORT_TYPE_BY_PREFIX: dict[str, DaqChannelType] = {
+    "ao": DaqChannelType.AO,
+    "ai": DaqChannelType.AI,
+    "do": DaqChannelType.DO,
+    "di": DaqChannelType.DI,
+}
 
 
-def _build_default_objective() -> Objective:
-    """Return a synthetic :class:`Objective` used when no objective is configured."""
+# ---------------------------------------------------------------------------
+# Curated components — these don't live in the YAML and don't differ per rig.
+# Each is added by :func:`build_instrument` only if the YAML walker did not
+# already produce a component of the same kind.
+# ---------------------------------------------------------------------------
+def _curated_objective() -> Objective:
+    """Return the canonical ExASPIM objective (JM_DIAMOND 5.0X)."""
     return Objective(
         name="exaspim-objective",
-        manufacturer=Organization.OTHER,
         numerical_aperture=0.305,
         magnification=5,
         immersion=ImmersionMedium.OIL,
-        notes=_SYNTHETIC_OBJECTIVE_NOTES,
+        manufacturer=Organization.OTHER,
+        model="JM_DIAMOND 5.0X/1.3",
+        notes="Manufacturer collaboration between Schneider-Kreuznach and Vieworks.",
     )
+
+
+def _curated_filter() -> Filter:
+    """Return the canonical ExASPIM multiband fluorescence filter."""
+    return Filter(
+        name="multiband-filter",
+        filter_type=FilterType.MULTIBAND,
+        manufacturer=Organization.CHROMA,
+        model="ZET405/488/561/640mv2",
+        center_wavelength=[405, 488, 561, 640],
+        notes="Custom multiband filter.",
+    )
+
+
+def _curated_microscope() -> Microscope:
+    """Return the canonical ExASPIM microscope chassis component."""
+    return Microscope(name="exaspim-microscope", manufacturer=Organization.AI)
+
+
+def _curated_computer() -> Computer:
+    """Return the canonical ExASPIM control computer component."""
+    return Computer(name="exaspim-pc")
+
+
+# ---------------------------------------------------------------------------
+# Connection generation: opportunistically link DAQ ports to components whose
+# names match the YAML port keys (e.g. DAQ port "405 nm" → laser "405 nm").
+# ---------------------------------------------------------------------------
+def _build_connections(devices_yaml: dict[str, Any], component_names: set[str]) -> list[Connection]:
+    """Emit a :class:`Connection` for every DAQ port whose name matches a component."""
+    connections: list[Connection] = []
+    for daq_name, spec in devices_yaml.items():
+        if not isinstance(spec, dict) or spec.get("type") != "daq":
+            continue
+        tasks = (spec.get("properties") or {}).get("tasks") or {}
+        for task in tasks.values():
+            for port_name, port_spec in (task or {}).get("ports", {}).items():
+                if port_name not in component_names:
+                    continue
+                port_id = (port_spec or {}).get("port")
+                connections.append(
+                    Connection(
+                        source_device=daq_name,
+                        source_port=str(port_id) if port_id is not None else None,
+                        target_device=port_name,
+                    )
+                )
+    return connections
 
 
 # ---------------------------------------------------------------------------
@@ -390,12 +421,12 @@ def build_instrument(
         walked to discover devices, and live device objects are mined for attributes.
     metadata : Any
         The :class:`AINDMetadataClass` (or compatible) object exposing ``instrument_id``,
-        anatomical-direction strings, and optional ``modification_date``/``location``/``notes``.
+        and optional ``modification_date`` / ``location`` / ``notes``.
     modalities : list[Modality], optional
         Override modalities. Defaults to ``[Modality.SPIM]``.
     coordinate_system : CoordinateSystem, optional
-        Reuse an existing coordinate system (e.g., from the matching ``Acquisition``) so
-        the two JSON files agree. Built from ``metadata`` if not supplied.
+        Override the coordinate system. Defaults to
+        :attr:`CoordinateSystemLibrary.SPIM_RPI`, the canonical SPIM convention.
 
     Returns
     -------
@@ -420,9 +451,15 @@ def build_instrument(
         components.append(component)
         seen_names.add(name)
 
-    # SPIM modality requires an Objective component; synthesize a placeholder if absent.
+    # Append curated components when the YAML didn't already supply one of the same kind.
     if not any(isinstance(c, Objective) for c in components):
-        components.append(_build_default_objective())
+        components.append(_curated_objective())
+    if not any(isinstance(c, Filter) for c in components):
+        components.append(_curated_filter())
+    if not any(isinstance(c, Microscope) for c in components):
+        components.append(_curated_microscope())
+    if not any(isinstance(c, Computer) for c in components):
+        components.append(_curated_computer())
 
     # SPIM modality also requires at least one Detector and ScanningStage, which the
     # walker emits naturally for the canonical ExASPIM YAML.
@@ -432,13 +469,18 @@ def build_instrument(
         "id", "unknown-instrument"
     )
 
+    component_names = {getattr(c, "name", None) for c in components}
+    component_names.discard(None)
+    connections = _build_connections(devices_yaml, component_names)
+
     return Instrument(
         instrument_id=str(instrument_id),
         modification_date=_coerce_date(getattr(metadata, "modification_date", None)),
         modalities=list(modalities or [Modality.SPIM]),
-        coordinate_system=coordinate_system or _build_coordinate_system(metadata),
+        coordinate_system=coordinate_system or CoordinateSystemLibrary.SPIM_RPI,
         location=_attr(metadata, "location"),
         temperature_control=_attr(metadata, "temperature_control"),
         notes=_attr(metadata, "notes"),
         components=components,
+        connections=connections,
     )

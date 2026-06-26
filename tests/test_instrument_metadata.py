@@ -153,7 +153,7 @@ class ResolveOrganizationTests(unittest.TestCase):
         """Driver paths containing a known vendor token resolve to the matching Organization."""
         self.assertEqual(
             _resolve_organization("voxel.devices.laser.oxxius.lbx"),
-            Organization.from_name("Oxxius"),
+            Organization.OXXIUS,
         )
 
     def test_unknown_returns_other(self):
@@ -245,15 +245,17 @@ class BuildInstrumentTests(unittest.TestCase):
         instrument = self._build()
         daqs = [c for c in instrument.components if isinstance(c, DAQDevice)]
         self.assertEqual([d.name for d in daqs], ["pcie-6738"])
-        self.assertEqual(daqs[0].manufacturer, Organization.from_name("National Instruments"))
+        self.assertEqual(daqs[0].manufacturer, Organization.NATIONAL_INSTRUMENTS)
+        # Channels are emitted from YAML ``properties.tasks.*.ports``.
+        self.assertGreater(len(daqs[0].channels), 0)
 
-    def test_synthetic_objective_added_when_missing(self):
-        """SPIM modality requires Objective; one is synthesized when YAML lacks one."""
+    def test_curated_objective_added_when_missing(self):
+        """SPIM modality requires Objective; the curated ExASPIM objective is added when YAML lacks one."""
         instrument = self._build()
         objectives = [c for c in instrument.components if isinstance(c, Objective)]
         self.assertEqual(len(objectives), 1)
         self.assertEqual(objectives[0].name, "exaspim-objective")
-        self.assertIn("Placeholder objective", objectives[0].notes or "")
+        self.assertEqual(objectives[0].model, "JM_DIAMOND 5.0X/1.3")
 
     def test_unknown_device_type_falls_back_to_generic_device(self):
         """A device with an unrecognised type becomes a generic ``Device`` with a notes line."""
@@ -317,12 +319,34 @@ class BuildInstrumentTests(unittest.TestCase):
         self.assertEqual(payload["instrument_id"], "exaspim-1x")
         self.assertEqual(len(payload["modalities"]), 1)
         self.assertEqual(payload["modalities"][0]["abbreviation"], "SPIM")
+        # Default coordinate system is the canonical SPIM_RPI from aind-data-schema.
+        self.assertEqual(payload["coordinate_system"]["name"], "SPIM_RPI")
         # Expected components: 4 lasers, 1 camera, 1 scanning stage, 2 tiling, 2 focusing,
-        # 1 daq, 1 flip mount, 1 indicator light, 2 controllers (generic), 1 synthetic objective.
-        self.assertGreaterEqual(len(payload["components"]), 15)
+        # 1 daq, 1 flip mount, 1 indicator light, 2 controllers (generic), plus curated
+        # objective + multiband filter + microscope + computer.
+        self.assertGreaterEqual(len(payload["components"]), 18)
         names = {c["name"] for c in payload["components"]}
-        for required in ("405 nm", "488 nm", "561 nm", "639 nm", "vnp-604mx", "z", "exaspim-objective"):
+        for required in (
+            "405 nm",
+            "488 nm",
+            "561 nm",
+            "639 nm",
+            "vnp-604mx",
+            "z",
+            "exaspim-objective",
+            "multiband-filter",
+            "exaspim-microscope",
+            "exaspim-pc",
+        ):
             self.assertIn(required, names)
+        # DAQ channels were generated from YAML ``properties.tasks.*.ports``.
+        daq_payload = next(c for c in payload["components"] if c["name"] == "pcie-6738")
+        self.assertGreater(len(daq_payload["channels"]), 0)
+        # At least one Connection is generated for DAQ ports whose name matches a component
+        # (e.g. "405 nm", "488 nm", ...).
+        self.assertGreater(len(payload["connections"]), 0)
+        connection_targets = {c["target_device"] for c in payload["connections"]}
+        self.assertIn("405 nm", connection_targets)
         print(f"\n\u2713 Integration test: instrument.json written to {json_file}")
 
 

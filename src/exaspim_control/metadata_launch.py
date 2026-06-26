@@ -17,19 +17,21 @@ from aind_data_schema.components.configs import (
     SampleChamberConfig,
     TriggerType,
 )
-from aind_data_schema.components.coordinates import Scale, Translation
+from aind_data_schema.components.coordinates import (
+    Axis,
+    CoordinateSystem,
+    Scale,
+    Translation,
+)
 from aind_data_schema.components.wrappers import AssetPath
 from aind_data_schema.core.acquisition import Acquisition, DataStream
 from aind_data_schema.core.instrument import Instrument
-from aind_data_schema_models.coordinates import Direction
+from aind_data_schema_models.coordinates import AxisName, Direction, Origin
 from aind_data_schema_models.devices import ImmersionMedium
 from aind_data_schema_models.modalities import Modality
-from aind_data_schema_models.units import PowerUnit
+from aind_data_schema_models.units import PowerUnit, SizeUnit
 
-from exaspim_control.instrument_metadata import (
-    build_instrument as _build_instrument,
-    _build_coordinate_system,
-)
+from exaspim_control.instrument_metadata import build_instrument as _build_instrument
 
 if TYPE_CHECKING:  # pragma: no cover - type-only imports avoid voxel/view at runtime
     from exaspim_control.exa_spim_acquisition import ExASPIMAcquisition
@@ -66,6 +68,24 @@ def _to_direction(value: Any) -> Direction | None:
     if isinstance(value, Direction):
         return value
     return _DIRECTION_MAP.get(str(value)) or Direction(str(value))
+
+
+def _build_coordinate_system(metadata: Any, *, system_name: str = "ExASPIM-XYZ") -> CoordinateSystem:
+    """Build the v2 :class:`CoordinateSystem` for an Acquisition from anatomical-direction metadata.
+
+    Preserves the original ExASPIM v0.x convention: the X axis pulls from
+    ``y_anatomical_direction`` and the Y axis from ``x_anatomical_direction``.
+    """
+    return CoordinateSystem(
+        name=system_name,
+        origin=Origin.ORIGIN,
+        axes=[
+            Axis(name=AxisName.X, direction=_to_direction(getattr(metadata, "y_anatomical_direction", None))),
+            Axis(name=AxisName.Y, direction=_to_direction(getattr(metadata, "x_anatomical_direction", None))),
+            Axis(name=AxisName.Z, direction=_to_direction(getattr(metadata, "z_anatomical_direction", None))),
+        ],
+        axis_unit=SizeUnit.UM,
+    )
 
 
 def _ensure_aware(value: Any) -> datetime:
