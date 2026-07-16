@@ -239,8 +239,8 @@ class MetadataLaunch:
         """
         meta = self.acquisition.metadata
         subject_id = str(getattr(meta, "subject_id", ""))
-        instrument_id = getattr(meta, "instrument_id", "") or ""
-        experimenters = list(getattr(meta, "experimenter_full_name", []) or [])
+        instrument_id = self.instrument.config["instrument"]["id"] or ""
+        experimenters = [str(getattr(meta, "experimenter_full_name", "") or "")]
         acquisition_type = _DEFAULT_ACQUISITION_TYPE
         notes = getattr(meta, "notes", None)
 
