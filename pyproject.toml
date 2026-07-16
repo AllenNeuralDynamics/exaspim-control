@@ -1,7 +1,7 @@
 [project]
 name = "exaspim-control"
 description = "Control software for the ExaSPIM microscope"
-requires-python = ">=3.13, <3.14"
+requires-python = ">=3.10, <3.12"
 authors = [
     { name = "Micah Woodard", email = "micah.woodard@alleninstitute.org" },
     { name = "Adam Glaser", email = "adam.glaser@alleninstitute.org" },
@@ -25,61 +25,57 @@ keywords = [
     "microscope",
     "imaging",
 ]
-version = "0.1.0"
+dynamic = ["version"]
 
 dependencies = [
+    "voxel[all] @ git+https://github.com/AllenNeuralDynamics/voxel.git@classic",
+    "view @ git+https://github.com/AllenNeuralDynamics/view.git",
     "aind_data_schema >= 0.26.7",
-    "rich>=14.2.0",
-    "voxel[all]",
-    "ruyaml>=0.91.0",
-    "pydantic>=2.11.10",
-    # processing
-    "opencv-python-headless>=4.11.0.86",
-    "gputools",
-    # gui
-    "pyqt6>=6.10.1",
-    "pyqtgraph>=0.14.0",
-    "napari>=0.6.6",
 ]
 
-[dependency-groups]
-dev = ["pytest>=8.2.1", "coverage", "ruff"]
-
-
-[tool.uv.sources]
-"voxel" = { workspace = true }
-"gputools" = { path = "./vendor/gputools-src", editable = true }
-
-[project.scripts]
-"exaspim" = "exaspim_control.app:main"
+[project.optional-dependencies]
+"dev" = ["black", "isort", "flake8"]
 
 [project.urls]
 "Homepage" = "https://github.com/AllenNeuralDynamics/exaspim-control"
 
+[project.scripts]
+"exaspim" = "exaspim_control.app:cli"
+
 [build-system]
-requires = ["uv_build>=0.8.2,<0.9.0"]
-build-backend = "uv_build"
+requires = ["setuptools", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
 
-[tool.uv.workspace]
-members = ["voxel"]
+[tool.setuptools]
+package-dir = { "" = "src" }
+packages = ["exaspim_control"]
 
-[tool.pyright]
-typeCheckingMode = "standard"
-ignore = ["**/sdks/**", "**/sdk/**", "vendor/**", "voxel/**/io/**"]
+[tool.setuptools.dynamic]
+version = { attr = "exaspim_control.__version__" }
 
-[tool.coverage.run]
-omit = ["*__init__*"]
-source = ["voxel", "tests"]
+[tool.black]
+line-length = 120
+target-version = ["py310"]
+exclude = '''
+(
+    /(
+        \.eggs         # exclude a few common directories in the
+      | \.git          # root of the project
+      | \.hg
+      | \.mypy_cache
+      | \.pytest_cache
+      | \.tox
+      | \.venv
+      | __pycache__
+      | _build
+      | build
+      | dist
+    )/
+    | .gitignore
+    | \.pyi?$
+    | \.yaml$
+)'''
 
-[tool.coverage.report]
-exclude_lines = [
-    "if __name__ == .__main__.:",
-    "from",
-    "import",
-    "pragma: no cover",
-]
-fail_under = 100
-
-[tool.interrogate]
-exclude = ["setup.py", "docs", "build"]
-fail_under = 100
+[tool.isort]
+line_length = 120
+profile = "black"

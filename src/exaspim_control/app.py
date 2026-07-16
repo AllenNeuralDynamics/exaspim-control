@@ -1,30 +1,55 @@
-"""ExASPIM Control application launcher."""
-
-import sys
+"""
+CLI Application for exaspim control and testing.
+"""
 
 import click
 
-from exaspim_control._qtgui.main import run_app
 
-# Windows taskbar icon fix: set AppUserModelID before creating any Qt windows
-# This ensures Windows groups all application windows together with the correct icon
-# if sys.platform == "win32":
-#     import ctypes
+@click.group(invoke_without_command=True)
+@click.pass_context
+@click.option("--simulated", "-s", is_flag=True, help="Launch the simulated ExASPIM application.")
+def cli(ctx: click.Context, simulated: bool) -> None:
+    """
+    CLI for controlling and testing ExASPIM.
 
-#     APP_ID = "aind.exaspim-control.1.0"
-#     ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(APP_ID)
+    :param ctx: Click context
+    :type ctx: click.Context
+    :param simulated: Flag to launch the simulated ExASPIM application
+    :type simulated: bool
+    """
+    if ctx.invoked_subcommand is None:
+        ctx.invoke(launch, simulated=simulated)
 
 
-@click.command()
-@click.argument("session_path", required=False, type=click.Path())
-def main(session_path: str | None) -> None:
-    """Launch ExASPIM Control.
+@cli.command()
+@click.argument("config_path", type=click.Path(exists=True), required=False)
+@click.option("--simulated", "-s", is_flag=True, help="Launch the simulated ExASPIM application.")
+def launch(config_path: str, simulated: bool) -> None:
+    """
+    Launch the ExASPIM application.
 
-    SESSION_PATH: Optional path to session directory (pre-fills launcher).
+    :param config_path: Path to the configuration file
+    :type config_path: str
+    :param simulated: Flag to launch the simulated ExASPIM application
+    :type simulated: bool
     """
 
-    sys.exit(run_app(initial_path=session_path))
+    def launch_simulated() -> None:
+        """
+        Launch the simulated ExASPIM application.
+        """
+        from exaspim_control.simulated.main import launch_simulated_exaspim
+
+        launch_simulated_exaspim()
+
+    if simulated:
+        launch_simulated()
+    else:
+        click.echo(f"Exaspim config path: {config_path}")
+        click.echo("Not yet implemented.")
+        click.echo("Launching simulated ExASPIM instead.")
+        launch_simulated()
 
 
 if __name__ == "__main__":
-    main()
+    cli()

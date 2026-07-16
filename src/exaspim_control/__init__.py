@@ -1,6 +1,3 @@
 """exa-spim-control repository."""
 
-import warnings
-
-# Suppress PyOpenCL compiler warnings
-warnings.filterwarnings("ignore", category=UserWarning, module="pyopencl")
+__version__ = "0.1.0"

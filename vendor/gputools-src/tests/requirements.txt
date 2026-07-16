@@ -1,3 +1,0 @@
-pytest
-scikit-image>0.16
-termcolor
