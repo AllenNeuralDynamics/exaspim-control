@@ -2,7 +2,6 @@ import logging
 from pathlib import Path
 
 from ruamel.yaml import YAML
-
 from voxel.instruments.instrument import Instrument
 
 DIRECTORY = Path(__file__).parent.resolve()
@@ -52,9 +51,9 @@ class ExASPIM(Instrument):
         num_cameras = len(self.cameras)
         if len(self.cameras) != 1:
             raise ValueError(f"one camera must be defined but {num_cameras} detected")
-        num_daqs = len(self.daqs)
-        if len(self.daqs) != 1:
-            raise ValueError(f"one daq must be defined but {num_daqs} detected")
+        # num_daqs = len(self.daqs)
+        # if len(self.daqs) != 1:
+        #     raise ValueError(f"one daq must be defined but {num_daqs} detected")
         num_lasers = len(self.lasers)
         if num_lasers < 1:
             raise ValueError(f"at least one laser is required but {num_lasers} detected")

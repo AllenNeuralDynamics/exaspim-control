@@ -1,3 +1,4 @@
+import copy
 import math
 import os
 import platform
@@ -5,7 +6,6 @@ import shutil
 import subprocess
 import threading
 import time
-import copy
 from multiprocessing.shared_memory import SharedMemory
 from pathlib import Path
 from threading import Event, Lock
@@ -15,7 +15,6 @@ import numpy
 from gputools import get_device
 from psutil import virtual_memory
 from ruamel.yaml import YAML
-
 from voxel.acquisition.acquisition import Acquisition
 from voxel.instruments.instrument import Instrument
 from voxel.writers.data_structures.shared_double_buffer import SharedDoubleBuffer
@@ -72,10 +71,11 @@ class ExASPIMAcquisition(Acquisition):
             )  # only 1 indicator light for exaspim
         else:
             self.indicator_light = None
-        # self.tunable_lens, _ = self._grab_first(self.instrument.tunable_lens)  # only 1 tunable lens for exaspim
         self.camera, camera_name = self._grab_first(self.instrument.cameras)  # only 1 camera for exaspim
         self.scanning_stage, _ = self._grab_first(self.instrument.scanning_stages)  # only 1 scanning stage for exaspim
-        self.daq, _ = self._grab_first(self.instrument.daqs)  # only 1 daq for exaspim
+        self.daq, _ = self._grab_first(object_dict=self.instrument.daqs)  # only 1 daq for exaspim
+        galvo_daq_name = list(self.instrument.daqs.keys())[1]
+        self.galvo_daq = self.instrument.daqs[galvo_daq_name]
         self.writer, _ = self._grab_first(self.writers[camera_name])  # only 1 writer for exaspim
         if self.file_transfers:
             file_transfer, _ = self._grab_first(self.file_transfers[camera_name])  # only 1 file transfer for exaspim
@@ -99,13 +99,11 @@ class ExASPIMAcquisition(Acquisition):
             self.log.info("turning on indicator light")
             self.indicator_light.enable()
         for tile in self.config["acquisition"]["tiles"]:
-
             # number of times to repeat tile -> pulled from GUI only make sure in gui.yaml file
             if tile["repeats"] < 0:
                 self.log.warning("skipping tile with <0 repeats")
             else:
                 for repeat in range(tile["repeats"]):
-
                     # wait for start delay -> pulled from GUI only make sure in gui.yaml file
                     start_delay = tile["start_delay"]
                     self.log.info(f"waiting for start delay = {start_delay} [s]")
@@ -169,7 +167,6 @@ class ExASPIMAcquisition(Acquisition):
                             f"waiting for scanning stage: {instrument_axis} = "
                             f"{self.scanning_stage.position_mm} -> {tile_position:.3f} mm"
                         )
-                    time.sleep(15)  # wait extra time for scanning stage to settle
 
                     # check disable scanning stage stepping
                     if tile["disable_scanning"] == "on":
@@ -201,39 +198,52 @@ class ExASPIMAcquisition(Acquisition):
                             self.daq.tasks["ao_task"]["ports"]["right tunable lens"]["parameters"]["offset_volts"][
                                 "channels"
                             ][tile_channel] = tile["etl_right_offset"]
-                    if "etl_left_amplitude" in tile:
-                        if tile["etl_left_amplitude"] is not None:
-                            self.daq.tasks["ao_task"]["ports"]["left tunable lens"]["parameters"]["amplitude_volts"][
-                                "channels"
-                            ][tile_channel] = tile["etl_left_amplitude"]
-                    if "etl_right_amplitude" in tile:
-                        if tile["etl_right_amplitude"] is not None:
-                            self.daq.tasks["ao_task"]["ports"]["right tunable lens"]["parameters"]["amplitude_volts"][
-                                "channels"
-                            ][tile_channel] = tile["etl_right_amplitude"]
 
                     # setup daq
                     time.sleep(1.0)
-                    self.log.info("setting up daq")
-                    if self.daq.tasks.get("ao_task", None) is not None:
-                        self.log.info("adding ao task")
-                        self.daq.add_task("ao")
-                        self.log.info("generating ao waveforms")
-                        self.daq.generate_waveforms("ao", tile_channel)
-                        self.log.info("writing ao waveforms")
-                        self.daq.write_ao_waveforms()
-                    if self.daq.tasks.get("do_task", None) is not None:
-                        self.daq.add_task("do")
-                        self.daq.generate_waveforms("do", tile_channel)
-                        self.daq.write_do_waveforms()
-                    if self.daq.tasks.get("co_task", None) is not None:
-                        pulse_count = (
-                            self.writer.chunk_count_px
-                        )  # number of pulses matched to number of frames in a chunk
-                        self.daq.add_task("co", pulse_count)
+                    self.log.info("setting up daqs")
+                    for _, daq in self.instrument.daqs.items():
+                        if daq.tasks.get("ao_task", None) is not None:
+                            self.log.info("adding ao task")
+                            daq.add_task("ao")
+                            self.log.info("generating ao waveforms")
+                            daq.generate_waveforms("ao", tile_channel)
+                            self.log.info("writing ao waveforms")
+                            daq.write_ao_waveforms()
+                        if daq.tasks.get("do_task", None) is not None:
+                            daq.add_task("do")
+                            daq.generate_waveforms("do", tile_channel)
+                            daq.write_do_waveforms()
+                        if daq.tasks.get("co_task", None) is not None:
+                            pulse_count = (
+                                self.writer.chunk_count_px
+                            )  # number of pulses matched to number of frames in a chunk
+                            daq.add_task("co", pulse_count)
+                    # if self.daq.tasks.get("ao_task", None) is not None:
+                    #     self.log.info("adding ao task")
+                    #     self.daq.add_task("ao")
+                    #     self.log.info("generating ao waveforms")
+                    #     self.daq.generate_waveforms("ao", tile_channel)
+                    #     self.log.info("writing ao waveforms")
+                    #     self.daq.write_ao_waveforms()
+                    # if self.daq.tasks.get("do_task", None) is not None:
+                    #     self.daq.add_task("do")
+                    #     self.daq.generate_waveforms("do", tile_channel)
+                    #     self.daq.write_do_waveforms()
+                    # if self.daq.tasks.get("co_task", None) is not None:
+                    #     pulse_count = (
+                    #         self.writer.chunk_count_px
+                    #     )  # number of pulses matched to number of frames in a chunk
+                    #     self.daq.add_task("co", pulse_count)
 
                     # log daq values
                     for name, port_values in self.daq.tasks["ao_task"]["ports"].items():
+                        parameters = port_values["parameters"]
+                        port = port_values["port"]
+                        for parameter, channel_values in parameters.items():
+                            daq_value = channel_values["channels"][tile_channel]
+                            self.log.info(f"{name} on {port}: {parameter} = {daq_value}")
+                    for name, port_values in self.galvo_daq.tasks["ao_task"]["ports"].items():
                         parameters = port_values["parameters"]
                         port = port_values["port"]
                         for parameter, channel_values in parameters.items():
@@ -294,7 +304,14 @@ class ExASPIMAcquisition(Acquisition):
                     # check local disk space and run if enough disk space
                     if self.check_local_disk_space(self.writer, compression_ratio):
                         self.acquisition_engine(
-                            tile, base_filename, self.camera, self.daq, self.writer, processes, self.scanning_stage
+                            tile,
+                            base_filename,
+                            self.camera,
+                            self.daq,
+                            self.galvo_daq,
+                            self.writer,
+                            processes,
+                            self.scanning_stage,
                         )
                     # if not enough local disk space, but file transfers are running
                     # wait for them to finish, because this will free up disk space
@@ -319,7 +336,10 @@ class ExASPIMAcquisition(Acquisition):
                     if self.daq.ao_task:
                         self.daq.ao_task.stop()
                     self.daq.close()
-                    # self.daq.set_idle_voltages(tile_channel)
+                    # stop and close the galvo daq
+                    if self.galvo_daq.ao_task:
+                        self.galvo_daq.ao_task.stop()
+                    self.galvo_daq.ao_task.close()
 
                     # create and start transfer threads from previous tile
                     if file_transfer:
@@ -389,7 +409,7 @@ class ExASPIMAcquisition(Acquisition):
             self.indicator_light.disable()
 
     def acquisition_engine(
-        self, tile: dict, base_filename: str, camera, daq, writer, processes: dict, scanning_stage
+        self, tile: dict, base_filename: str, camera, daq, galvo_daq, writer, processes: dict, scanning_stage
     ) -> None:
         """
         Run the acquisition engine.
@@ -402,6 +422,8 @@ class ExASPIMAcquisition(Acquisition):
         :type camera: Camera
         :param daq: Data acquisition object
         :type daq: DAQ
+        :param daq: Data acquisition object
+        :type galvo_daq: galvo DAQ
         :param writer: Writer object
         :type writer: Writer
         :param processes: Dictionary of processes
@@ -438,6 +460,14 @@ class ExASPIMAcquisition(Acquisition):
             )
             process.prepare(buffer.name)
 
+        # start the galvo daq
+        galvo_daq.start()
+
+        # turn on the laser
+        laser_name = self.instrument.channels[tile["channel"]]["lasers"][0]
+        laser = self.instrument.lasers[laser_name]
+        laser.enable()
+
         # set up writer and camera
         camera.prepare()
         writer.prepare()
@@ -454,6 +484,7 @@ class ExASPIMAcquisition(Acquisition):
 
         frame_index = 0
         last_frame_index = tile["steps"] - 1
+
         # Images arrive serialized in repeating channel order.
         for stack_index in range(tile["steps"]):
             if self.stop_engine.is_set():
@@ -462,13 +493,10 @@ class ExASPIMAcquisition(Acquisition):
             # Start a batch of pulses to generate more frames and movements.
             if chunk_index == 0:
                 # log metrics from devices
-                laser_name = self.instrument.channels[tile["channel"]]["lasers"][0]
-                laser = self.instrument.lasers[laser_name]
                 memory_info = virtual_memory()
-                self.log.info(f"RAM in use = {memory_info.used / (1024 ** 3):.2f} GB")
+                self.log.info(f"RAM in use = {memory_info.used / (1024**3):.2f} GB")
                 self.log.info(f"laser {laser.id} power = {laser.power_mw:.2f} [mW]")
-                self.log.info(f"laser {laser.id} temperature = {laser.temperature_c:.2f} [C]")
-                # self.log.info(f"etl {self.tunable_lens.id} temperature = {self.tunable_lens.temperature_c:.3f} [C]")
+                self.log.info(f"laser {laser.id} temperature = {laser.temperature_c:.2f} [mW]")
                 # self.log.info(f"camera {camera.id} sensor temperature = {camera.sensor_temperature_c:.2f} [C]")
                 # self.log.info(f"camera {camera.id} mainboard temperature = {camera.mainboard_temperature_c:.2f} [C]")
                 # try:
@@ -526,6 +554,8 @@ class ExASPIMAcquisition(Acquisition):
             frame_index += 1
 
         if self.stop_engine.is_set():
+            # turn off the laser
+            laser.disable()
             # wait for daq tasks to finish - prevents devices from stopping in
             # unsafe state, i.e. lasers still on
             self.log.info("stopping daq")
@@ -535,6 +565,10 @@ class ExASPIMAcquisition(Acquisition):
             # stop the ao task
             self.daq.ao_task.stop()
             self.daq.close()
+            # stop the galvo task
+            self.galvo_daq.ao_task.stop()
+            self.galvo_daq.close()
+            # stop the stage and camera
             self.log.info("stopping scanning stage")
             self.scanning_stage.halt()
             self.log.info("stopping camera")
@@ -544,16 +578,22 @@ class ExASPIMAcquisition(Acquisition):
             self.writer._process.terminate()
             self.stop_engine.clear()
         else:
+            # turn off the laser
+            laser.disable()
+
             # stop the camera and set frame number back to 0
             camera.stop()
             camera.frame_number = 0
 
-            # wait for the writer to finish
-            writer.wait_to_finish()
-
             # stop the daq
             self.log.info("stopping daq")
             daq.stop()
+
+            # stop the galvo daq
+            self.galvo_daq.stop()
+
+            # wait for the writer to finish
+            writer.wait_to_finish()
 
             # disable scanning stage stepping
             scanning_stage.mode = "off"  # turn off step and shoot mode
