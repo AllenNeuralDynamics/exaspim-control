@@ -3,13 +3,111 @@ import os
 import shutil
 from datetime import datetime
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
-import numpy as np
 import json
-from aind_data_schema.core import acquisition
-from exaspim_control.exa_spim_acquisition import ExASPIMAcquisition
-from exaspim_control.exa_spim_instrument import ExASPIM
-from exaspim_control.exa_spim_view import ExASPIMAcquisitionView, ExASPIMInstrumentView
+from aind_data_schema.components.configs import (
+    Channel,
+    DetectorConfig,
+    DeviceConfig,
+    ImageSPIM,
+    ImagingConfig,
+    Immersion,
+    LaserConfig,
+    SampleChamberConfig,
+    TriggerType,
+)
+from aind_data_schema.components.coordinates import (
+    Axis,
+    CoordinateSystem,
+    Scale,
+    Translation,
+)
+from aind_data_schema.components.wrappers import AssetPath
+from aind_data_schema.core.acquisition import Acquisition, DataStream
+from aind_data_schema.core.instrument import Instrument
+from aind_data_schema_models.coordinates import AxisName, Direction, Origin
+from aind_data_schema_models.devices import ImmersionMedium
+from aind_data_schema_models.modalities import Modality
+from aind_data_schema_models.units import PowerUnit, SizeUnit
+
+from exaspim_control.instrument_metadata import build_instrument as _build_instrument
+
+if TYPE_CHECKING:  # pragma: no cover - type-only imports avoid voxel/view at runtime
+    from exaspim_control.exa_spim_acquisition import ExASPIMAcquisition
+    from exaspim_control.exa_spim_instrument import ExASPIM
+    from exaspim_control.exa_spim_view import ExASPIMAcquisitionView, ExASPIMInstrumentView
+
+
+# Map GUI strings (as produced by the existing ``aind_metadata_class.py`` mappings) to
+# ``aind_data_schema_models.coordinates.Direction`` enum values. Keys cover both the human
+# spelling ("Anterior to Posterior") and the underscore form ("Anterior_to_posterior"), so
+# either upstream variant works.
+_DIRECTION_MAP: dict[str, Direction] = {
+    "Anterior to Posterior": Direction.AP,
+    "Anterior_to_posterior": Direction.AP,
+    "Posterior to Anterior": Direction.PA,
+    "Posterior_to_anterior": Direction.PA,
+    "Inferior to Superior": Direction.IS,
+    "Inferior_to_superior": Direction.IS,
+    "Superior to Inferior": Direction.SI,
+    "Superior_to_inferior": Direction.SI,
+    "Left to Right": Direction.LR,
+    "Left_to_right": Direction.LR,
+    "Right to Left": Direction.RL,
+    "Right_to_left": Direction.RL,
+}
+
+_DEFAULT_ACQUISITION_TYPE = "ExASPIM"
+
+
+def _to_direction(value: Any) -> Direction | None:
+    """Return a ``Direction`` for either a GUI string or an existing enum value."""
+    if value is None:
+        return None
+    if isinstance(value, Direction):
+        return value
+    return _DIRECTION_MAP.get(str(value)) or Direction(str(value))
+
+
+def _build_coordinate_system(metadata: Any, *, system_name: str = "ExASPIM-XYZ") -> CoordinateSystem:
+    """Build the v2 :class:`CoordinateSystem` for an Acquisition from anatomical-direction metadata.
+
+    Preserves the original ExASPIM v0.x convention: the X axis pulls from
+    ``y_anatomical_direction`` and the Y axis from ``x_anatomical_direction``.
+    """
+    return CoordinateSystem(
+        name=system_name,
+        origin=Origin.ORIGIN,
+        axes=[
+            Axis(name=AxisName.X, direction=_to_direction(getattr(metadata, "y_anatomical_direction", None))),
+            Axis(name=AxisName.Y, direction=_to_direction(getattr(metadata, "x_anatomical_direction", None))),
+            Axis(name=AxisName.Z, direction=_to_direction(getattr(metadata, "z_anatomical_direction", None))),
+        ],
+        axis_unit=SizeUnit.UM,
+    )
+
+
+def _ensure_aware(value: Any) -> datetime:
+    """Coerce ``value`` (string or datetime) into a timezone-aware datetime."""
+    if isinstance(value, str):
+        value = datetime.fromisoformat(value)
+    if value.tzinfo is None:
+        value = value.astimezone()
+    return value
+
+
+def _build_immersion(spec: Any) -> Immersion | None:
+    """Build an ``Immersion`` from a ``{"medium": ..., "refractive_index": ...}`` payload."""
+    if spec is None:
+        return None
+    if isinstance(spec, Immersion):
+        return spec
+    medium = spec["medium"] if isinstance(spec, dict) else getattr(spec, "medium")
+    refractive_index = spec["refractive_index"] if isinstance(spec, dict) else getattr(spec, "refractive_index")
+    if not isinstance(medium, ImmersionMedium):
+        medium = ImmersionMedium(medium)
+    return Immersion(medium=medium, refractive_index=refractive_index)
 
 
 class MetadataLaunch:
@@ -17,10 +115,10 @@ class MetadataLaunch:
 
     def __init__(
         self,
-        instrument: ExASPIM,
-        acquisition: ExASPIMAcquisition,
-        instrument_view: ExASPIMInstrumentView,
-        acquisition_view: ExASPIMAcquisitionView,
+        instrument: "ExASPIM",
+        acquisition: "ExASPIMAcquisition",
+        instrument_view: "ExASPIMInstrumentView",
+        acquisition_view: "ExASPIMAcquisitionView",
         log_filename: str = None,
     ):
         """
@@ -48,11 +146,14 @@ class MetadataLaunch:
         self.acquisition_view = acquisition_view
         # log filename
         self.log_filename = log_filename
-        # start and finish the acquisition
-        self.acquisition_start_time = None  # variable will be filled when acquisitionStarted signal is emitted
-        self.acquisition_end_time = None  # variable will be filled when acquisitionStarted signal is emitted
+        # start and finish the acquisition - populated by the acquisitionStarted/Ended signals.
+        # ``parse_metadata`` later coerces them to timezone-aware datetimes for v2 Acquisition.
+        self.acquisition_start_time = None
+        self.acquisition_end_time = None
         self.acquisition_view.acquisitionStarted.connect(lambda value: setattr(self, "acquisition_start_time", value))
-        self.acquisition_view.acquisitionEnded.connect(lambda: setattr(self, "acquisition_end_time", datetime.now()))
+        self.acquisition_view.acquisitionEnded.connect(
+            lambda: setattr(self, "acquisition_end_time", datetime.now().astimezone())
+        )
         self.acquisition_view.acquisitionEnded.connect(self.finalize_acquisition)
 
     def finalize_acquisition(self) -> None:
@@ -65,10 +166,12 @@ class MetadataLaunch:
             for device_name, transfer_dict in getattr(self.acquisition, "file_transfers", {}).items():
                 for transfer in transfer_dict.values():
                     save_to = str(Path(transfer.external_path, transfer.acquisition_name))
-                    acquisition_model = self.parse_metadata(
-                        external_drive=save_to, local_drive=str(Path(transfer.local_path, transfer.acquisition_name))
-                    )
+                    acquisition_model = self.parse_metadata()
                     acquisition_model.write_standard_file(output_directory=save_to, prefix=None)
+                    instrument_model = self.parse_instrument(
+                        coordinate_system=acquisition_model.coordinate_system
+                    )
+                    instrument_model.write_standard_file(output_directory=save_to, prefix=None)
                     # move the log file
                     self.log.info(f"copying {self.log_filename} to {save_to}")
                     shutil.copy(
@@ -102,8 +205,12 @@ class MetadataLaunch:
             for device_name, writer_dict in self.acquisition.writers.items():
                 for writer in writer_dict.values():
                     save_to = str(Path(writer.path, writer.acquisition_name))
-                    acquisition_model = self.parse_metadata(external_drive=save_to, local_drive=save_to)
+                    acquisition_model = self.parse_metadata()
                     acquisition_model.write_standard_file(output_directory=save_to, prefix="exaspim")
+                    instrument_model = self.parse_instrument(
+                        coordinate_system=acquisition_model.coordinate_system
+                    )
+                    instrument_model.write_standard_file(output_directory=save_to, prefix="exaspim")
                     # move the log file
                     self.log.info(f"copying {self.log_filename} to {save_to}")
                     shutil.copy(
@@ -119,90 +226,139 @@ class MetadataLaunch:
                 if file.endswith(".tiff") or file.endswith(".log") or file.endswith(".yaml"):
                     os.rename(str(Path(save_to, file)), str(Path(save_to, "derivatives", file)))
 
-    def parse_metadata(self, external_drive: str, local_drive: str) -> acquisition.Acquisition:
+    def parse_metadata(self) -> Acquisition:
         """
-        Parse metadata for the acquisition.
+        Build an aind-data-schema v2 ``Acquisition`` from the live instrument and acquisition state.
 
-        :param external_drive: External storage directory
-        :type external_drive: str
-        :param local_drive: Local storage directory
-        :type local_drive: str
-        :return: Acquisition model
-        :rtype: acquisition.Acquisition
+        Returns
+        -------
+        Acquisition
+            A populated v2 Acquisition with one SPIM ``DataStream`` containing an
+            ``ImagingConfig`` (channels + per-tile ``ImageSPIM``) and a ``SampleChamberConfig``.
         """
-        subject_id = str(getattr(self.acquisition.metadata, "subject_id", ""))
-        temp_string = local_drive.split("_")
-        new_local_drive = f"{temp_string[0]}_{subject_id}_{temp_string[2]}_{temp_string[3]}"
-        temp_string = external_drive.split("_")
-        new_external_drive = f"{temp_string[0]}_{subject_id}_{temp_string[2]}_{temp_string[3]}"
-        acq_dict = {
-            "experimenter_full_name": [getattr(self.acquisition.metadata, "experimenter_full_name", "None")],
-            "specimen_id": str(getattr(self.acquisition.metadata, "subject_id", "None")),
-            "subject_id": str(getattr(self.acquisition.metadata, "subject_id", "None")),
-            "instrument_id": getattr(self.acquisition.metadata, "instrument_id", "None"),
-            "session_start_time": self.acquisition_start_time,
-            "session_end_time": self.acquisition_end_time,
-            "local_storage_directory": new_local_drive,
-            "external_storage_directory": new_external_drive,
-            "chamber_immersion": getattr(self.acquisition.metadata, "chamber_immersion", "None"),
-            # "brain_orientation": getattr(self.acquisition.metadata, "brain_orientation", None),
-            "axes": [
-                {
-                    "name": "X",
-                    "dimension": 2,
-                    "direction": getattr(self.acquisition.metadata, "x_anatomical_direction", None),
-                },
-                {
-                    "name": "Y",
-                    "dimension": 1,
-                    "direction": getattr(self.acquisition.metadata, "y_anatomical_direction", None),
-                },
-                {
-                    "name": "Z",
-                    "dimension": 0,
-                    "direction": getattr(self.acquisition.metadata, "z_anatomical_direction", None),
-                },
-            ],
-            "notes": getattr(self.acquisition.metadata, "notes", "None"),
-        }
-        tiles = []
-        channels = self.instrument.config["instrument"]["channels"]
+        meta = self.acquisition.metadata
+        subject_id = str(getattr(meta, "subject_id", ""))
+        instrument_id = self.instrument.config["instrument"]["id"] or ""
+        experimenters = [str(getattr(meta, "experimenter_full_name", "") or "")]
+        acquisition_type = _DEFAULT_ACQUISITION_TYPE
+        notes = getattr(meta, "notes", None)
+
+        start_time = _ensure_aware(self.acquisition_start_time)
+        end_time = _ensure_aware(self.acquisition_end_time)
+
+        # Shared helper keeps the Acquisition and Instrument coordinate systems in sync.
+        coordinate_system = _build_coordinate_system(meta, system_name=f"{acquisition_type}-XYZ")
+
+        chamber_immersion = _build_immersion(getattr(meta, "chamber_immersion", None))
+        sample_chamber = SampleChamberConfig(
+            device_name="sample-chamber",
+            chamber_immersion=chamber_immersion,
+        )
+
+        channels_cfg = self.instrument.config["instrument"]["channels"]
+        images: list[ImageSPIM] = []
+        channel_models: dict[str, Channel] = {}
+        active_devices: list[str] = [acquisition_type, sample_chamber.device_name]
+
         for tile in self.acquisition.config["acquisition"]["tiles"]:
             tile_ch = tile["channel"]
-            laser = channels[tile_ch]["lasers"][0]
-            excitation_wavelength = self.instrument.lasers[laser].wavelength
-            camera_name = channels[tile_ch]["cameras"][0]
+            laser_name = channels_cfg[tile_ch]["lasers"][0]
+            camera_name = channels_cfg[tile_ch]["cameras"][0]
+            excitation_wavelength = self.instrument.lasers[laser_name].wavelength
             camera = self.instrument.cameras[camera_name]
-            voxel_size_x_um = camera.um_px * tile[camera_name]["binning"]
-            voxel_size_y_um = camera.um_px * tile[camera_name]["binning"]
+            binning = tile[camera_name]["binning"]
+            voxel_size_x_um = camera.um_px * binning
+            voxel_size_y_um = camera.um_px * binning
             voxel_size_z_um = tile["step_size"]
-            tile_position_x_mm = tile["position_mm"]["x"]
-            tile_position_y_mm = tile["position_mm"]["y"]
-            tile_position_z_mm = tile["position_mm"]["z"]
-            nested_device_list = [v for k, v in channels[tile_ch].items() if k not in ["lasers", "cameras"]]
-            addtional_devices = np.array([item for sublist in nested_device_list for item in sublist]).flatten()
-            tiles.append(
-                {
-                    "file_name": f"{tile['prefix']}_{tile['tile_number']:06}_ch_{tile_ch}.ims",
-                    "coordinate_transformations": [
-                        {"type": "scale", "scale": [f"{voxel_size_x_um}", f"{voxel_size_y_um}", f"{voxel_size_z_um}"]},
-                        {
-                            "type": "translation",
-                            "translation": [f"{-tile_position_y_mm}", f"{tile_position_x_mm}", f"{tile_position_z_mm}"],
-                        },
-                    ],
-                    "channel": {
-                        "channel_name": tile_ch,
-                        "light_source_name": laser,
-                        "filter_names": channels[tile_ch].get("filters", []),
-                        "detector_name": channels[tile_ch]["cameras"][0],
-                        "additional_device_names": addtional_devices,
-                        "excitation_wavelength": excitation_wavelength,
-                        "excitation_power": tile[laser]["power_setpoint_mw"],
-                        "filter_wheel_index": 0,
-                    },
-                }
-            )
-        acq_dict["tiles"] = tiles
+            tile_x_mm = tile["position_mm"]["x"]
+            tile_y_mm = tile["position_mm"]["y"]
+            tile_z_mm = tile["position_mm"]["z"]
 
-        return acquisition.Acquisition(**acq_dict)
+            if tile_ch not in channel_models:
+                filter_names = list(channels_cfg[tile_ch].get("filters", []) or [])
+                # Anything beyond lasers/cameras/filters becomes "additional devices" for the channel.
+                additional_names: list[str] = []
+                for key, value in channels_cfg[tile_ch].items():
+                    if key in ("lasers", "cameras", "filters"):
+                        continue
+                    if isinstance(value, (list, tuple)):
+                        additional_names.extend(str(v) for v in value)
+                    else:
+                        additional_names.append(str(value))
+
+                channel_models[tile_ch] = Channel(
+                    channel_name=tile_ch,
+                    detector=DetectorConfig(device_name=camera_name, trigger_type=TriggerType.EXTERNAL),
+                    light_sources=[
+                        LaserConfig(
+                            device_name=laser_name,
+                            wavelength=excitation_wavelength,
+                            power=tile[laser_name]["power_setpoint_mw"],
+                            power_unit=PowerUnit.MW,
+                        )
+                    ],
+                    emission_filters=[DeviceConfig(device_name=name) for name in filter_names] or None,
+                    additional_device_names=(
+                        [DeviceConfig(device_name=name) for name in additional_names] or None
+                    ),
+                )
+                active_devices.extend([camera_name, laser_name, *filter_names, *additional_names])
+
+            images.append(
+                ImageSPIM(
+                    channel_name=tile_ch,
+                    file_name=AssetPath(f"{tile['prefix']}_{tile['tile_number']:06}_ch_{tile_ch}.ims"),
+                    image_to_acquisition_transform=[
+                        Scale(scale=[voxel_size_x_um, voxel_size_y_um, voxel_size_z_um]),
+                        Translation(translation=[-tile_y_mm, tile_x_mm, tile_z_mm]),
+                    ],
+                )
+            )
+
+        imaging_config = ImagingConfig(
+            device_name=acquisition_type,
+            coordinate_system=coordinate_system,
+            channels=list(channel_models.values()),
+            images=images,
+        )
+
+        data_stream = DataStream(
+            stream_start_time=start_time,
+            stream_end_time=end_time,
+            modalities=[Modality.SPIM],
+            active_devices=list(dict.fromkeys(active_devices)),  # preserve order, drop dupes
+            configurations=[imaging_config, sample_chamber],
+        )
+
+        return Acquisition(
+            subject_id=subject_id,
+            specimen_id=subject_id,
+            experimenters=experimenters,
+            acquisition_start_time=start_time,
+            acquisition_end_time=end_time,
+            acquisition_type=acquisition_type,
+            instrument_id=instrument_id,
+            notes=notes,
+            coordinate_system=coordinate_system,
+            data_streams=[data_stream],
+        )
+
+    def parse_instrument(self, *, coordinate_system=None) -> Instrument:
+        """Build an aind-data-schema v2 :class:`Instrument` from the live instrument state.
+
+        Parameters
+        ----------
+        coordinate_system : CoordinateSystem, optional
+            Reuse the coordinate system from the matching :class:`Acquisition` so the two
+            JSON files agree. Built from metadata if not supplied.
+
+        Returns
+        -------
+        Instrument
+            A populated v2 :class:`Instrument` model ready for ``write_standard_file``.
+        """
+        return _build_instrument(
+            self.instrument,
+            self.acquisition.metadata,
+            coordinate_system=coordinate_system,
+        )

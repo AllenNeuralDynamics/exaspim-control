@@ -1,0 +1,506 @@
+instrument:
+  id: exaspim-1x
+  channels:
+    '405':
+      lasers: [405 nm]
+      cameras: [vnp-604mx]
+      focusing_stages: [camera]
+      flip_mounts: [left_right_flip_mount]
+    '488':
+      lasers: [488 nm]
+      cameras: [vnp-604mx]
+      focusing_stages: [camera]
+      flip_mounts: [left_right_flip_mount]
+    '561':
+      lasers: [561 nm]
+      cameras: [vnp-604mx]
+      focusing_stages: [camera]
+      flip_mounts: [left_right_flip_mount]
+    '639':
+      lasers: [639 nm]
+      cameras: [vnp-604mx]
+      focusing_stages: [camera]
+      flip_mounts: [left_right_flip_mount]
+  devices:
+    indicator_light:
+      type: indicator_light
+      driver: voxel.devices.indicator_light.banner_engineering.tl50
+      module: TL50IndicatorLight
+      init:
+        com_port: COM7
+      properties:
+        settings:
+          color1: green
+          intensity1: medium
+          animation: intensity sweep
+          speed: standard
+          flash_pattern: normal
+          color2: green
+          intensity2: medium
+          direction: clockwise
+    vnp-604mx:
+      type: camera
+      driver: voxel.devices.camera.vieworks.egrabber
+      module: VieworksCamera
+      init:
+        id: MB151BAY001
+      properties:
+        binning: 1
+        bit_packing_mode: msb
+        exposure_time_ms: 80.0
+        fov_height_mm: 40.00639999999999
+        fov_width_mm: 53.36192
+        frame_number: 0
+        frame_time_ms: 568.9343774989917
+        height_offset_px: 0
+        height_px: 10640
+        image_height_px: 10640
+        image_width_px: 14192
+        line_interval_us: 45.952479088251096
+        mainboard_temperature_c: 45.04388427734375
+        pixel_type: mono12
+        readout_mode: rolling shutter
+        sampling_um_px: 3.76
+        sensor_height_px: 10640
+        sensor_temperature_c: 5.63507080078125
+        sensor_width_px: 14192
+        trigger:
+          mode: on
+          source: line0
+          polarity: risingedge
+        um_px: 3.76
+        width_offset_px: 0
+        width_px: 14192
+    oxxius_controller:
+      type: controller
+      driver: voxel.devices.controller.oxxius.lxcc
+      module: OxxiusController
+      init:
+        port: COM4
+        model: L6cc
+      subdevices:
+        405 nm:
+          type: laser
+          driver: voxel.devices.laser.oxxius.lbx
+          module: OxxiusLBXLaser
+          init:
+            id: 405 nm
+            wavelength: 405
+            prefix: L6
+            coefficients:
+              2: 0.0081
+              1: 0.915
+              0: -10.534
+          properties:
+            modulation_mode: digital
+        488 nm:
+          type: laser
+          driver: voxel.devices.laser.oxxius.lbx
+          module: OxxiusLBXLaser
+          init:
+            id: 488 nm
+            wavelength: 488
+            prefix: L5
+            coefficients:
+              2: 0.005
+              1: 1.6896
+              0: -19.721
+          properties:
+            modulation_mode: digital
+        561 nm:
+          type: laser
+          driver: voxel.devices.laser.oxxius.lcx
+          module: OxxiusLCXLaser
+          init:
+            id: 561 nm
+            wavelength: 561
+            prefix: L3
+          properties:
+            aom_power_mw: 200.0
+        639 nm:
+          type: laser
+          driver: voxel.devices.laser.oxxius.lbx
+          module: OxxiusLBXLaser
+          init:
+            id: 639 nm
+            wavelength: 639
+            prefix: L1
+            coefficients:
+              2: -0.0036
+              1: 2.5547
+              0: -26.702
+          properties:
+            modulation_mode: digital
+      properties: {}
+    tiger controller:
+      type: controller
+      driver: voxel.devices.controller.asi.tiger
+      module: TigerController
+      init:
+        com_port: COM6
+      subdevices:
+        z:
+          type: scanning_stage
+          driver: voxel.devices.stage.asi.tiger
+          module: TigerStage
+          init:
+            hardware_axis: z
+            instrument_axis: z
+          properties:
+            mode: step shoot
+            speed_mm_s: 1.0
+            backlash_mm: 0.0
+            acceleration_ms: 200.0
+        x:
+          type: tiling_stage
+          driver: voxel.devices.stage.asi.tiger
+          module: TigerStage
+          init:
+            hardware_axis: x
+            instrument_axis: x
+          properties:
+            mode: off
+            speed_mm_s: 1.0
+            backlash_mm: 0.004
+            acceleration_ms: 200.0
+        y:
+          type: tiling_stage
+          driver: voxel.devices.stage.asi.tiger
+          module: TigerStage
+          init:
+            hardware_axis: y
+            instrument_axis: y
+          properties:
+            mode: off
+            speed_mm_s: 1.0
+            backlash_mm: 0.004
+            acceleration_ms: 200.0
+        theta:
+          type: focusing_stage
+          driver: voxel.devices.stage.asi.tiger
+          module: TigerStage
+          init:
+            hardware_axis: t
+            instrument_axis: t
+          properties:
+            mode: off
+            speed_mm_s: 0.3
+            backlash_mm: 0.004
+            acceleration_ms: 200.0
+        camera:
+          type: focusing_stage
+          driver: voxel.devices.stage.asi.tiger
+          module: TigerStage
+          init:
+            hardware_axis: m
+            instrument_axis: m
+          properties:
+            mode: off
+            speed_mm_s: 0.01
+            backlash_mm: 0.004
+            acceleration_ms: 20.0
+      properties: {}
+    left_right_flip_mount:
+      type: flip_mount
+      driver: voxel.devices.flip_mount.thorlabs.mff101
+      module: MFF101FlipMount
+      init:
+        id: 37007748
+        positions:
+          right: 0
+          left: 1
+      properties:
+        flip_time_ms: 500
+        position: left
+    pcie-6738:
+      type: daq
+      driver: voxel.devices.daq.ni
+      module: NIDAQ
+      init:
+        dev: Dev1
+      properties:
+        tasks:
+          ao_task:
+            name: ao task
+            ports:
+              left tunable lens:
+                port: ao16
+                waveform: sawtooth
+                device_max_volts: 10.0
+                device_min_volts: 0.0
+                parameters:
+                  start_time_ms:
+                    channels:
+                      '405': 0.0
+                      '488': 0.0
+                      '561': 0.0
+                      '639': 0.0
+                  end_time_ms:
+                    channels:
+                      '405': 544.0
+                      '488': 544.0
+                      '561': 544.0
+                      '639': 544.0
+                  amplitude_volts:
+                    channels:
+                      '405': -1.5
+                      '488': -1.5
+                      '561': -1.5
+                      '639': -1.5
+                  offset_volts:
+                    channels:
+                      '405': 4.3
+                      '488': 5.1
+                      '561': 5.2
+                      '639': 6.05
+                  cutoff_frequency_hz:
+                    channels:
+                      '405': 1000
+                      '488': 1000
+                      '561': 1000
+                      '639': 1000
+                  idle_volts:
+                    channels:
+                      '405': 4.3
+                      '488': 5.0
+                      '561': 5.7
+                      '639': 6.4
+              right tunable lens:
+                port: ao12
+                waveform: sawtooth
+                device_max_volts: 10.0
+                device_min_volts: 0.0
+                parameters:
+                  start_time_ms:
+                    channels:
+                      '405': 0.0
+                      '488': 0.0
+                      '561': 0.0
+                      '639': 0.0
+                  end_time_ms:
+                    channels:
+                      '405': 544.0
+                      '488': 544.0
+                      '561': 544.0
+                      '639': 544.0
+                  amplitude_volts:
+                    channels:
+                      '405': 1.5
+                      '488': 1.5
+                      '561': 1.5
+                      '639': 1.5
+                  offset_volts:
+                    channels:
+                      '405': 4.3
+                      '488': 5.3
+                      '561': 5.3
+                      '639': 6.7
+                  cutoff_frequency_hz:
+                    channels:
+                      '405': 1000
+                      '488': 1000
+                      '561': 1000
+                      '639': 1000
+                  idle_volts:
+                    channels:
+                      '405': 4.3
+                      '488': 5.0
+                      '561': 6.0
+                      '639': 6.7
+              stage:
+                port: ao20
+                waveform: square wave
+                device_max_volts: 5.0
+                device_min_volts: 0.0
+                parameters:
+                  start_time_ms:
+                    channels:
+                      '405': 544.0
+                      '488': 544.0
+                      '561': 544.0
+                      '639': 544.0
+                  end_time_ms:
+                    channels:
+                      '405': 549.0
+                      '488': 549.0
+                      '561': 549.0
+                      '639': 549.0
+                  max_volts:
+                    channels:
+                      '405': 5.0
+                      '488': 5.0
+                      '561': 5.0
+                      '639': 5.0
+                  min_volts:
+                    channels:
+                      '405': 0.0
+                      '488': 0.0
+                      '561': 0.0
+                      '639': 0.0
+              camera:
+                port: ao6
+                waveform: square wave
+                device_max_volts: 5.0
+                device_min_volts: 0.0
+                parameters:
+                  start_time_ms:
+                    channels:
+                      '405': 25.0
+                      '488': 25.0
+                      '561': 25.0
+                      '639': 25.0
+                  end_time_ms:
+                    channels:
+                      '405': 35.0
+                      '488': 35.0
+                      '561': 35.0
+                      '639': 35.0
+                  max_volts:
+                    channels:
+                      '405': 5.0
+                      '488': 5.0
+                      '561': 5.0
+                      '639': 5.0
+                  min_volts:
+                    channels:
+                      '405': 0.0
+                      '488': 0.0
+                      '561': 0.0
+                      '639': 0.0
+              405 nm:
+                port: ao8
+                waveform: square wave
+                device_max_volts: 10.0
+                device_min_volts: 0.0
+                parameters:
+                  start_time_ms:
+                    channels:
+                      '405': 15.0
+                      '488': 15.0
+                      '561': 15.0
+                      '639': 15.0
+                  end_time_ms:
+                    channels:
+                      '405': 549.0
+                      '488': 549.0
+                      '561': 549.0
+                      '639': 549.0
+                  max_volts:
+                    channels:
+                      '405': 10.0
+                      '488': 0.0
+                      '561': 0.0
+                      '639': 0.0
+                  min_volts:
+                    channels:
+                      '405': 0.0
+                      '488': 0.0
+                      '561': 0.0
+                      '639': 0.0
+              488 nm:
+                port: ao0
+                waveform: square wave
+                device_max_volts: 10.0
+                device_min_volts: 0.0
+                parameters:
+                  start_time_ms:
+                    channels:
+                      '405': 15.0
+                      '488': 15.0
+                      '561': 15.0
+                      '639': 15.0
+                  end_time_ms:
+                    channels:
+                      '405': 549.0
+                      '488': 549.0
+                      '561': 549.0
+                      '639': 549.0
+                  max_volts:
+                    channels:
+                      '405': 0.0
+                      '488': 10.0
+                      '561': 0.0
+                      '639': 0.0
+                  min_volts:
+                    channels:
+                      '405': 0.0
+                      '488': 0.0
+                      '561': 0.0
+                      '639': 0.0
+              561 nm:
+                port: ao24
+                waveform: square wave
+                device_max_volts: 10.0
+                device_min_volts: 0.0
+                parameters:
+                  start_time_ms:
+                    channels:
+                      '405': 15.0
+                      '488': 15.0
+                      '561': 15.0
+                      '639': 15.0
+                  end_time_ms:
+                    channels:
+                      '405': 549.0
+                      '488': 549.0
+                      '561': 549.0
+                      '639': 549.0
+                  max_volts:
+                    channels:
+                      '405': 0.0
+                      '488': 0.0
+                      '561': 10.0
+                      '639': 0.0
+                  min_volts:
+                    channels:
+                      '405': 0.0
+                      '488': 0.0
+                      '561': 0.0
+                      '639': 0.0
+              639 nm:
+                port: ao4
+                waveform: square wave
+                device_max_volts: 10.0
+                device_min_volts: 0.0
+                parameters:
+                  start_time_ms:
+                    channels:
+                      '405': 15.0
+                      '488': 15.0
+                      '561': 15.0
+                      '639': 15.0
+                  end_time_ms:
+                    channels:
+                      '405': 549.0
+                      '488': 549.0
+                      '561': 549.0
+                      '639': 549.0
+                  max_volts:
+                    channels:
+                      '405': 0.0
+                      '488': 0.0
+                      '561': 0.0
+                      '639': 10.0
+                  min_volts:
+                    channels:
+                      '405': 0.0
+                      '488': 0.0
+                      '561': 0.0
+                      '639': 0.0
+            timing:
+              period_time_ms: 544.0
+              rest_time_ms: 6.0
+              retriggerable: on
+              sample_mode: finite
+              sampling_frequency_hz: 10000
+              trigger_mode: on
+              trigger_polarity: rising
+              trigger_port: PFI0
+          co_task:
+            counters:
+            - ctr0
+            name: co task
+            timing:
+              frequency_hz: 1.7
+              output_port: PFI0
+              trigger_mode: off
