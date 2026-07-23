@@ -29,6 +29,64 @@ from view.widgets.acquisition_widgets.volume_model import VolumeModel
 from view.widgets.acquisition_widgets.volume_plan_widget import VolumePlanWidget
 from view.widgets.base_device_widget import create_widget, disable_button
 from voxel.processes.downsample.gpu.gputools.rank_downsample_2d import GPUToolsRankDownSample2D
+from qtpy.QtWidgets import QMessageBox
+from qtpy.QtWidgets import QInputDialog
+from qtpy.QtWidgets import QDialog, QDialogButtonBox
+
+class TileCheckDialog(QDialog):
+    def __init__(self, parent, tile_messages: list[str]):
+        super().__init__(parent)
+
+        self.tile_messages = tile_messages
+        self.tile_index = 0
+
+        self.setWindowTitle("Confirm ETL offsets and focus positions")
+        self.setMinimumWidth(500)
+
+        layout = QVBoxLayout(self)
+
+        self.label = QLabel()
+        self.label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        layout.addWidget(self.label)
+
+        nav_layout = QHBoxLayout()
+
+        self.previous_button = QPushButton("← Previous")
+        self.next_button = QPushButton("Next →")
+
+        self.previous_button.clicked.connect(self.previous_tile)
+        self.next_button.clicked.connect(self.next_tile)
+
+        nav_layout.addWidget(self.previous_button)
+        nav_layout.addWidget(self.next_button)
+
+        layout.addLayout(nav_layout)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.Yes | QDialogButtonBox.No)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+        self.update_tile_display()
+
+    def update_tile_display(self):
+        self.label.setText(
+            f"Tile {self.tile_index + 1} of {len(self.tile_messages)}\n\n"
+            f"{self.tile_messages[self.tile_index]}"
+        )
+
+        self.previous_button.setEnabled(self.tile_index > 0)
+        self.next_button.setEnabled(self.tile_index < len(self.tile_messages) - 1)
+
+    def previous_tile(self):
+        if self.tile_index > 0:
+            self.tile_index -= 1
+            self.update_tile_display()
+
+    def next_tile(self):
+        if self.tile_index < len(self.tile_messages) - 1:
+            self.tile_index += 1
+            self.update_tile_display()
 
 
 class NonAliasingRTRepresenter(ruamel.yaml.RoundTripRepresenter):
@@ -102,6 +160,9 @@ class ExASPIMInstrumentView(InstrumentView):
         self.contrast_limits = dict()
         for key in self.channels.keys():
             self.contrast_limits[key] = [self.intensity_min, self.intensity_max]
+        
+        # initialize idle voltages from daq
+        # self.instrument.daqs[list(self.instrument.daqs.keys())[0]].set_idle_voltages(self.livestream_channel)
 
     def setup_camera_widgets(self) -> None:
         """
@@ -532,6 +593,7 @@ class ExASPIMInstrumentView(InstrumentView):
             # close the tasks
             daq.co_task.close()
             daq.ao_task.close()
+            # daq.set_idle_voltages(self.livestream_channel)
 
         for laser in self.channels[self.livestream_channel].get("lasers", []):
             for child in self.laser_widget.children()[1::]:  # skip first child widget
@@ -796,6 +858,29 @@ class ExASPIMAcquisitionView(AcquisitionView):
         Start acquisition and disable widgets
         """
 
+        if not self.brain_orientation_selected():
+            return
+        if not self.chamber_immersion_selected():
+            return
+        if not self.experimenter_selected():
+            return
+        if not self.subject_id_selected():
+            return
+        # if not self.round_z_mm_check():
+        #     return
+        # if not self.filter_check():
+        #     return
+        # if not self.step_size_check():
+        #     return
+        # if not self.laser_power_check():
+        #     return
+        # if not self.flip_mount_check():
+        #     return
+        # if not self.file_transfer_check():
+        #     return
+        # if not self.etl_and_focus_check():
+        #     return
+        
         # add tiles to acquisition config
         self.update_tiles()
 
@@ -873,3 +958,681 @@ class ExASPIMAcquisitionView(AcquisitionView):
         stop.setStyleSheet("background-color: #a3555b; color: black; border-radius: 10px;")
         stop.setDisabled(True)
         return stop
+
+    def brain_orientation_selected(self) -> bool:
+        orientation = getattr(self.acquisition.metadata, "brain_orientation", None)
+
+        if orientation is None or orientation == "":
+            QMessageBox.warning(
+                self,
+                "Brain orientation required",
+                "Please select a brain orientation before starting acquisition.",
+            )
+            return False
+
+        return True
+
+    def chamber_immersion_selected(self) -> bool:
+        chamber_immersion = getattr(self.acquisition.metadata, "chamber_immersion", None)
+
+        if chamber_immersion["medium"] is "None" or chamber_immersion["medium"] == "None":
+            QMessageBox.warning(
+                self,
+                "Chamber immersion medium required",
+                "Please select a chamber immersion medium before starting acquisition.",
+            )
+            return False
+
+        return True
+
+    def experimenter_selected(self) -> bool:
+        experimenter = getattr(self.acquisition.metadata, "experimenter_full_name", "None")
+
+        if experimenter is "None" or experimenter == "None":
+            QMessageBox.warning(
+                self,
+                "Experimenter full name required",
+                "Please select an experimenter full name before starting acquisition.",
+            )
+            return False
+
+        return True
+
+    def subject_id_selected(self) -> bool:
+        subject_id = getattr(self.acquisition.metadata, "subject_id", "None")
+        if subject_id is "None" or subject_id == "None":
+            QMessageBox.warning(
+                self,
+                "Subject ID required",
+                "Please select a subject ID before starting acquisition.",
+            )
+            return False
+
+        return True
+
+    def round_z_mm_check(self) -> bool:
+        camera, camera_name = self.acquisition._grab_first(
+            self.instrument.cameras
+        )
+
+        binning = int(camera.binning)
+
+        expected_round_z_by_binning = {
+            1: 2048,
+            2: 1024,
+            4: 512,
+            8: 256,
+        }
+
+        if binning not in expected_round_z_by_binning:
+            return True
+
+        expected_round_z_mm = expected_round_z_by_binning[binning]
+
+        incorrect_tiles = []
+
+        for tile_index, tile in enumerate(
+            self.acquisition.config["acquisition"]["tiles"],
+            start=1,
+        ):
+            round_z_mm = int(tile["round_z_mm"])
+
+            if round_z_mm != expected_round_z_mm:
+                incorrect_tiles.append(
+                    (tile_index, tile, round_z_mm)
+                )
+
+        if not incorrect_tiles:
+            return True
+
+        tile_text = "\n".join(
+            [
+                f"Tile {tile_index}: {current_value} → {expected_round_z_mm}"
+                for tile_index, tile, current_value in incorrect_tiles
+            ]
+        )
+
+        response = QMessageBox.question(
+            self,
+            "Incorrect round_z_mm values detected",
+            (
+                f"Camera binning is set to {binning}.\n\n"
+                f"The following tiles have incorrect round_z_mm values:\n\n"
+                f"{tile_text}\n\n"
+                f"Would you like to automatically update them?"
+            ),
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.Yes,
+        )
+
+        if response == QMessageBox.No:
+            return False
+
+        for tile_index, tile, current_value in incorrect_tiles:
+            tile["round_z_mm"] = expected_round_z_mm
+
+            self.log.info(
+                f"[round_z_mm corrected] "
+                f"Tile {tile_index}: "
+                f"{current_value} -> {expected_round_z_mm}"
+            )
+
+        return True
+
+    def filter_check(self) -> bool:
+        required_filters_by_channel = {
+            "488": "LP488",
+            "561": "BP620/50",
+        }
+
+        incorrect_tiles = []
+
+        for tile_index, tile in enumerate(
+            self.acquisition.config["acquisition"]["tiles"],
+            start=1,
+        ):
+            channel = str(tile["channel"])
+
+            if channel not in required_filters_by_channel:
+                continue
+
+            required_filter = required_filters_by_channel[channel]
+
+            filter_key = None
+            filter_value = None
+
+            # Find the filter wheel entry in the tile dictionary.
+            for key, value in tile.items():
+                if "filter" in key.lower():
+                    filter_key = key
+                    filter_value = value
+                    break
+
+            if filter_value != required_filter and filter_value is not None:
+                incorrect_tiles.append(
+                    (
+                        tile_index,
+                        tile,
+                        filter_key,
+                        filter_value,
+                        required_filter,
+                    )
+                )
+
+        if not incorrect_tiles:
+            return True
+
+        tile_text = "\n".join(
+            [
+                (
+                    f"Tile {tile_index}: "
+                    f"{current_value} → {required_filter}"
+                )
+                for (
+                    tile_index,
+                    tile,
+                    filter_key,
+                    current_value,
+                    required_filter,
+                ) in incorrect_tiles
+            ]
+        )
+
+        response = QMessageBox.question(
+            self,
+            "Potentially incorrect filter selection detected",
+            (
+                "Some channels have potentially incorrect filter selections.\n\n"
+                "The following tiles may have incorrect filters:\n\n"
+                f"{tile_text}\n\n"
+                "Would you like to automatically update them?"
+            ),
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.Yes,
+        )
+
+        if response == QMessageBox.No:
+            return False
+
+        for (
+            tile_index,
+            tile,
+            filter_key,
+            current_value,
+            required_filter,
+        ) in incorrect_tiles:
+
+            if filter_key is not None:
+                tile[filter_key] = required_filter
+
+            self.log.info(
+                f"[filter corrected] "
+                f"Tile {tile_index}: "
+                f"{current_value} -> {required_filter}"
+            )
+
+        return True
+
+    def step_size_check(self) -> bool:
+        camera, camera_name = self.acquisition._grab_first(
+            self.instrument.cameras
+        )
+
+        binning = int(camera.binning)
+
+        default_step_size = self.config["acquisition_view"]['acquisition_widgets']["channel_plan"]["init"]["properties"]["default_step_size"]
+
+        required_step_size_by_binning = {
+            1: default_step_size,
+            2: 2 * default_step_size,
+            4: 4 * default_step_size,
+            8: 8 * default_step_size,
+        }
+
+        if binning not in required_step_size_by_binning:
+            return True
+
+        required_step_size = required_step_size_by_binning[binning]
+
+        incorrect_tiles = []
+
+        for tile_index, tile in enumerate(
+            self.acquisition.config["acquisition"]["tiles"],
+            start=1,
+        ):
+            current_step_size = float(tile["step_size"])
+
+            if current_step_size != required_step_size:
+                incorrect_tiles.append(
+                    (
+                        tile_index,
+                        tile,
+                        current_step_size,
+                    )
+                )
+
+        if not incorrect_tiles:
+            return True
+
+        tile_text = "\n".join(
+            [
+                (
+                    f"Tile {tile_index}: "
+                    f"{current_value} → {required_step_size}"
+                )
+                for (
+                    tile_index,
+                    tile,
+                    current_value,
+                ) in incorrect_tiles
+            ]
+        )
+
+        response = QMessageBox.question(
+            self,
+            "Incorrect step size detected",
+            (
+                f"Camera binning is set to {binning}.\n\n"
+                f"The following tiles may have incorrect step sizes:\n\n"
+                f"{tile_text}\n\n"
+                f"Would you like to automatically update them?"
+            ),
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.Yes,
+        )
+
+        if response == QMessageBox.No:
+            return False
+
+        for (
+            tile_index,
+            tile,
+            current_value,
+        ) in incorrect_tiles:
+
+            tile["step_size"] = required_step_size
+
+            self.log.info(
+                f"[step_size corrected] "
+                f"Tile {tile_index}: "
+                f"{current_value} -> {required_step_size}"
+            )
+
+        return True
+
+    def laser_power_check(self) -> bool:
+        camera, camera_name = self.acquisition._grab_first(self.instrument.cameras)
+        binning = int(camera.binning)
+
+        incorrect_tiles = []
+
+        for tile_index, tile in enumerate(
+            self.acquisition.config["acquisition"]["tiles"],
+            start=1,
+        ):
+            channel = str(tile["channel"])
+
+            channel_config = self.instrument.channels[channel]
+            laser_names = channel_config.get("lasers", [])
+
+            if len(laser_names) == 0:
+                continue
+
+            laser_name = laser_names[0]
+            laser = self.instrument.lasers[laser_name]
+            max_laser_power = float(laser.max_power)
+
+            for key, value in tile.items():
+                laser_power = None
+                laser_power_key = None
+
+                # Case 1: scalar tile entry, e.g. tile["laser_power"] = 1000
+                if not isinstance(value, dict):
+                    key_lower = key.lower()
+
+                    if "laser" in key_lower and "power" in key_lower:
+                        try:
+                            laser_power = float(value)
+                            laser_power_key = key
+                        except (TypeError, ValueError):
+                            continue
+
+                # Case 2: nested device dictionary,
+                # e.g. tile["488nm_laser"]["power_setpoint_mw"] = 1000
+                else:
+                    for nested_key, nested_value in value.items():
+                        if nested_key == "power_setpoint_mw":
+                            try:
+                                laser_power = float(nested_value)
+                                laser_power_key = (key, nested_key)
+                            except (TypeError, ValueError):
+                                continue
+
+                if laser_power is None:
+                    continue
+
+                if binning == 1 and laser_power != max_laser_power:
+                    incorrect_tiles.append(
+                        (
+                            tile_index,
+                            tile,
+                            laser_power_key,
+                            laser_power,
+                            max_laser_power,
+                            "binning_1",
+                        )
+                    )
+
+                elif binning > 1 and laser_power >= max_laser_power:
+                    incorrect_tiles.append(
+                        (
+                            tile_index,
+                            tile,
+                            laser_power_key,
+                            laser_power,
+                            max_laser_power,
+                            "binning_gt_1",
+                        )
+                    )
+
+        if not incorrect_tiles:
+            return True
+
+        tile_text = "\n".join(
+            [
+                (
+                    f"Tile {tile_index}: "
+                    f"{laser_power_key} = {current_value}, "
+                    f"max = {max_laser_power}"
+                )
+                for (
+                    tile_index,
+                    tile,
+                    laser_power_key,
+                    current_value,
+                    max_laser_power,
+                    mode,
+                ) in incorrect_tiles
+            ]
+        )
+
+        first_mode = incorrect_tiles[0][5]
+        first_current_value = incorrect_tiles[0][3]
+        first_max_laser_power = incorrect_tiles[0][4]
+
+        if first_mode == "binning_1":
+            title = "Laser power differs from max power"
+            message = (
+                "Camera binning is set to 1.\n\n"
+                "The following laser powers are not set to their channel laser max power:\n\n"
+                f"{tile_text}\n\n"
+                "Do you want to continue with a non-max laser power?"
+            )
+
+            desired_power, ok = QInputDialog.getDouble(
+                self,
+                title,
+                message + "\n\nEnter desired laser power:",
+                first_current_value,
+                0,
+                first_max_laser_power,
+                2,
+            )
+
+        else:
+            title = "Laser power should be below max power"
+            message = (
+                f"Camera binning is set to {binning}.\n\n"
+                "For binning > 1, laser power should be less than the channel laser max power.\n\n"
+                f"{tile_text}\n\n"
+                "Enter desired laser power below max power:"
+            )
+
+            desired_power, ok = QInputDialog.getDouble(
+                self,
+                title,
+                message,
+                min(first_current_value, first_max_laser_power - 1),
+                0,
+                first_max_laser_power - 1,
+                2,
+            )
+
+        if not ok:
+            return False
+
+        if first_mode == "binning_gt_1" and desired_power >= first_max_laser_power:
+            QMessageBox.warning(
+                self,
+                "Invalid laser power",
+                f"Laser power should be less than {first_max_laser_power} when binning > 1.",
+            )
+            return False
+
+        for (
+            tile_index,
+            tile,
+            laser_power_key,
+            current_value,
+            max_laser_power,
+            mode,
+        ) in incorrect_tiles:
+            if mode == "binning_gt_1" and desired_power >= max_laser_power:
+                QMessageBox.warning(
+                    self,
+                    "Invalid laser power",
+                    (
+                        f"Tile {tile_index} uses a laser with max power {max_laser_power}.\n"
+                        f"The requested value {desired_power} is not less than that max power."
+                    ),
+                )
+                return False
+
+            if isinstance(laser_power_key, tuple):
+                parent_key, nested_key = laser_power_key
+                tile[parent_key][nested_key] = desired_power
+            else:
+                tile[laser_power_key] = desired_power
+
+            self.log.info(
+                f"[laser power updated] "
+                f"Tile {tile_index}: "
+                f"{laser_power_key}: {current_value} -> {desired_power} "
+                f"(channel laser max = {max_laser_power})"
+            )
+
+        return True
+
+    def flip_mount_check(self) -> bool:
+        tiles = self.acquisition.config["acquisition"]["tiles"]
+
+        if not tiles:
+            return True
+
+        x_positions = [
+            float(tile["position_mm"]["x"])
+            for tile in tiles
+        ]
+
+        mean_x_position = sum(x_positions) / len(x_positions)
+
+        incorrect_tiles = []
+
+        for tile_index, tile in enumerate(tiles, start=1):
+            x_position = float(tile["position_mm"]["x"])
+
+            if x_position < mean_x_position:
+                required_position = "left"
+            elif x_position > mean_x_position:
+                required_position = "right"
+            else:
+                continue
+
+            flip_mount_key = None
+            flip_mount_position = None
+
+            for key, value in tile.items():
+                if "flip" in key.lower() and "mount" in key.lower():
+                    flip_mount_key = key
+
+                    if isinstance(value, dict) and "position" in value:
+                        flip_mount_position = value["position"]
+                    else:
+                        flip_mount_position = value
+
+                    break
+
+            if flip_mount_key is None:
+                continue
+
+            if flip_mount_position != required_position:
+                incorrect_tiles.append(
+                    (
+                        tile_index,
+                        tile,
+                        flip_mount_key,
+                        flip_mount_position,
+                        required_position,
+                        x_position,
+                    )
+                )
+
+        if not incorrect_tiles:
+            return True
+
+        tile_text = "\n".join(
+            [
+                (
+                    f"Tile {tile_index}: "
+                    f"x = {x_position:.3f}, "
+                    f"{current_value} → {required_position}"
+                )
+                for (
+                    tile_index,
+                    tile,
+                    flip_mount_key,
+                    current_value,
+                    required_position,
+                    x_position,
+                ) in incorrect_tiles
+            ]
+        )
+
+        response = QMessageBox.question(
+            self,
+            "Incorrect flip mount positions detected",
+            (
+                f"Mean x position is {mean_x_position:.3f} mm.\n\n"
+                "Tiles with x positions less than the mean must use flip mount position 'left'.\n"
+                "Tiles with x positions greater than the mean must use flip mount position 'right'.\n\n"
+                "The following tiles have incorrect flip mount positions:\n\n"
+                f"{tile_text}\n\n"
+                "Would you like to automatically update them?"
+            ),
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.Yes,
+        )
+
+        if response == QMessageBox.No:
+            return False
+
+        for (
+            tile_index,
+            tile,
+            flip_mount_key,
+            current_value,
+            required_position,
+            x_position,
+        ) in incorrect_tiles:
+
+            value = tile[flip_mount_key]
+
+            if isinstance(value, dict) and "position" in value:
+                value["position"] = required_position
+            else:
+                tile[flip_mount_key] = required_position
+
+            self.log.info(
+                f"[flip_mount corrected] "
+                f"Tile {tile_index}: "
+                f"x={x_position:.3f}, "
+                f"{current_value} -> {required_position}"
+            )
+
+        return True
+
+    def file_transfer_check(self) -> bool:
+        if getattr(self.acquisition, "file_transfers", None):
+            return True
+
+        response = QMessageBox.warning(
+            self,
+            "No file transfer configured",
+            (
+                "No file transfer is configured for this acquisition.\n\n"
+                "Acquisition data may only be saved locally.\n\n"
+                "Do you want to continue?"
+            ),
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+
+        return response == QMessageBox.Yes
+
+    def etl_and_focus_check(self) -> bool:
+        tiles = self.acquisition.config["acquisition"]["tiles"]
+
+        if not tiles:
+            return True
+
+        daq = self.instrument.daqs[list(self.instrument.daqs.keys())[0]]
+
+        tile_messages = []
+
+        for tile_index, tile in enumerate(tiles, start=1):
+            channel = tile.get("channel", "unknown")
+
+            lines = []
+            lines.append(f"Channel: {channel}")
+
+            for stage_name in self.instrument.focusing_stages.keys():
+                if stage_name not in tile:
+                    continue
+
+                stage_tile_settings = tile[stage_name]
+
+                if not isinstance(stage_tile_settings, dict):
+                    continue
+
+                if "position_mm" in stage_tile_settings:
+                    lines.append(
+                        f"Focusing stage {stage_name}: "
+                        f"{stage_tile_settings['position_mm']} mm"
+                    )
+
+            for lens_name in ["left tunable lens", "right tunable lens"]:
+                try:
+                    offset_value = (
+                        daq.tasks["ao_task"]
+                        ["ports"][lens_name]
+                        ["parameters"]["offset_volts"]
+                        ["channels"][channel]
+                    )
+
+                    lines.append(
+                        f"{lens_name} offset_volts: {offset_value}"
+                    )
+
+                except KeyError:
+                    lines.append(
+                        f"{lens_name} offset_volts: not found"
+                    )
+
+            tile_messages.append("\n".join(lines))
+
+        dialog = TileCheckDialog(
+            parent=self,
+            tile_messages=tile_messages,
+        )
+
+        return dialog.exec_() == QDialog.Accepted

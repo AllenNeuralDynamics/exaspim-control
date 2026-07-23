@@ -72,6 +72,7 @@ class ExASPIMAcquisition(Acquisition):
             )  # only 1 indicator light for exaspim
         else:
             self.indicator_light = None
+        self.tunable_lens, _ = self._grab_first(self.instrument.tunable_lens)  # only 1 tunable lens for exaspim
         self.camera, camera_name = self._grab_first(self.instrument.cameras)  # only 1 camera for exaspim
         self.scanning_stage, _ = self._grab_first(self.instrument.scanning_stages)  # only 1 scanning stage for exaspim
         self.daq, _ = self._grab_first(self.instrument.daqs)  # only 1 daq for exaspim
@@ -108,12 +109,81 @@ class ExASPIMAcquisition(Acquisition):
                     # wait for start delay -> pulled from GUI only make sure in gui.yaml file
                     start_delay = tile["start_delay"]
                     self.log.info(f"waiting for start delay = {start_delay} [s]")
-                    time.sleep(tile["start_delay"])
 
                     tile_num = tile["tile_number"]
 
                     tile_channel = tile["channel"]
                     tile_prefix = tile["prefix"]
+
+                    ###############################
+                    if tile["start_delay"] > 0:
+                        # setup daq
+                        import nidaqmx
+                        from nidaqmx.constants import Slope
+
+                        channel = self.instrument.channels[tile_channel]
+                        for device_type, devices in channel.items():
+                            for device_name in devices:
+                                device = getattr(self.instrument, device_type)[device_name]
+                                if device_type in ["lasers"]:
+                                    self.log.info(f"{device_type} {device_name} disabled")
+                                    device.disable()
+                                    time.sleep(10.0)
+
+                        time.sleep(1.0)
+                        self.log.info("setting up daq")
+                        if self.daq.tasks.get("ao_task", None) is not None:
+                            self.log.info("adding ao task")
+                            self.daq.add_task("ao")
+                            self.log.info("generating ao waveforms")
+                            self.daq.generate_waveforms("ao", tile_channel)
+                            self.log.info("writing ao waveforms")
+                            self.daq.write_ao_waveforms()
+                        if self.daq.tasks.get("do_task", None) is not None:
+                            self.daq.add_task("do")
+                            self.daq.generate_waveforms("do", tile_channel)
+                            self.daq.write_do_waveforms()
+                        if self.daq.tasks.get("co_task", None) is not None:
+                            pulse_count = int(tile["start_delay"] * 1.4)
+                            self.daq.add_task("co", pulse_count)
+                        ci_task = nidaqmx.Task()
+                        ci_channel = ci_task.ci_channels.add_ci_count_edges_chan(
+                            f"/Dev1/ctr1", edge=Slope.RISING, initial_count=0
+                        )
+                        ci_channel.ci_count_edges_term = f"/Dev1/ctr0InternalOutput"
+                        # start tasks
+                        self.daq.ao_task.start()
+                        self.daq.co_task.start()
+                        ci_task.start()
+                        time.sleep(1.0)
+                        counts = 0
+                        while counts < pulse_count:
+                            time.sleep(1.0)
+                            counts = int(ci_task.read() + 1)
+                            self.log.info(f"pulse count: {counts} / {pulse_count}")
+                        # stop the daq tasks
+                        self.log.info("stopping daq")
+                        self.daq.co_task.stop()
+                        ci_task.stop()
+                        # sleep to allow last ao to play with 10% buffer
+                        time.sleep(1.0 / 1.4 * 1.1)
+                        # stop the ao task
+                        if self.daq.ao_task:
+                            self.daq.ao_task.stop()
+                        self.daq.close()
+
+                        channel = self.instrument.channels[tile_channel]
+                        for device_type, devices in channel.items():
+                            for device_name in devices:
+                                device = getattr(self.instrument, device_type)[device_name]
+                                if device_type in ["lasers"]:
+                                    self.log.info(f"{device_type} {device_name} enabled")
+                                    device.enable()
+                                    time.sleep(10.0)
+
+                    # time.sleep(tile["start_delay"])
+                    ###############################
+
                     if repeat > 0:
                         base_filename = f"{tile_prefix}_{tile_num:06}_ch_{tile_channel}_repeat_{repeat}"
                     else:
@@ -168,6 +238,7 @@ class ExASPIMAcquisition(Acquisition):
                             f"waiting for scanning stage: {instrument_axis} = "
                             f"{self.scanning_stage.position_mm} -> {tile_position:.3f} mm"
                         )
+                    time.sleep(5.0)  # wait extra time for scanning stage to settle
 
                     # check disable scanning stage stepping
                     if tile["disable_scanning"] == "on":
@@ -183,10 +254,11 @@ class ExASPIMAcquisition(Acquisition):
                             if device_type in ["lasers", "filters"]:
                                 self.log.info(f"{device_type} {device_name} enabled")
                                 device.enable()
-                            for setting, value in tile.get(device_name, {}).items():
-                                self.log.info(f"setting {setting} for {device_type} {device_name} to {value}")
-                                setattr(device, setting, value)
-                                self.log.info(f"{setting} for {device_type} {device_name} set to {value}")
+                            if device_type not in ["focusing_stages"]:
+                                for setting, value in tile.get(device_name, {}).items():
+                                    self.log.info(f"setting {setting} for {device_type} {device_name} to {value}")
+                                    setattr(device, setting, value)
+                                    self.log.info(f"{setting} for {device_type} {device_name} set to {value}")
 
                     # update etl offsets if in channel plan table
                     if "etl_left_offset" in tile:
@@ -199,6 +271,33 @@ class ExASPIMAcquisition(Acquisition):
                             self.daq.tasks["ao_task"]["ports"]["right tunable lens"]["parameters"]["offset_volts"][
                                 "channels"
                             ][tile_channel] = tile["etl_right_offset"]
+                    if "etl_left_amplitude" in tile:
+                        if tile["etl_left_amplitude"] is not None:
+                            self.daq.tasks["ao_task"]["ports"]["left tunable lens"]["parameters"]["amplitude_volts"][
+                                "channels"
+                            ][tile_channel] = tile["etl_left_amplitude"]
+                    if "etl_right_amplitude" in tile:
+                        if tile["etl_right_amplitude"] is not None:
+                            self.daq.tasks["ao_task"]["ports"]["right tunable lens"]["parameters"]["amplitude_volts"][
+                                "channels"
+                            ][tile_channel] = tile["etl_right_amplitude"]
+
+                    # ####################################
+                    # # NEW LINES FOR POWER COMPENSATION
+                    # if tile_channel == "488":
+                    #     if "max_volts" in tile:
+                    #         if tile["max_volts"] is not None:
+                    #             self.daq.tasks["ao_task"]["ports"]["488 nm"]["parameters"]["max_volts"]["channels"][
+                    #                 tile_channel
+                    #             ] = tile["max_volts"]
+                    #             self.log.info(f"setting 488 nm max volts to {tile['max_volts']} for power compensation")
+                    # if tile_channel == "561":
+                    #     if "max_volts" in tile:
+                    #         if tile["max_volts"] is not None:
+                    #             self.daq.tasks["ao_task"]["ports"]["561 nm"]["parameters"]["max_volts"]["channels"][
+                    #                 tile_channel
+                    #             ] = tile["max_volts"]
+                    #             self.log.info(f"setting 561 nm max volts to {tile['max_volts']} for power compensation")
 
                     # setup daq
                     time.sleep(1.0)
@@ -307,6 +406,7 @@ class ExASPIMAcquisition(Acquisition):
                     if self.daq.ao_task:
                         self.daq.ao_task.stop()
                     self.daq.close()
+                    self.daq.set_idle_voltages(tile_channel)
 
                     # create and start transfer threads from previous tile
                     if file_transfer:
@@ -442,6 +542,9 @@ class ExASPIMAcquisition(Acquisition):
         frame_index = 0
         last_frame_index = tile["steps"] - 1
 
+        for focusing_stage in self.instrument.focusing_stages.values():
+            self.log.info(f"focusing stage {focusing_stage.id} position = {focusing_stage.position_mm:.3f} [mm]")
+
         # Images arrive serialized in repeating channel order.
         for stack_index in range(tile["steps"]):
             if self.stop_engine.is_set():
@@ -455,7 +558,8 @@ class ExASPIMAcquisition(Acquisition):
                 memory_info = virtual_memory()
                 self.log.info(f"RAM in use = {memory_info.used / (1024 ** 3):.2f} GB")
                 self.log.info(f"laser {laser.id} power = {laser.power_mw:.2f} [mW]")
-                self.log.info(f"laser {laser.id} temperature = {laser.temperature_c:.2f} [mW]")
+                self.log.info(f"laser {laser.id} temperature = {laser.temperature_c:.2f} [C]")
+                self.log.info(f"etl {self.tunable_lens.id} temperature = {self.tunable_lens.temperature_c:.3f} [C]")
                 # self.log.info(f"camera {camera.id} sensor temperature = {camera.sensor_temperature_c:.2f} [C]")
                 # self.log.info(f"camera {camera.id} mainboard temperature = {camera.mainboard_temperature_c:.2f} [C]")
                 # try:
@@ -474,6 +578,57 @@ class ExASPIMAcquisition(Acquisition):
                 camera.prepare()
                 camera.start()
 
+                ####################################
+                # NEW LINES FOR TEMP COMPENSATION
+
+                # # stop the daq tasks
+                # self.log.info("stopping daq")
+                # if self.daq.co_task:
+                #     self.daq.co_task.stop()
+                # # sleep to allow last ao to play with 10% buffer
+                # time.sleep(1.0 / self.daq.co_frequency_hz * 1.1)
+                # # stop the ao task
+                # if self.daq.ao_task:
+                #     self.daq.ao_task.stop()
+                # self.daq.close()
+                # # self.daq.set_idle_voltages(tile["channel"])
+
+                # current_temperature = self.tunable_lens.temperature_c
+                # if t0 == 0:
+                #     t0 = current_temperature
+                #     offset0 = self.daq.tasks["ao_task"]["ports"]["left tunable lens"]["parameters"]["offset_volts"][
+                #         "channels"
+                #     ][tile["channel"]]
+                # temperature_change = current_temperature - t0
+                # self.log.info(
+                #     f"temperature change: {temperature_change:.3f} [C], adjusting lens voltage by {temperature_change*-0.08:.3f} [V]"
+                # )
+
+                # # update etl offsets if in channel plan table
+                # offset = offset0 + (temperature_change * -0.08)  # V / C drift compensation
+                # self.daq.tasks["ao_task"]["ports"]["left tunable lens"]["parameters"]["offset_volts"]["channels"][
+                #     tile["channel"]
+                # ] = offset
+                # self.log.info(f"offset value: {offset:.3f}[V]")
+                # # setup daq
+                # time.sleep(1.0)
+                # self.log.info("setting up daq")
+                # if self.daq.tasks.get("ao_task", None) is not None:
+                #     self.log.info("adding ao task")
+                #     self.daq.add_task("ao")
+                #     self.log.info("generating ao waveforms")
+                #     self.daq.generate_waveforms("ao", tile["channel"])
+                #     self.log.info("writing ao waveforms")
+                #     self.daq.write_ao_waveforms()
+                # if self.daq.tasks.get("do_task", None) is not None:
+                #     self.daq.add_task("do")
+                #     self.daq.generate_waveforms("do", tile["channel"])
+                #     self.daq.write_do_waveforms()
+                # if self.daq.tasks.get("co_task", None) is not None:
+                #     pulse_count = self.writer.chunk_count_px  # number of pulses matched to number of frames in a chunk
+                #     self.daq.add_task("co", pulse_count)
+                ####################################
+
                 # Start the daq tasks.
                 self.log.info("starting daq")
                 for task in [daq.ao_task, daq.do_task, daq.co_task]:  # must start co task last in list
@@ -486,6 +641,9 @@ class ExASPIMAcquisition(Acquisition):
 
             # Log the current state of the camera.
             camera.acquisition_state()
+            # self.log.info(f"etl {self.tunable_lens.id} temperature = {self.tunable_lens.temperature_c:.3f} [C]")
+            # temperature_sensor, _ = self._grab_first(self.instrument.temperature_sensors)
+            # self.log.info(f"sensor {temperature_sensor.id} temperature = {temperature_sensor.temperature_c:.2f} [C]")
 
             # Log the current state of the writer.
             while not writer._log_queue.empty():
