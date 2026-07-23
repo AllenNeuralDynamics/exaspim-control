@@ -1,5 +1,6 @@
 from voxel.metadata.metadata_class import MetadataClass
 
+
 X_ANATOMICAL_DIRECTIONS = {
     "Anterior to Posterior": "Anterior_to_posterior",
     "Posterior to Anterior": "Posterior_to_anterior",
@@ -13,7 +14,7 @@ Y_ANATOMICAL_DIRECTIONS = {
 Z_ANATOMICAL_DIRECTIONS = {"Left to Right": "Left_to_right", "Right to Left": "Right_to_left"}
 
 # the inflection package we're using to pluralize words chose media for plural of mediums
-MEDIA = {"air": "air", "multi": "multi", "oil": "oil", "PBS": "PBS", "water": "water", "other": "other"}
+MEDIA = {"none": None, "air": "air", "multi": "multi", "oil": "oil", "PBS": "PBS", "water": "water", "other": "other"}
 
 DATE_FORMATS = {
     "Year/Month/Day/Hour/Minute/Second": "%Y-%m-%d_%H-%M-%S",

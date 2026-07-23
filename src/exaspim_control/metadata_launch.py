@@ -11,18 +11,6 @@ from exaspim_control.exa_spim_acquisition import ExASPIMAcquisition
 from exaspim_control.exa_spim_instrument import ExASPIM
 from exaspim_control.exa_spim_view import ExASPIMAcquisitionView, ExASPIMInstrumentView
 
-X_ANATOMICAL_DIRECTIONS = {"Left to Right": "Right_to_left", "Right to Left": "Left_to_right"}
-
-Y_ANATOMICAL_DIRECTIONS = {
-    "Anterior_to_Posterior": "Anterior_to_posterior",
-    "Posterior to Anterior": "Posterior_to_anterior",
-}
-
-Z_ANATOMICAL_DIRECTIONS = {
-    "Inferior to Superior": "Inferior_to_superior",
-    "Superior to Inferior": "Superior_to_inferior",
-}
-
 
 class MetadataLaunch:
     """Class for handling metadata launch for ExASPIM."""
@@ -148,25 +136,26 @@ class MetadataLaunch:
         temp_string = external_drive.split("_")
         new_external_drive = f"{temp_string[0]}_{subject_id}_{temp_string[2]}_{temp_string[3]}"
         acq_dict = {
-            "experimenter_full_name": getattr(self.acquisition.metadata, "experimenter_full_name", []),
-            "specimen_id": str(getattr(self.acquisition.metadata, "subject_id", "")),
-            "subject_id": str(getattr(self.acquisition.metadata, "subject_id", "")),
-            "instrument_id": getattr(self.acquisition.metadata, "instrument_id", ""),
+            "experimenter_full_name": [getattr(self.acquisition.metadata, "experimenter_full_name", "None")],
+            "specimen_id": str(getattr(self.acquisition.metadata, "subject_id", "None")),
+            "subject_id": str(getattr(self.acquisition.metadata, "subject_id", "None")),
+            "instrument_id": getattr(self.acquisition.metadata, "instrument_id", "None"),
             "session_start_time": self.acquisition_start_time,
             "session_end_time": self.acquisition_end_time,
             "local_storage_directory": new_local_drive,
             "external_storage_directory": new_external_drive,
-            "chamber_immersion": getattr(self.acquisition.metadata, "chamber_immersion", None),
+            "chamber_immersion": getattr(self.acquisition.metadata, "chamber_immersion", "None"),
+            # "brain_orientation": getattr(self.acquisition.metadata, "brain_orientation", None),
             "axes": [
                 {
                     "name": "X",
                     "dimension": 2,
-                    "direction": getattr(self.acquisition.metadata, "y_anatomical_direction", None),
+                    "direction": getattr(self.acquisition.metadata, "x_anatomical_direction", None),
                 },
                 {
                     "name": "Y",
                     "dimension": 1,
-                    "direction": getattr(self.acquisition.metadata, "x_anatomical_direction", None),
+                    "direction": getattr(self.acquisition.metadata, "y_anatomical_direction", None),
                 },
                 {
                     "name": "Z",
@@ -174,7 +163,7 @@ class MetadataLaunch:
                     "direction": getattr(self.acquisition.metadata, "z_anatomical_direction", None),
                 },
             ],
-            "notes": getattr(self.acquisition.metadata, "notes", None),
+            "notes": getattr(self.acquisition.metadata, "notes", "None"),
         }
         tiles = []
         channels = self.instrument.config["instrument"]["channels"]

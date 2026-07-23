@@ -200,6 +200,23 @@ class ExASPIMAcquisition(Acquisition):
                                 "channels"
                             ][tile_channel] = tile["etl_right_offset"]
 
+                    ####################################
+                    # NEW LINES FOR POWER COMPENSATION
+                    if tile_channel == "488":
+                        if "max_volts" in tile:
+                            if tile["max_volts"] is not None:
+                                self.daq.tasks["ao_task"]["ports"]["488 nm"]["parameters"]["max_volts"]["channels"][
+                                    tile_channel
+                                ] = tile["max_volts"]
+                                self.log.info(f"setting 488 nm max volts to {tile['max_volts']} for power compensation")
+                    if tile_channel == "561":
+                        if "max_volts" in tile:
+                            if tile["max_volts"] is not None:
+                                self.daq.tasks["ao_task"]["ports"]["561 nm"]["parameters"]["max_volts"]["channels"][
+                                    tile_channel
+                                ] = tile["max_volts"]
+                                self.log.info(f"setting 561 nm max volts to {tile['max_volts']} for power compensation")
+                                
                     # setup daq
                     time.sleep(1.0)
                     self.log.info("setting up daq")
