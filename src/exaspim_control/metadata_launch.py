@@ -81,8 +81,8 @@ def _build_coordinate_system(metadata: Any, *, system_name: str = "ExASPIM-XYZ")
         name=system_name,
         origin=Origin.ORIGIN,
         axes=[
-            Axis(name=AxisName.X, direction=_to_direction(getattr(metadata, "y_anatomical_direction", None))),
-            Axis(name=AxisName.Y, direction=_to_direction(getattr(metadata, "x_anatomical_direction", None))),
+            Axis(name=AxisName.X, direction=_to_direction(getattr(metadata, "x_anatomical_direction", None))),
+            Axis(name=AxisName.Y, direction=_to_direction(getattr(metadata, "y_anatomical_direction", None))),
             Axis(name=AxisName.Z, direction=_to_direction(getattr(metadata, "z_anatomical_direction", None))),
         ],
         axis_unit=SizeUnit.UM,
