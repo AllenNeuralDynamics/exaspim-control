@@ -42,8 +42,13 @@ class CompletionCase:
     run: completion.RunEvidence
 
     def verify(self) -> UploadRequest:
-        """Verify a new snapshot against this case's explicitly configured mount."""
-        return completion.verify_completion(self.run.snapshot(), self.mount)
+        """Verify a new snapshot, translating this case's mount to a shared /allen path."""
+        return completion.verify_completion(self.run.snapshot(), self.path_map)
+
+    @property
+    def path_map(self) -> tuple[tuple[str, str], ...]:
+        """Map the temporary mount onto /allen, as a rig share would be."""
+        return ((str(self.mount.resolve()), "/allen/aind/stage/test"),)
 
     def payload(self, name: str = "acquisition.json") -> dict[str, Any]:
         """Read a finalization artifact for a focused mutation."""
@@ -232,7 +237,7 @@ def test_no_expected_work_cannot_be_verified(recording: CompletionCase, tiles: l
     run.finish({})
     assert not run.expected
     with pytest.raises(completion.UnverifiedAcquisition, match="did not complete"):
-        completion.verify_completion(run.snapshot(), recording.mount)
+        completion.verify_completion(run.snapshot(), recording.path_map)
 
 
 def test_record_tile_captures_supported_sidecars_only(recording: CompletionCase) -> None:
@@ -344,7 +349,7 @@ def test_abort_and_error_remain_sticky_across_later_success(
     assert getattr(run, flag) == value
     assert run.completed == run.expected and run.finished_at is not None
     with pytest.raises(completion.UnverifiedAcquisition, match="did not complete"):
-        completion.verify_completion(run.snapshot(), recording.mount)
+        completion.verify_completion(run.snapshot(), recording.path_map)
 
 
 def test_finish_observes_every_nested_transfer() -> None:
@@ -387,8 +392,8 @@ def test_no_transfers_records_return_but_does_not_authorize_upload(
     run.record_tile(_NAME, 8, recording.writer)
     run.finish({})
     assert run.error is None and run.finished_at is not None
-    with pytest.raises(completion.UnverifiedAcquisition, match="single configured VAST"):
-        completion.verify_completion(run.snapshot(), recording.mount)
+    with pytest.raises(completion.UnverifiedAcquisition, match="single transfer destination"):
+        completion.verify_completion(run.snapshot(), recording.path_map)
 
 
 def test_snapshot_is_frozen_and_detached_from_live_state(finalized: CompletionCase) -> None:
@@ -470,41 +475,44 @@ def test_incomplete_run_rejected_before_filesystem_access(
     finalized: CompletionCase, changes: dict[str, Any], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Any missing work or unsuccessful outcome blocks verification before path resolution."""
+    path_map = finalized.path_map
     resolve = Mock(side_effect=AssertionError("must not access filesystem"))
     monkeypatch.setattr(Path, "resolve", resolve)
     with pytest.raises(completion.UnverifiedAcquisition, match="did not complete"):
-        completion.verify_completion(replace(finalized.run.snapshot(), **changes), finalized.mount)
+        completion.verify_completion(replace(finalized.run.snapshot(), **changes), path_map)
     resolve.assert_not_called()
 
 
-@pytest.mark.parametrize("kind", ["none", "zero", "duplicate", "multiple"])
-def test_requires_one_explicit_vast_destination(finalized: CompletionCase, kind: str) -> None:
+@pytest.mark.parametrize("kind", ["zero", "duplicate", "multiple"])
+def test_requires_one_transfer_destination(finalized: CompletionCase, kind: str) -> None:
     """No destination, duplicate roots, and multiple destinations all fail closed."""
     roots = {
-        "none": (finalized.root,), "zero": (), "duplicate": (finalized.root,) * 2,
+        "zero": (), "duplicate": (finalized.root,) * 2,
         "multiple": (finalized.root, finalized.mount / "other"),
     }
     evidence = replace(finalized.run.snapshot(), dataset_roots=roots[kind])
-    mount = None if kind == "none" else finalized.mount
-    with pytest.raises(completion.UnverifiedAcquisition, match="single configured VAST"):
-        completion.verify_completion(evidence, mount)
+    with pytest.raises(completion.UnverifiedAcquisition, match="single transfer destination"):
+        completion.verify_completion(evidence, finalized.path_map)
 
 
-@pytest.mark.parametrize("kind", ["equal", "outside", "prefix", "missing-root", "missing-mount"])
-def test_dataset_must_exist_strictly_beneath_mount(
+@pytest.mark.parametrize("kind", ["unmapped", "outside", "prefix", "missing-root", "share"])
+def test_dataset_must_be_on_a_shared_allen_path(
     finalized: CompletionCase, tmp_path: Path, kind: str
 ) -> None:
     """Resolve existing paths and check actual ancestry, not lexical path prefixes."""
     sibling = tmp_path / "vast-other"
     sibling.mkdir()
     roots = {
-        "equal": finalized.mount, "outside": tmp_path, "prefix": sibling,
-        "missing-root": finalized.mount / "missing", "missing-mount": finalized.root,
+        "unmapped": finalized.root, "outside": tmp_path, "prefix": sibling,
+        "missing-root": finalized.mount / "missing", "share": finalized.root,
     }
+    path_map = {
+        "unmapped": (),
+        "share": ((str(finalized.root.resolve()), "/allen/aind"),),
+    }.get(kind, finalized.path_map)
     evidence = replace(finalized.run.snapshot(), dataset_roots=(roots[kind],))
-    mount = tmp_path / "absent" if kind == "missing-mount" else finalized.mount
     with pytest.raises((completion.UnverifiedAcquisition, FileNotFoundError)):
-        completion.verify_completion(evidence, mount)
+        completion.verify_completion(evidence, path_map)
 
 
 @pytest.mark.parametrize("kind", ["missing", "extra", "nested", "renamed", "directory"])

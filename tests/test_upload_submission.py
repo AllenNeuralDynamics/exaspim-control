@@ -7,7 +7,7 @@ import os
 import subprocess
 from dataclasses import FrozenInstanceError, dataclass, replace
 from datetime import datetime
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any
 from unittest.mock import Mock, call
 
@@ -48,7 +48,7 @@ class SubmissionCase:
 def isolated_environment(monkeypatch: pytest.MonkeyPatch) -> None:
     """Remove operator settings and forbid real children even outside dataset fixtures."""
     for key in (
-        "EXASPIM_UPLOAD_ENABLED", "EXASPIM_UPLOAD_VAST_ROOT", "EXASPIM_UPLOAD_PYTHON",
+        "EXASPIM_UPLOAD_ENABLED", "EXASPIM_UPLOAD_PATH_MAP", "EXASPIM_UPLOAD_PYTHON",
         "EXASPIM_UPLOAD_SCRIPT", "EXASPIM_UPLOAD_CWD",
     ):
         monkeypatch.delenv(key, raising=False)
@@ -79,7 +79,8 @@ def case(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> SubmissionCase:
     return SubmissionCase(
         request=upload.UploadRequest("run-123", dataset, "123456"),
         settings=upload.SubmissionSettings(
-            enabled=True, vast_root=root, interpreter=interpreter, script=script,
+            enabled=True, path_map=((str(root), "/allen/aind/stage/test"),),
+            interpreter=interpreter, script=script,
             working_directory=repository,
         ),
         process=process,
@@ -100,7 +101,7 @@ def test_defaults_and_environment_defaults() -> None:
     settings = upload.SubmissionSettings()
     assert settings == upload.SubmissionSettings.from_environment()
     assert settings.enabled is False
-    assert settings.vast_root is None
+    assert settings.path_map == ()
     assert settings.interpreter == Path(
         "/allen/programs/mindscope/workgroups/omfish/carsonb/rocky_miniconda/envs/"
         "exaspim_transformation/bin/python"
@@ -124,15 +125,15 @@ def test_environment_overrides(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
     """Honor all configured paths without deriving CWD from the script location."""
     monkeypatch.setenv("EXASPIM_UPLOAD_ENABLED", "1")
     values = {
-        "EXASPIM_UPLOAD_VAST_ROOT": tmp_path / "vast",
         "EXASPIM_UPLOAD_PYTHON": tmp_path / "environment/bin/python",
         "EXASPIM_UPLOAD_SCRIPT": tmp_path / "elsewhere/nested/submit.py",
     }
     for key, value in values.items():
         monkeypatch.setenv(key, str(value))
+    monkeypatch.setenv("EXASPIM_UPLOAD_PATH_MAP", r" D:\data = /allen/aind/stage/x ;;Z:\=/allen/z")
     settings = upload.SubmissionSettings.from_environment()
     assert settings.enabled is True
-    assert settings.vast_root == values["EXASPIM_UPLOAD_VAST_ROOT"]
+    assert settings.path_map == ((r"D:\data", "/allen/aind/stage/x"), ("Z:\\", "/allen/z"))
     assert settings.interpreter == values["EXASPIM_UPLOAD_PYTHON"]
     assert settings.script == values["EXASPIM_UPLOAD_SCRIPT"]
     assert settings.working_directory == upload.SubmissionSettings().working_directory
@@ -140,13 +141,55 @@ def test_environment_overrides(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
     assert upload.SubmissionSettings.from_environment().working_directory == tmp_path
 
 
-@pytest.mark.parametrize("value", ["", "  "])
-def test_blank_environment_root_is_unconfigured(
+@pytest.mark.parametrize("value", ["", "  ", ";", " = ; "])
+def test_blank_environment_path_map_is_empty(
     value: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Never interpret an empty staging root as the current directory."""
-    monkeypatch.setenv("EXASPIM_UPLOAD_VAST_ROOT", value)
-    assert upload.SubmissionSettings.from_environment().vast_root is None
+    """Blank mapping entries are ignored rather than mapping the current directory."""
+    monkeypatch.setenv("EXASPIM_UPLOAD_PATH_MAP", value)
+    assert upload.SubmissionSettings.from_environment().path_map == ()
+
+
+@pytest.mark.parametrize(
+    ("local", "expected"),
+    [
+        (r"\\allen\aind\stage\exaSPIM\1x\ds", "/allen/aind/stage/exaSPIM/1x/ds"),
+        (r"\\ALLEN\aind\stage\ds", "/allen/aind/stage/ds"),
+        (r"\\allen.corp\aind\stage\ds", None),
+        (r"\\other\aind\stage\ds", None),
+        (r"D:\data\ds", None),
+        (r"\\allen\aind", None),
+    ],
+)
+def test_linux_path_translates_allen_unc(local: str, expected: str | None) -> None:
+    """Only deep \\\\allen shares translate without configuration."""
+    if expected is None:
+        with pytest.raises(ValueError):
+            upload.linux_path(PureWindowsPath(local))
+    else:
+        assert upload.linux_path(PureWindowsPath(local)) == PurePosixPath(expected)
+
+
+def test_linux_path_overrides_win_and_reject_bad_entries() -> None:
+    """Explicit mappings take precedence; malformed ones fail closed."""
+    local = PureWindowsPath(r"\\allen\aind\stage\ds")
+    mapped = ((r"\\ALLEN\aind", "/allen/programs/other"),)
+    assert upload.linux_path(local, mapped) == PurePosixPath("/allen/programs/other/stage/ds")
+    drive = ((r"D:\data", "/allen/aind/stage"),)
+    assert upload.linux_path(PureWindowsPath(r"D:\data\x"), drive) == PurePosixPath(
+        "/allen/aind/stage/x"
+    )
+    for bad in ((("", "/allen/a/b"),), ((r"D:\data", "/tmp/a"),)):
+        with pytest.raises(ValueError):
+            upload.linux_path(PureWindowsPath(r"D:\data\x"), bad)
+
+
+def test_linux_path_posix_paths() -> None:
+    """POSIX /allen paths pass through; others and traversal are rejected."""
+    assert upload.linux_path(PurePosixPath("/allen/a/b/c")) == PurePosixPath("/allen/a/b/c")
+    for bad in ("/tmp/a/b/c", "/allen/a/../c/d", "relative/a/b"):
+        with pytest.raises(ValueError):
+            upload.linux_path(PurePosixPath(bad))
 
 
 def test_value_objects_and_paths_are_immutable(case: SubmissionCase) -> None:
@@ -221,10 +264,14 @@ def test_accepted_argv_receipt_and_parent_log_closure(case: SubmissionCase) -> N
     assert case.log.read_bytes() == b"existing diagnostic\nfake stdout and stderr\n"
     payload = case.payload()
     assert set(payload) == {
-        "run_id", "source", "subject_id", "project_name", "timestamp", "state", "exit_code",
+        "run_id", "source", "linux_source", "subject_id", "project_name", "timestamp",
+        "state", "exit_code",
     }
     assert payload["run_id"] == case.request.run_id
     assert payload["source"] == str(case.request.source)
+    assert payload["linux_source"] == (
+        "/allen/aind/stage/test/exaSPIM_123456_2026-09-10_12-30-45/exaSPIM"
+    )
     assert payload["subject_id"] == case.request.subject_id
     assert payload["project_name"] == case.settings.project_name
     assert payload["state"] == "accepted"
@@ -247,26 +294,35 @@ def test_project_override_is_passed_unchanged(case: SubmissionCase) -> None:
     assert case.payload()["project_name"] == case.settings.project_name
 
 
-@pytest.mark.parametrize("platform", ["win32", "darwin"])
-def test_non_linux_is_rejected(
-    case: SubmissionCase, platform: str, monkeypatch: pytest.MonkeyPatch
+def test_unsupported_platform_is_rejected(
+    case: SubmissionCase, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """No remote launcher or alternate-platform fallback is attempted."""
-    monkeypatch.setattr(upload.sys, "platform", platform)
+    monkeypatch.setattr(upload.sys, "platform", "darwin")
     _assert_not_started(case, case.submit())
 
 
-@pytest.mark.parametrize("root_kind", ["unset", "missing", "relative", "file", "equal"])
-def test_invalid_vast_roots(case: SubmissionCase, root_kind: str) -> None:
-    """Require an existing absolute directory strictly above the dataset."""
-    roots = {
-        "unset": None,
-        "missing": case.request.dataset_root / "missing",
-        "relative": Path("vast"),
-        "file": case.settings.script,
-        "equal": case.request.dataset_root,
+def test_windows_launch_uses_detached_creation_flags(
+    case: SubmissionCase, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Windows children get their own hidden process group instead of a POSIX session."""
+    monkeypatch.setattr(upload.sys, "platform", "win32")
+    assert case.submit().status == "accepted"
+    kwargs = case.popen.call_args.kwargs
+    assert "start_new_session" not in kwargs
+    assert kwargs["creationflags"] == 0x200 | 0x08000000
+
+
+@pytest.mark.parametrize("kind", ["unset", "missing-prefix", "bad-target", "other"])
+def test_invalid_path_maps(case: SubmissionCase, tmp_path: Path, kind: str) -> None:
+    """Datasets that cannot be translated onto an /allen share are never submitted."""
+    maps = {
+        "unset": (),
+        "missing-prefix": (("", "/allen/aind/stage"),),
+        "bad-target": ((str(case.request.dataset_root.parent), "/tmp/stage"),),
+        "other": ((str(tmp_path / "elsewhere"), "/allen/aind/stage"),),
     }
-    case.settings = replace(case.settings, vast_root=roots[root_kind])
+    case.settings = replace(case.settings, path_map=maps[kind])
     _assert_not_started(case, case.submit())
 
 
@@ -296,8 +352,8 @@ def test_symlink_directory_aliases_fail_closed(
     """Do not silently canonicalize the consented path or allow escaping aliases."""
     if component == "root":
         alias = tmp_path / "root-alias"
-        alias.symlink_to(case.settings.vast_root, target_is_directory=True)
-        case.settings = replace(case.settings, vast_root=alias)
+        alias.symlink_to(case.request.dataset_root.parent, target_is_directory=True)
+        case.settings = replace(case.settings, path_map=((str(alias), "/allen/aind/stage/test"),))
     elif component == "dataset":
         alias = case.request.dataset_root.with_name("alias_2026-09-10_12-30-45")
         alias.symlink_to(case.request.dataset_root, target_is_directory=True)

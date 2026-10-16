@@ -8,8 +8,9 @@ and exits zero only after service acceptance. This module neither inspects nor r
 script. ``accepted`` means submission acceptance under those prerequisites, not upload completion.
 
 The caller must verify acquisition evidence and finalized metadata immediately before calling.
-These checks only enforce the local Linux launch contract and basic existing dataset layout;
-the configured VAST root must be the same mount visible to the downstream service. Calling
+These checks only enforce the local launch contract (Linux or Windows) and basic existing
+dataset layout; the dataset must be on a share the downstream Linux service sees under
+``/allen`` (see ``linux_path``). The CLI receives the local path it can read. Calling
 ``submit_upload`` constitutes consent. All receipts, including failed or incomplete ones, block
 retries pending manual reconciliation. No service polling or automatic retry is performed.
 """
@@ -27,7 +28,7 @@ import tempfile
 from contextlib import suppress
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from pathlib import Path
+from pathlib import Path, PurePath, PurePosixPath, PureWindowsPath
 from typing import BinaryIO
 
 _DEFAULT_INTERPRETER = Path(
@@ -40,6 +41,10 @@ _DEFAULT_REPOSITORY = Path(
 _DEFAULT_SCRIPT = _DEFAULT_REPOSITORY / "docs/examples/test_airflow.py"
 _TIMESTAMP = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}_[0-9]{2}-[0-9]{2}-[0-9]{2}")
 _TERMINATION_GRACE_SECONDS = 5.0
+_SUPPORTED_PLATFORMS = ("linux", "win32")
+# Windows-only Popen flags, spelled numerically so the module imports on every platform.
+_CREATE_NEW_PROCESS_GROUP = 0x00000200
+_CREATE_NO_WINDOW = 0x08000000
 
 
 @dataclass(frozen=True)
@@ -51,7 +56,7 @@ class UploadRequest:
     run_id : str
         Nonblank identity captured for this acquisition.
     dataset_root : Path
-        Existing canonical, absolute dataset directory beneath the configured VAST root.
+        Existing canonical, absolute dataset directory written by the acquisition transfer.
     subject_id : str
         Nonblank subject captured for this acquisition, not a mutable GUI value.
     """
@@ -74,8 +79,8 @@ class SubmissionSettings:
     ----------
     enabled : bool
         Opt in only after repairing the external CLI and its HTTP error handling.
-    vast_root : Path or None
-        Required canonical, absolute staging root shared with the service.
+    path_map : tuple of (str, str)
+        Extra ``(local prefix, /allen prefix)`` translations checked before the built-in rule.
     interpreter : Path
         External environment's executable; never falls back to this process's interpreter.
     script : Path
@@ -89,7 +94,7 @@ class SubmissionSettings:
     """
 
     enabled: bool = False
-    vast_root: Path | None = None
+    path_map: tuple[tuple[str, str], ...] = ()
     interpreter: Path = _DEFAULT_INTERPRETER
     script: Path = _DEFAULT_SCRIPT
     working_directory: Path = _DEFAULT_REPOSITORY
@@ -104,15 +109,20 @@ class SubmissionSettings:
         -------
         SubmissionSettings
             Only ``EXASPIM_UPLOAD_ENABLED=1`` enables submission. Path overrides are
-            ``EXASPIM_UPLOAD_VAST_ROOT``, ``EXASPIM_UPLOAD_PYTHON``,
-            ``EXASPIM_UPLOAD_SCRIPT``, and ``EXASPIM_UPLOAD_CWD``. Missing or blank VAST
-            roots remain unconfigured. CWD defaults to the fixed external repository,
-            even when the script is overridden. Other settings allow explicit injection.
+            ``EXASPIM_UPLOAD_PYTHON``, ``EXASPIM_UPLOAD_SCRIPT``, and ``EXASPIM_UPLOAD_CWD``.
+            ``EXASPIM_UPLOAD_PATH_MAP`` holds ``local=/allen/...`` pairs separated by ``;``.
+            CWD defaults to the fixed external repository, even when the script is
+            overridden. Other settings allow explicit injection.
         """
-        root = os.environ.get("EXASPIM_UPLOAD_VAST_ROOT", "")
+        entries = os.environ.get("EXASPIM_UPLOAD_PATH_MAP", "").split(";")
         return cls(
             enabled=os.environ.get("EXASPIM_UPLOAD_ENABLED") == "1",
-            vast_root=Path(root) if root.strip() else None,
+            # Malformed entries are kept so that linux_path rejects them, never ignores them.
+            path_map=tuple(
+                (local.strip(), target.strip())
+                for local, _, target in (entry.rpartition("=") for entry in entries)
+                if local.strip() or target.strip()
+            ),
             interpreter=Path(os.environ.get("EXASPIM_UPLOAD_PYTHON", str(_DEFAULT_INTERPRETER))),
             script=Path(os.environ.get("EXASPIM_UPLOAD_SCRIPT", str(_DEFAULT_SCRIPT))),
             working_directory=Path(os.environ.get("EXASPIM_UPLOAD_CWD", str(_DEFAULT_REPOSITORY))),
@@ -149,6 +159,47 @@ def receipt_path(request: UploadRequest) -> Path:
         Receipt within the dataset's existing derivatives directory.
     """
     return request.dataset_root / "derivatives" / "upload_submission.json"
+
+
+def linux_path(local: PurePath, path_map: tuple[tuple[str, str], ...] = ()) -> PurePosixPath:
+    """Translate a dataset location to the ``/allen`` path the Linux service reads.
+
+    Parameters
+    ----------
+    local : PurePath
+        Resolved local path; a ``PureWindowsPath`` on Windows hosts.
+    path_map : tuple of (str, str)
+        Explicit ``(local prefix, /allen prefix)`` pairs, checked first and in order.
+
+    Returns
+    -------
+    PurePosixPath
+        ``\\\\allen\\<share>\\rest`` becomes ``/allen/<share>/rest``; ``/allen/...`` is kept.
+
+    Raises
+    ------
+    ValueError
+        The path is not beneath ``/allen/<share>`` after translation, or a mapping is invalid.
+    """
+    result: PurePosixPath | None = None
+    for prefix, target in path_map:
+        if not prefix or not target.startswith("/allen/"):
+            raise ValueError(f"Invalid EXASPIM_UPLOAD_PATH_MAP entry: {prefix}={target}")
+        base = type(local)(prefix)
+        if local == base or base in local.parents:
+            result = PurePosixPath(target, *local.relative_to(base).parts)
+            break
+    if result is None and isinstance(local, PureWindowsPath):
+        server, _, share = local.drive[2:].partition("\\")
+        if local.drive.startswith("\\\\") and server.lower() == "allen" and share:
+            result = PurePosixPath("/allen", share, *local.parts[1:])
+    elif result is None and local.is_absolute():
+        result = PurePosixPath(local.as_posix())
+    if result is None or result.parts[:2] != ("/", "allen") or len(result.parts) < 4:
+        raise ValueError(f"Dataset is not beneath a shared /allen location: {local}")
+    if ".." in result.parts:
+        raise ValueError(f"Dataset path must not contain traversal: {local}")
+    return result
 
 
 def _canonical_directory(path: Path) -> None:
@@ -200,7 +251,8 @@ def _validate_launch(settings: SubmissionSettings) -> None:
     for path, permission in ((settings.interpreter, os.X_OK), (settings.script, os.R_OK)):
         if not path.is_absolute() or not path.is_file() or not os.access(path, permission):
             raise ValueError(
-                "Interpreter must be executable and script readable, at absolute paths."
+                "Interpreter must be executable and script readable, at absolute paths "
+                "(set EXASPIM_UPLOAD_PYTHON and EXASPIM_UPLOAD_SCRIPT on Windows)."
             )
     if not settings.working_directory.is_absolute() or not settings.working_directory.is_dir():
         raise ValueError("The external working directory must exist at an absolute path.")
@@ -208,14 +260,10 @@ def _validate_launch(settings: SubmissionSettings) -> None:
 
 def _preflight(request: UploadRequest, settings: SubmissionSettings) -> None:
     """Validate the local contract without writing files or invoking the CLI."""
-    if sys.platform != "linux":
-        raise ValueError("Submission requires the configured interpreter on this Linux host.")
-    if settings.vast_root is None:
-        raise ValueError("A shared VAST root must be explicitly configured.")
-    _canonical_directory(settings.vast_root)
+    if sys.platform not in _SUPPORTED_PLATFORMS:
+        raise ValueError("Submission is only supported on Linux and Windows hosts.")
     _canonical_directory(request.dataset_root)
-    if settings.vast_root not in request.dataset_root.parents:
-        raise ValueError("The dataset must be strictly beneath the configured VAST root.")
+    linux_path(request.dataset_root, settings.path_map)
     _canonical_directory(receipt_path(request).parent)
     if os.path.lexists(receipt_path(request)):
         raise FileExistsError("An existing receipt blocks submission in every state.")
@@ -227,7 +275,14 @@ def _preflight(request: UploadRequest, settings: SubmissionSettings) -> None:
 def _open_log(path: Path) -> BinaryIO:
     """Open an append-only regular log, refusing symlinks and blocking special files."""
     # NONBLOCK prevents hanging on a pre-existing FIFO before fstat can reject it.
-    flags = os.O_WRONLY | os.O_CREAT | os.O_APPEND | os.O_NOFOLLOW | os.O_NONBLOCK
+    # Windows lacks NOFOLLOW/NONBLOCK (and FIFOs), so symlinks are rejected explicitly there.
+    nofollow = getattr(os, "O_NOFOLLOW", 0)
+    if not nofollow and path.is_symlink():
+        raise ValueError("Submission log must not be a symlink.")
+    flags = (
+        os.O_WRONLY | os.O_CREAT | os.O_APPEND | nofollow
+        | getattr(os, "O_NONBLOCK", 0) | getattr(os, "O_BINARY", 0)
+    )
     descriptor = os.open(path, flags, 0o600)
     try:
         if not stat.S_ISREG(os.fstat(descriptor).st_mode):
@@ -277,6 +332,13 @@ def _finish(
             "submission may have occurred. Reconcile the receipt, log, and service; do not retry.",
         )
     return result
+
+
+def _detach_options() -> dict[str, object]:
+    """Detach the child from the GUI's session or console so GUI shutdown need not kill it."""
+    if sys.platform == "win32":
+        return {"creationflags": _CREATE_NEW_PROCESS_GROUP | _CREATE_NO_WINDOW}
+    return {"start_new_session": True}
 
 
 def _stop_child(process: subprocess.Popen[bytes]) -> int:
@@ -366,6 +428,7 @@ def submit_upload(request: UploadRequest, settings: SubmissionSettings) -> Submi
     payload: dict[str, object] = {
         "run_id": request.run_id,
         "source": str(request.source),
+        "linux_source": str(linux_path(request.source, settings.path_map)),
         "subject_id": request.subject_id,
         "project_name": settings.project_name,
         "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -392,8 +455,9 @@ def submit_upload(request: UploadRequest, settings: SubmissionSettings) -> Submi
                 stream.flush()
                 os.fsync(stream.fileno())
             process = subprocess.Popen(
-                argv, cwd=str(settings.working_directory), shell=False, start_new_session=True,
+                argv, cwd=str(settings.working_directory), shell=False,
                 stdin=subprocess.DEVNULL, stdout=log, stderr=log, close_fds=True,
+                **_detach_options(),
             )
     except Exception as error:
         status = "unknown" if process is not None else "failed-to-start"

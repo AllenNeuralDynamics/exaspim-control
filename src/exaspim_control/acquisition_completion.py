@@ -18,7 +18,7 @@ from aind_data_schema.core.acquisition import Acquisition
 from aind_data_schema.core.instrument import Instrument
 from imohash import hashfile
 
-from exaspim_control.upload_submission import UploadRequest
+from exaspim_control.upload_submission import UploadRequest, linux_path
 
 logger = logging.getLogger(__name__)
 F = TypeVar("F", bound=Callable[..., None])
@@ -210,15 +210,17 @@ def _verify_metadata(root: Path, evidence: AcquisitionEvidence, expected: set[st
         raise UnverifiedAcquisition("Dataset is not pending submission")
 
 
-def verify_completion(evidence: AcquisitionEvidence, vast_root: Path | None) -> UploadRequest:
+def verify_completion(
+    evidence: AcquisitionEvidence, path_map: tuple[tuple[str, str], ...] = ()
+) -> UploadRequest:
     """Validate final VAST data read-only, in a worker rather than the Qt thread.
 
     Parameters
     ----------
     evidence : AcquisitionEvidence
         Snapshot recorded by the completed acquisition, before source deletion.
-    vast_root : Path or None
-        Explicitly configured shared VAST mount; no local-path fallback is allowed.
+    path_map : tuple of (str, str)
+        Extra local-to-``/allen`` translations; see ``linux_path``.
 
     Returns
     -------
@@ -234,14 +236,18 @@ def verify_completion(evidence: AcquisitionEvidence, vast_root: Path | None) -> 
             or not evidence.subject_id or not evidence.expected
             or dict(evidence.expected) != dict(evidence.completed)):
         raise UnverifiedAcquisition("Acquisition did not complete successfully")
-    if vast_root is None or len(evidence.dataset_roots) != 1:
-        raise UnverifiedAcquisition("A single configured VAST destination is required")
+    if len(evidence.dataset_roots) != 1:
+        raise UnverifiedAcquisition("A single transfer destination is required")
     root = evidence.dataset_roots[0].resolve(strict=True)
-    mount = vast_root.resolve(strict=True)
-    if root == mount or not root.is_relative_to(mount):
-        raise UnverifiedAcquisition("Dataset is outside the configured VAST mount")
+    try:
+        linux_path(root, path_map)
+    except ValueError as exc:
+        raise UnverifiedAcquisition(str(exc)) from exc
     expected = {name for name, _ in evidence.expected}
-    actual = {str(path.relative_to(root / "exaSPIM")) for path in (root / "exaSPIM").rglob("*.ims")}
+    actual = {
+        path.relative_to(root / "exaSPIM").as_posix()
+        for path in (root / "exaSPIM").rglob("*.ims")
+    }
     if actual != expected:
         raise UnverifiedAcquisition("Missing or unexpected IMS inputs on VAST")
     recorded = set()

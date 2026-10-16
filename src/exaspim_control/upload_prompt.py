@@ -10,7 +10,10 @@ from threading import Event, Thread
 from qtpy.QtCore import QEvent, QObject, Qt, Signal, Slot
 from qtpy.QtWidgets import QMessageBox, QWidget
 
-from exaspim_control.acquisition_completion import AcquisitionEvidence, verify_completion
+from exaspim_control.acquisition_completion import (
+    AcquisitionEvidence,
+    verify_completion,
+)
 from exaspim_control.upload_submission import (
     SubmissionResult,
     SubmissionSettings,
@@ -45,7 +48,7 @@ def _work(
 
 
 def _candidate(evidence: AcquisitionEvidence, settings: SubmissionSettings) -> UploadRequest | None:
-    request = verify_completion(evidence, settings.vast_root)
+    request = verify_completion(evidence, settings.path_map)
     if receipt_path(request).exists():
         logger.info("Submission receipt already exists for %s", request.dataset_root)
         return None
@@ -56,7 +59,7 @@ def _submit(
     evidence: AcquisitionEvidence, settings: SubmissionSettings, closed: Event,
 ) -> SubmissionResult:
     # Re-read all evidence after consent; an old question must not submit changed data.
-    request = verify_completion(evidence, settings.vast_root)
+    request = verify_completion(evidence, settings.path_map)
     if closed.is_set():
         return SubmissionResult("disabled", "Window closed before submission started.")
     return submit_upload(request, settings)
@@ -76,7 +79,7 @@ class UploadPromptController(QObject):
     -----
     Call ``offer`` only after successful metadata finalization, on the GUI thread.
     Submission is disabled by default until the external script is repaired and
-    EXASPIM_UPLOAD_ENABLED=1 and EXASPIM_UPLOAD_VAST_ROOT are configured.
+    EXASPIM_UPLOAD_ENABLED=1 is configured.
     """
 
     def __init__(self, parent: QWidget, settings: SubmissionSettings | None = None) -> None:

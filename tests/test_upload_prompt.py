@@ -42,7 +42,7 @@ def ui(tmp_path: Path, app: QApplication) -> Iterator[tuple]:
     """A plain QWidget is sufficient: no napari, device SDK or acquisition is opened."""
     case = _finalized_case(tmp_path)
     window = QWidget()
-    settings = SubmissionSettings(enabled=True, vast_root=case.mount)
+    settings = SubmissionSettings(enabled=True, path_map=case.path_map)
     controller = prompt.UploadPromptController(window, settings)
     window.show()
     yield case, window, controller

@@ -136,7 +136,7 @@ def test_offer_lazily_constructs_and_reuses_fake_controller(
     launch = _build_metadata_launch()
     run = _record(tmp_path)
     launch.acquisition._upload_evidence = run
-    settings = SubmissionSettings(enabled=True, vast_root=tmp_path)
+    settings = SubmissionSettings(enabled=True, path_map=((str(tmp_path), "/allen/x/y"),))
     monkeypatch.setattr(SubmissionSettings, "from_environment", Mock(return_value=settings))
     snapshot = Mock(wraps=run.snapshot)
     monkeypatch.setattr(run, "snapshot", snapshot)
