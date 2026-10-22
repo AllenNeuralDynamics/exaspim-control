@@ -147,6 +147,7 @@ class MetadataLaunch:
         self.acquisition_view = acquisition_view
         # log filename
         self.log_filename = log_filename
+        self._upload_prompt = None
         # start and finish the acquisition - populated by the acquisitionStarted/Ended signals.
         # ``parse_metadata`` later coerces them to timezone-aware datetimes for v2 Acquisition.
         self.acquisition_start_time = None
@@ -202,6 +203,7 @@ class MetadataLaunch:
             # delete local directory
             self.log.info(f"deleting {str(Path(transfer.local_path, transfer.acquisition_name))}")
             shutil.rmtree(str(Path(transfer.local_path, transfer.acquisition_name)))
+            self._offer_upload()
         else:  # no transfers so save locally
             for device_name, writer_dict in self.acquisition.writers.items():
                 for writer in writer_dict.values():
@@ -226,6 +228,29 @@ class MetadataLaunch:
                     os.rename(str(Path(save_to, file)), str(Path(save_to, "exaSPIM", file)))
                 if file.endswith(".tiff") or file.endswith(".log") or file.endswith(".yaml"):
                     os.rename(str(Path(save_to, file)), str(Path(save_to, "derivatives", file)))
+
+    def _offer_upload(self) -> None:
+        """Offer upload only after external finalization; keep Qt optional for metadata users."""
+        try:
+            from exaspim_control.acquisition_completion import RunEvidence
+            from exaspim_control.upload_submission import SubmissionSettings
+
+            evidence = getattr(self.acquisition, "_upload_evidence", None)
+            if not isinstance(evidence, RunEvidence):
+                self.log.info("Upload prompt suppressed: no acquisition completion evidence")
+                return
+            settings = SubmissionSettings.from_environment()
+            if not settings.enabled:
+                self.log.info("Upload prompt disabled (EXASPIM_UPLOAD_ENABLED is not 1)")
+                return
+            if self._upload_prompt is None:
+                from exaspim_control.upload_prompt import UploadPromptController
+
+                self._upload_prompt = UploadPromptController(self.acquisition_view, settings)
+            self._upload_prompt.offer(evidence.snapshot())
+        except Exception:
+            # An optional popup must not alter acquisition/finalization error behavior.
+            self.log.exception("Unable to offer upload; no submission was started")
 
     def parse_metadata(self) -> Acquisition:
         """

@@ -20,6 +20,8 @@ from voxel.acquisition.acquisition import Acquisition
 from voxel.instruments.instrument import Instrument
 from voxel.writers.data_structures.shared_double_buffer import SharedDoubleBuffer
 
+from exaspim_control.acquisition_completion import RunEvidence
+
 DIRECTORY = Path(__file__).parent.resolve()
 
 
@@ -44,6 +46,7 @@ class ExASPIMAcquisition(Acquisition):
 
         # initialize stop engine event
         self.stop_engine = Event()
+        self._upload_evidence = RunEvidence()
         # store initial stage positions
         self.initial_position_mm = dict()
 
@@ -53,11 +56,14 @@ class ExASPIMAcquisition(Acquisition):
 
         :raises ValueError: If there is not enough local disk space.
         """
+        # Optional popup observations never authorize upload from a previous run.
+        self._upload_evidence = RunEvidence(cancelled=self.stop_engine.is_set())
         # verify acquisition
         self._verify_acquisition()
 
         # set acquisition name
         self._set_acquisition_name()
+        self._upload_evidence.configure(self)
 
         # create directories
         self._create_directories()
@@ -388,6 +394,8 @@ class ExASPIMAcquisition(Acquisition):
             self.log.info("turning off indicator light")
             self.indicator_light.disable()
 
+        self._upload_evidence.finish(file_transfer_threads)
+
     def acquisition_engine(
         self, tile: dict, base_filename: str, camera, daq, writer, processes: dict, scanning_stage
     ) -> None:
@@ -566,6 +574,9 @@ class ExASPIMAcquisition(Acquisition):
             for process in processes.values():
                 process.wait_to_finish()
 
+            # Capture closed source files before the existing transfer can delete them.
+            self._upload_evidence.record_tile(base_filename, frame_index, writer)
+
             # clean up the image buffer
             self.log.info("deallocating shared double buffer.")
             img_buffer.close_and_unlink()
@@ -580,6 +591,7 @@ class ExASPIMAcquisition(Acquisition):
         Stop acquisition.
         """
         self.log.info("stopping acquisition")
+        self._upload_evidence.cancelled = True
         self.stop_engine.set()
 
     def check_local_disk_space(self, writer: object, compression_ratio: float = 1) -> bool:

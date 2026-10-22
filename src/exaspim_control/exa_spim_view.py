@@ -911,14 +911,14 @@ class ExASPIMAcquisitionView(AcquisitionView):
 
         # Start acquisition
         self.acquisition_thread = create_worker(self.acquisition.run)
-        self.acquisition_thread.start()
         self.acquisition_thread.finished.connect(self.acquisition_ended)
+        self.acquisitionStarted.emit(datetime.now())
+        self.acquisition_thread.start()
 
         # start all workers
         for worker in self.property_workers:
             worker.resume()
             time.sleep(1)
-        self.acquisitionStarted.emit(datetime.now())
 
     def stop_acquisition(self) -> None:
         """

@@ -1,0 +1,25 @@
+# ExaSPIM upload submission settings. No secrets belong in this file.
+
+# aind-data-transfer-service
+endpoint = "http://aind-data-transfer-service"
+job_type = "exaSPIM"
+s3_bucket = "open"                 # service bucket key
+s3_bucket_name = "aind-open-data"  # bucket that s3_bucket resolves to
+user_email = "carson.berry@alleninstitute.org"
+
+# aind-exaspim-data-transformation release
+image = "ghcr.io/allenneuraldynamics/aind-exaspim-data-transformation"
+image_version = "1.0.0"
+
+# Sizing
+max_partitions = 128
+screening_partitions = 16
+screening_max_bytes = 966367641600  # 900 GiB
+processing_speed_gb_per_hour = 8200
+
+# Code Ocean
+screening_pipeline_id = "5ad577f1-a6e6-49a7-af95-876480c7ed21"
+production_5x_pipeline_id = "63273560-d0bb-4dd8-9ab4-636b9e14d53c"
+codeocean_mount = "exaSPIM_screening_dataset"
+neuroglancer_smartsheet_process = "capsule_write_production_neuroglancer_link_to_smartsheet_1"
+smartsheet_id = "590053667458948"

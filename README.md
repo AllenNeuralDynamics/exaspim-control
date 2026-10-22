@@ -123,7 +123,7 @@ This control software can optionally check I/O bandwidth to a local and external
 
 ### Documentation
 
-- _(coming soon)_
+- [Optional post-acquisition upload prompt](docs/post_acquisition_upload.md)
 
 ### Usage
 
