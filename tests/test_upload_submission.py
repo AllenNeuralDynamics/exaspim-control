@@ -102,14 +102,10 @@ def test_defaults_and_environment_defaults() -> None:
     assert settings == upload.SubmissionSettings.from_environment()
     assert settings.enabled is False
     assert settings.path_map == ()
-    assert settings.interpreter == Path(
-        "/allen/programs/mindscope/workgroups/omfish/carsonb/rocky_miniconda/envs/"
-        "exaspim_transformation/bin/python"
-    )
-    assert settings.working_directory == Path(
-        "/home/carson.berry/allen/aind/scratch/carson.berry/aind-exaspim-data-transformation"
-    )
-    assert settings.script == settings.working_directory / "docs/examples/test_airflow.py"
+    submitter = Path(upload.__file__).resolve().parents[2] / "submitter"
+    assert settings.working_directory == submitter
+    assert settings.interpreter == submitter / ".venv/bin/python"
+    assert settings.script == submitter / "src/exaspim_submitter/cli.py"
     assert settings.project_name == "Single Neuron Reconstructions"
     assert settings.timeout_seconds == 120.0
 
@@ -235,6 +231,7 @@ def test_accepted_argv_receipt_and_parent_log_closure(case: SubmissionCase) -> N
         assert case.payload()["exit_code"] is None
         assert argv == [
             str(case.settings.interpreter), str(case.settings.script), str(case.request.source),
+            "--remote-source", case.payload()["linux_source"],
             "--project-name", "Single Neuron Reconstructions",
             "--subject-id", "subject with spaces; $(ignored)",
         ]
@@ -290,7 +287,8 @@ def test_project_override_is_passed_unchanged(case: SubmissionCase) -> None:
     """Explicit injection supports other project names without shell interpolation."""
     case.settings = replace(case.settings, project_name="Project 'two' ; $literal")
     assert case.submit().status == "accepted"
-    assert case.popen.call_args.args[0][4] == case.settings.project_name
+    argv = case.popen.call_args.args[0]
+    assert argv[argv.index("--project-name") + 1] == case.settings.project_name
     assert case.payload()["project_name"] == case.settings.project_name
 
 

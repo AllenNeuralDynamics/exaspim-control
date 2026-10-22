@@ -31,14 +31,13 @@ from datetime import datetime, timezone
 from pathlib import Path, PurePath, PurePosixPath, PureWindowsPath
 from typing import BinaryIO
 
-_DEFAULT_INTERPRETER = Path(
-    "/allen/programs/mindscope/workgroups/omfish/carsonb/rocky_miniconda/envs/"
-    "exaspim_transformation/bin/python"
+# The submitter sub-project ships in this repository (source checkout), with its own uv venv
+# created by ``uv sync --frozen --project submitter``.
+_DEFAULT_REPOSITORY = Path(__file__).resolve().parents[2] / "submitter"
+_DEFAULT_INTERPRETER = _DEFAULT_REPOSITORY / (
+    ".venv/Scripts/python.exe" if sys.platform == "win32" else ".venv/bin/python"
 )
-_DEFAULT_REPOSITORY = Path(
-    "/home/carson.berry/allen/aind/scratch/carson.berry/aind-exaspim-data-transformation"
-)
-_DEFAULT_SCRIPT = _DEFAULT_REPOSITORY / "docs/examples/test_airflow.py"
+_DEFAULT_SCRIPT = _DEFAULT_REPOSITORY / "src/exaspim_submitter/cli.py"
 _TIMESTAMP = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}_[0-9]{2}-[0-9]{2}-[0-9]{2}")
 _TERMINATION_GRACE_SECONDS = 5.0
 _SUPPORTED_PLATFORMS = ("linux", "win32")
@@ -437,6 +436,7 @@ def submit_upload(request: UploadRequest, settings: SubmissionSettings) -> Submi
     }
     argv = [
         str(settings.interpreter), str(settings.script), str(request.source),
+        "--remote-source", str(payload["linux_source"]),
         "--project-name", settings.project_name, "--subject-id", request.subject_id,
     ]
     claimed = False
